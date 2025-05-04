@@ -1,0 +1,415 @@
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+:root {
+  --primary-green-dark: #7fa94f;
+  /* --primary-green-dark: #8ac957; */
+  --primary-green-light: #76994e;
+
+  --primary-yellow-dark: #f0cd34;
+  --primary-yellow-light: #ffd900;
+
+  --primary-blue-light: #2164d0;
+  --primary-blue-dark: #2b6eda;
+
+  --primary-red-light: #ef5050;
+  --primary-red-dark: #f36161;
+
+  --link-light: #0645ad;
+  --link-dark: #75b4f8;
+
+  --title-color-light: #000000;
+  --title-color-dark: #fef6ec;
+
+  --text-color-light: #4c392f;
+  --text-color-dark: #eae0d4;
+
+  --mute-text-light: #b0a99f;
+  --mute-text-dark: #9a9087;
+
+  --bg-color-light: #eeeae1;
+  --bg-color-dark: #181410;
+
+  --element-bg-light: #dfdacc;
+  --element-bg-dark: #261f18;
+
+  --element-top-bg-light: #d0cbbb;
+  --element-top-bg-dark: #312a22;
+
+  --border-color-light: #cdc8bc;
+  --border-color-dark: #312a22;
+}
+
+:root {
+  --ui-primary: var(--primary-green-light);
+  --ui-secondary: var(--primary-blue-light);
+  --ui-success: var(--primary-green-light);
+  --ui-info: var(--primary-yellow-light);
+  --ui-warning: var(--primary-red-light);
+  --ui-error: var(--primary-red-light);
+  --ui-link: var(--link-light);
+
+  --ui-text-dimmed: var(--mute-text-light);
+  --ui-text-muted: var(--mute-text-light);
+  --ui-text-toned: var(--mute-text-light);
+  --ui-text: var(--text-color-light);
+  --ui-text-highlighted: var(--color-black);
+  --ui-text-inverted: var(--text-color-dark);
+
+  --ui-bg: var(--bg-color-light);
+  --ui-bg-muted: var(--bg-color-light);
+  --ui-bg-elevated: var(--element-bg-light);
+  --ui-bg-accented: var(--element-top-bg-light);
+  --ui-bg-inverted: var(--bg-color-dark);
+
+  --ui-border: var(--border-color-light);
+  --ui-border-muted: var(--border-color-light);
+  --ui-border-accented: var(--border-color-light);
+  --ui-border-inverted: var(--color-black);
+
+  /* Hover color variables (light mode) */
+  --ui-primary-hover: #97c265;
+  --ui-secondary-hover: #3a7be5;
+  --ui-success-hover: #97c265;
+  --ui-info-hover: #ffe066;
+  --ui-warning-hover: #ff6b6b;
+  --ui-error-hover: #ff6b6b;
+
+  --ui-text-hover: #a1958b;
+  --ui-bg-hover: #f5f3ee;
+  --ui-bg-elevated-hover: #e6e3da;
+  --ui-bg-accented-hover: #d7d2c6;
+  --ui-border-hover: #e0ddd7;
+}
+
+.dark {
+  --ui-primary: var(--primary-green-dark);
+  --ui-secondary: var(--primary-blue-dark);
+  --ui-success: var(--primary-green-dark);
+  --ui-info: var(--primary-yellow-dark);
+  --ui-warning: var(--primary-red-dark);
+  --ui-error: var(--primary-red-dark);
+  --ui-link: var(--link-dark);
+
+  --ui-text-dimmed: var(--mute-text-dark);
+  --ui-text-muted: var(--mute-text-dark);
+  --ui-text-toned: var(--mute-text-dark);
+  --ui-text: var(--text-color-dark);
+  --ui-text-highlighted: var(--color-white);
+  --ui-text-inverted: var(--text-color-light);
+
+  --ui-bg: var(--bg-color-dark);
+  --ui-bg-muted: var(--bg-color-dark);
+  --ui-bg-elevated: var(--element-bg-dark);
+  --ui-bg-accented: var(--element-top-bg-dark);
+  --ui-bg-inverted: var(--bg-color-light);
+
+  --ui-border: var(--border-color-dark);
+  --ui-border-muted: var(--border-color-dark);
+  --ui-border-accented: var(--border-color-dark);
+  --ui-border-inverted: var(--color-white);
+
+  /* Hover color variables (dark mode) */
+  --ui-primary-hover: #a5e07a;
+  --ui-secondary-hover: #4a8cf0;
+  --ui-success-hover: #a5e07a;
+  --ui-info-hover: #ffe066;
+  --ui-warning-hover: #ff8787;
+  --ui-error-hover: #ff8787;
+
+  --ui-text-hover: #f5eada;
+  --ui-bg-hover: #231c16;
+  --ui-bg-elevated-hover: #31281f;
+  --ui-bg-accented-hover: #3d3328;
+  --ui-border-hover: #463b2f;
+}
+
+/* Primary colors */
+.text-primary {
+  color: var(--ui-primary);
+}
+.bg-primary {
+  background-color: var(--ui-primary);
+}
+.border-primary {
+  border-color: var(--ui-primary);
+}
+
+.text-secondary {
+  color: var(--ui-secondary);
+}
+.bg-secondary {
+  background-color: var(--ui-secondary);
+}
+.border-secondary {
+  border-color: var(--ui-secondary);
+}
+
+.text-success {
+  color: var(--ui-success);
+}
+.bg-success {
+  background-color: var(--ui-success);
+}
+.border-success {
+  border-color: var(--ui-success);
+}
+
+.text-info {
+  color: var(--ui-info);
+}
+.bg-info {
+  background-color: var(--ui-info);
+}
+.border-info {
+  border-color: var(--ui-info);
+}
+
+.text-warning {
+  color: var(--ui-warning);
+}
+.bg-warning {
+  background-color: var(--ui-warning);
+}
+.border-warning {
+  border-color: var(--ui-warning);
+}
+
+.text-error {
+  color: var(--ui-error);
+}
+.bg-error {
+  background-color: var(--ui-error);
+}
+.border-error {
+  border-color: var(--ui-error);
+}
+
+/* Text colors */
+.text-dimmed {
+  color: var(--ui-text-dimmed);
+}
+.text-muted {
+  color: var(--ui-text-muted);
+}
+.text-toned {
+  color: var(--ui-text-toned);
+}
+.text-regular {
+  color: var(--ui-text);
+}
+.text-highlighted {
+  color: var(--ui-text-highlighted);
+}
+.text-inverted {
+  color: var(--ui-text-inverted);
+}
+.text-light {
+  color: var(--text-color-dark);
+}
+.text-link {
+  color: var(--ui-link);
+}
+
+/* Hover Text colors */
+.hover-text-primary:hover {
+  color: var(--ui-primary-hover);
+}
+.hover-text-secondary:hover {
+  color: var(--ui-secondary-hover);
+}
+.hover-text-success:hover {
+  color: var(--ui-success-hover);
+}
+.hover-text-info:hover {
+  color: var(--ui-info-hover);
+}
+.hover-text-warning:hover {
+  color: var(--ui-warning-hover);
+}
+.hover-text-error:hover {
+  color: var(--ui-error-hover);
+}
+.hover-text-regular:hover {
+  color: var(--ui-text-hover);
+}
+
+/* Background colors */
+.bg-regular {
+  background-color: var(--ui-bg);
+}
+.bg-muted {
+  background-color: var(--ui-bg-muted);
+}
+.bg-elevated {
+  background-color: var(--ui-bg-elevated);
+}
+.bg-accented {
+  background-color: var(--ui-bg-accented);
+}
+.bg-inverted {
+  background-color: var(--ui-bg-inverted);
+}
+
+/* Hover Background colors */
+.hover-bg-primary:hover {
+  background-color: var(--ui-primary-hover);
+}
+.hover-bg-secondary:hover {
+  background-color: var(--ui-secondary-hover);
+}
+.hover-bg-success:hover {
+  background-color: var(--ui-success-hover);
+}
+.hover-bg-info:hover {
+  background-color: var(--ui-info-hover);
+}
+.hover-bg-warning:hover {
+  background-color: var(--ui-warning-hover);
+}
+.hover-bg-error:hover {
+  background-color: var(--ui-error-hover);
+}
+.hover-bg-regular:hover {
+  background-color: var(--ui-bg-hover);
+}
+.hover-bg-elevated:hover {
+  background-color: var(--ui-bg-elevated-hover);
+}
+.hover-bg-accented:hover {
+  background-color: var(--ui-bg-accented-hover);
+}
+
+/* Border colors */
+.border-regular {
+  border-color: var(--ui-border);
+}
+.border-muted {
+  border-color: var(--ui-border-muted);
+}
+.border-accented {
+  border-color: var(--ui-border-accented);
+}
+.border-inverted {
+  border-color: var(--ui-border-inverted);
+}
+
+/* Hover Border colors */
+.hover-border-primary:hover {
+  border-color: var(--ui-primary-hover);
+}
+.hover-border-secondary:hover {
+  border-color: var(--ui-secondary-hover);
+}
+.hover-border-success:hover {
+  border-color: var(--ui-success-hover);
+}
+.hover-border-info:hover {
+  border-color: var(--ui-info-hover);
+}
+.hover-border-warning:hover {
+  border-color: var(--ui-warning-hover);
+}
+.hover-border-error:hover {
+  border-color: var(--ui-error-hover);
+}
+.hover-border-regular:hover {
+  border-color: var(--ui-border-hover);
+}
+
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}
+
+button {
+  cursor: pointer;
+}
+/* 
+
+input::placeholder,
+textarea::placeholder {
+  opacity: 1;
+}
+
+blockquote,
+dl,
+dd,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+hr,
+figure,
+p,
+pre,
+body {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-size: 1em;
+}
+input {
+  font-size: 1.05em;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+ol,
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: block;
+  vertical-align: middle;
+}
+
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+*,
+::before,
+::after {
+  border-width: 0;
+  border-style: solid;
+}
+
+.google-map * {
+  border-style: none;
+} */
+
+html {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* background: var(--bg-color); */
+  /* color: var(--text-color); */
+}
