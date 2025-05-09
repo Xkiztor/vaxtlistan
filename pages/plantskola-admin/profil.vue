@@ -87,7 +87,14 @@ async function save() {
 <template>
   <div class="flex flex-col items-center justify-center min-h-[calc(100vh-5rem)] p-4">
     <div class="w-full max-w-lg border-1 border-regular p-6 rounded-lg bg-elevated">
-      <h1 class="text-2xl font-bold mb-4">Min plantskola</h1>
+      <h1 class="text-2xl font-bold mb-4">
+        Min plantskola
+        <UIcon
+          name="material-symbols:verified-rounded"
+          class="text-secondary"
+          v-if="form.verified"
+        />
+      </h1>
       <form @submit.prevent="save" class="flex flex-col gap-4">
         <UFormField label="Namn på plantskola" required>
           <UInput v-model="form.name" required class="w-full" />
@@ -107,11 +114,11 @@ async function save() {
         <div class="flex flex-col gap-2 mt-2 w-fit">
           <div class="flex items-center gap-2 w-fit">
             <span class="font-semibold">Verifierad: </span>
-            <UBadge :color="form.verified ? 'primary' : 'error'">
+            <UBadge :color="form.verified ? 'secondary' : 'error'">
               {{ form.verified ? 'Ja' : 'Nej' }}
             </UBadge>
           </div>
-          <div class="opacity-60 flex items-center gap-2">
+          <div class="opacity-60 flex items-center gap-2" v-if="!form.verified">
             <UIcon name="material-symbols:info-outline-rounded" size="20" class="w-20" />
             <p class="text-sm">
               Dina växter kommer inte att synas för andra förrän du är verifierad. Vi kommer att

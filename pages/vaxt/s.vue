@@ -111,7 +111,8 @@ function onSearch() {
 
     <!-- Loading state -->
     <div v-if="loading" class="flex justify-center items-center py-16">
-      <ULoader size="lg" color="primary" />
+      <!-- <ULoader size="lg" color="primary" /> -->
+      Laddar...
     </div>
 
     <!-- Error state -->

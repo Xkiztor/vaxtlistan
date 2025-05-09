@@ -50,10 +50,19 @@ function handleMobileSearchBlur() {
           />
 
           <!-- Login button using Nuxt UI UButton -->
-          <UButton class="hidden md:inline-flex w-max" to="/plantskola-admin/login"
+          <UButton class="hidden md:inline-flex w-max" size="xl" to="/plantskola-admin/login"
             >Plantskola Login</UButton
           >
           <div class="max-md:hidden"><ColorModeButton /></div>
+          <UButton
+            v-if="menuOpen"
+            icon="i-material-symbols-close-rounded"
+            variant="ghost"
+            class="max-md:hidden flex items-center justify-center p-0 text-regular"
+            size="xl"
+            :ui="{ leadingIcon: 'scale-125' }"
+            @click="toggleMenu"
+          />
           <!-- Hamburger/Close button for mobile with 180deg rotate transition -->
           <transition name="rotate-180" class="md:hidden">
             <div v-if="!menuOpen">

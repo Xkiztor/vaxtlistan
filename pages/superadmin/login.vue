@@ -43,7 +43,7 @@ const handleLogin = async () => {
 };
 
 definePageMeta({
-  layout: 'superadmin',
+  layout: 'empty',
   middleware: 'superadmin',
 });
 </script>

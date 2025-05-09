@@ -24,6 +24,19 @@ const {
     if (error) {
       console.error('Error fetching plant data:', error.message);
     }
+    if (data && data.name && route.params.vaxt !== data.name) {
+      const slug = data.name
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9åäö\- ]/gi, '')
+        .replace(/\s+/g, '+')
+        .replace(/-+/g, '+')
+        .replace(/^-+|-+$/g, '');
+      router.replace({
+        name: route.name,
+        params: { ...route.params, vaxt: slug },
+      });
+    }
     // console.log(data);
     return data as Facit | null;
   },
@@ -82,23 +95,13 @@ function openImage(s) {
   });
 }
 
-watchEffect(() => {
-  // When plant is loaded and name is available
-  if (plant.value && plant.value.name && route.params.vaxt !== plant.value.name) {
-    // Replace the [vaxt] part of the URL with the plant's name (slugified for safety)
-    const slug = plant.value.name
-      .toString()
-      .toLowerCase()
-      .replace(/[^a-z0-9åäö\- ]/gi, '')
-      .replace(/\s+/g, '+')
-      .replace(/-+/g, '+')
-      .replace(/^-+|-+$/g, '');
-    router.replace({
-      name: route.name,
-      params: { ...route.params, vaxt: slug },
-    });
-  }
-});
+// watchEffect(() => {
+//   // When plant is loaded and name is available
+//   if (plant.value && plant.value.name && route.params.vaxt !== plant.value.name) {
+//     // Replace the [vaxt] part of the URL with the plant's name (slugified for safety)
+
+//   }
+// });
 </script>
 
 <template>

@@ -30,20 +30,20 @@ Växtlistan solves a real-world problem: finding specific plants in stock can be
 - **Frontend**: Nuxt 3
 - **Styling**: Tailwind CSS, Nuxt UI
 - **Backend/Database**: Supabase(Database, Auth)
-- **Hosting**: Netlify
 - **State**: Pinia
 
 ---
 
 ## Rules - !!IMPORTANT!!
 
-This is for a production website!! (VERY IMPORTANT!!) Write everything proffessianaly.
-Always use Nuxt UI components (only the ones that exist). They start with U and then the normal name of the element. Use https://ui.nuxt.com/
+This is for a production website!! (VERY IMPORTANT!!) Write everything proffessianaly. The UX should be very good.
+Always use Nuxt UI components (only the up to date ones that exist). They start with U and then the normal name of the element. Use https://ui.nuxt.com/
 Write comments for everything. Write readable code.
 Use supabase like: "const supabase = useSupabaseClient();"
 Use Typescript and define types
 You don't need to import to vue files as everything is auto-imported (some things still needs to be imported)
 Use Nuxt 3 conventions (definePageMeta, useAsyncData, etc.)
+Always use "useAsyncData" (very important for SSR and load times)
 Use arrow functions.
 
 ---
@@ -85,6 +85,7 @@ max_height - Int8
 max_width - Int8
 created_at - Timestampz
 last_edited - Timestampz
+user_submitted - Bool
 
 ### Table: "plantskolor"
 
@@ -117,6 +118,8 @@ hidden - Bool
 stock - Int8
 created_at - Timestampz
 last_edited - Timestampz
+
+// The name of the plant is never presented here. Instead it fetched from the facit table by the id. So when editing or adding a new plant the user has to chose one of the current plant names in the facit.
 
 ### Table: "superadmins"
 

@@ -12,6 +12,7 @@ export interface Facit {
   max_width: number; // Int8
   created_at: string; // Timestampz (ISO string)
   last_edited: string; // Timestampz (ISO string)
+  user_submitted: boolean;
 }
 
 // Table: facit (for Fuse.js search)
