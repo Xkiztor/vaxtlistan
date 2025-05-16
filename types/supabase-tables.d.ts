@@ -13,6 +13,7 @@ export interface Facit {
   created_at: string; // Timestampz (ISO string)
   last_edited: string; // Timestampz (ISO string)
   user_submitted: boolean;
+  created_by: number; // Int8
 }
 
 // Table: facit (for Fuse.js search)

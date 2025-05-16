@@ -1,5 +1,29 @@
 Hi AI! Use this file as instructions:
 
+# Rules - !!IMPORTANT!!
+
+This is for a production website!! (VERY IMPORTANT!!) Write everything proffessianaly. The UX should be very good.
+Always use Nuxt UI components (only the up to date ones that exist). They start with U and then the normal name of the element. Use https://ui.nuxt.com/
+Write comments for everything. Write readable code.
+Use supabase like: "const supabase = useSupabaseClient();"
+Use Typescript and define types
+You don't need to import to vue files as everything is auto-imported (some things still needs to be imported, like types, nothing else)
+Use Nuxt 3 conventions (definePageMeta, useAsyncData, etc.)
+Always use "useAsyncData" (very important for SSR and load times)
+Use arrow functions.
+Make everything SEO compatible. Use semantic html.
+Make the site fast and responsive and utilize server side rendering. Performance is very important.
+Always handle errors.
+
+---
+
+## Design
+
+Always use the variables for color. Never any own colours. The variables are found in main.css or default tailwind classes.
+The design should be modern and clean. A bit rounded. No exessive drop shadows. It should apeal for the averarage adult.
+
+---
+
 # Växtlistan
 
 Växtlistan is a plant discovery platform built to help users search for plants and see which Swedish nurseries currently have them in stock. It aims to make plant shopping easier and more efficient by bridging the gap between plant buyers and sellers.
@@ -34,27 +58,6 @@ Växtlistan solves a real-world problem: finding specific plants in stock can be
 
 ---
 
-## Rules - !!IMPORTANT!!
-
-This is for a production website!! (VERY IMPORTANT!!) Write everything proffessianaly. The UX should be very good.
-Always use Nuxt UI components (only the up to date ones that exist). They start with U and then the normal name of the element. Use https://ui.nuxt.com/
-Write comments for everything. Write readable code.
-Use supabase like: "const supabase = useSupabaseClient();"
-Use Typescript and define types
-You don't need to import to vue files as everything is auto-imported (some things still needs to be imported)
-Use Nuxt 3 conventions (definePageMeta, useAsyncData, etc.)
-Always use "useAsyncData" (very important for SSR and load times)
-Use arrow functions.
-
----
-
-## Design
-
-Always use the variables for color. Never any own colours. The variables are found in main.css or default tailwind classes.
-The design should be modern and clean. A bit rounded. No exessive drop shadows. It should apeal for the averarage adult.
-
----
-
 ## Features
 
 - Full-text search for plant names
@@ -86,6 +89,7 @@ max_width - Int8
 created_at - Timestampz
 last_edited - Timestampz
 user_submitted - Bool
+created_by - Int8 (FK to plantskolor id)
 
 ### Table: "plantskolor"
 

@@ -26,6 +26,13 @@ const showAddModal = ref(false);
 const showEditModal = ref(false);
 const editPlant = ref<(Totallager & { facit: Facit }) | null>(null);
 
+// --- Stores ---
+import { useLagerStore } from '~/stores/lager';
+import { useFacitStore } from '~/stores/facit';
+
+const lagerStore = useLagerStore();
+const facitStore = useFacitStore();
+
 // --- Fetch plantskola id ---
 const { data: plantskola } = await useAsyncData('plantskola', async () => {
   if (!user.value) return null;
@@ -38,62 +45,58 @@ const { data: plantskola } = await useAsyncData('plantskola', async () => {
   return data as Plantskola;
 });
 
-// --- Fetch lager with facit relation ---
-const {
-  data: lager,
-  refresh: refreshLager,
-  status: lagerStatus,
-} = await useAsyncData('lager', async () => {
+// --- Fetch lager from store ---
+await useAsyncData('lager', async () => {
   if (!plantskola.value) return [];
-  const { data, error } = await supabase
-    .from('totallager')
-    .select('*, facit:facit_id(id, name, sv_name, type)')
-    .eq('plantskola_id', plantskola.value.id)
-    .order('created_at', { ascending: false });
-  if (error || !data) return [];
-  return data as Array<Totallager & { facit: Facit }>;
+  return await lagerStore.fetchLager(supabase, plantskola.value.id);
 });
 
-// --- Fetch all facit for add/edit ---
-const { data: allFacit } = await useAsyncData('allFacit', async () => {
-  const { data, error } = await supabase.from('facit').select();
-  if (error || !data) return [];
-  return data as Facit[];
-});
+// --- Fetch facit from store ---
+await useAsyncData('allFacit', () => facitStore.fetchFacit(supabase));
 
 // --- Computed filtered list ---
 const filteredLager = computed(() => {
-  if (!lager.value) return [];
-  // let result;
-  // if (updatedPlant.value !== null) result = updatedPlant.value;
-  // else result = lager.value;
-  let result = lager.value;
+  if (!lagerStore.lager) return [];
+  let result = lagerStore.lager;
   if (search.value) {
     const s = search.value.toLowerCase();
     result = result.filter(
       (p) =>
         p.name_by_plantskola?.toLowerCase().includes(s) ||
-        p.facit?.sv_name?.toLowerCase().includes(s) ||
-        p.facit?.name?.toLowerCase().includes(s)
+        facitStore.getFacitById(p.facit_id)?.sv_name?.toLowerCase().includes(s) ||
+        facitStore.getFacitById(p.facit_id)?.name?.toLowerCase().includes(s)
     );
   }
   if (filterType.value) {
-    result = result.filter((p) => p.facit?.type === filterType.value);
+    result = result.filter((p) => facitStore.getFacitById(p.facit_id)?.type === filterType.value);
   }
   return result;
 });
 
-// --- Unique types for filter ---
+// --- Add new plant to lager ---
+const addPlantModalOpen = ref(false);
+const newPlantFacitId = ref<number | null>(null);
+const addPlantLoading = ref(false);
 
-// --- Method to update plant ---
-const onPlantUpdate = ({ id, field, value }: { id: number; field: string; value: any }) => {
-  if (!lager.value) return;
-  const idx = lager.value.findIndex((p) => p.id === id);
-  if (idx !== -1) {
-    // Use Vue reactivity: update the field and last_edited directly on the reactive object
-    lager.value[idx][field] = value;
-    lager.value[idx].last_edited = new Date().toISOString();
-  }
+const onPlantPickerSelect = (facitId: number) => {
+  newPlantFacitId.value = facitId;
+};
+
+const addPlantToLager = async () => {
+  if (!plantskola.value || !newPlantFacitId.value) return;
+  addPlantLoading.value = true;
+  await lagerStore.addPlantToLager(supabase, {
+    facit_id: newPlantFacitId.value,
+    plantskola_id: plantskola.value.id,
+    created_at: new Date().toISOString(),
+    last_edited: new Date().toISOString(),
+    stock: 0,
+    price: 0,
+    hidden: false,
+  });
+  addPlantLoading.value = false;
+  addPlantModalOpen.value = false;
+  newPlantFacitId.value = null;
 };
 </script>
 
@@ -135,7 +138,7 @@ const onPlantUpdate = ({ id, field, value }: { id: number; field: string; value:
       </div>
     </div>
     <!-- Lager list -->
-    <div v-if="lagerStatus === 'pending'" class="flex justify-center py-12">
+    <div v-if="lagerStore.status === 'pending'" class="flex justify-center py-12">
       <!-- <ULoader size="lg" color="primary" /> -->
       Laddar...
     </div>
@@ -144,11 +147,22 @@ const onPlantUpdate = ({ id, field, value }: { id: number; field: string; value:
         v-for="plant in filteredLager"
         :key="plant.id"
         :plant="plant"
-        :facit="allFacit"
-        @update="onPlantUpdate"
+        :facit="facitStore.facit"
+        @update="lagerStore.updatePlant"
       />
     </div>
     <div v-else class="text-muted italic py-8 text-center">Inga växter hittades.</div>
+    <!-- Add plant modal -->
+    <UModal v-model="addPlantModalOpen" title="Lägg till växt">
+      <template #content>
+        <PlantPicker @select="onPlantPickerSelect" />
+      </template>
+      <template #footer>
+        <UButton :loading="addPlantLoading" @click="addPlantToLager" variant="primary" size="lg">
+          Lägg till
+        </UButton>
+      </template>
+    </UModal>
   </div>
 </template>
 

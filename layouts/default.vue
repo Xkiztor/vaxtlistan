@@ -28,7 +28,7 @@ function handleMobileSearchBlur() {
         <!-- Top part -->
         <transition name="logo-fade">
           <div
-            class="flex items-center pr-2 min-[450px]:pr-4 w-48"
+            class="flex items-center pr-2 min-[450px]:pr-4 w-48 shrink-0"
             v-if="!mobileSearchActive || width > expandSearchScreenWidth"
           >
             <!-- Logo with transition -->
@@ -40,20 +40,41 @@ function handleMobileSearchBlur() {
             <!-- InlineSearch expands on mobile when focused -->
           </div>
         </transition>
-        <div class="items-center flex-row flex gap-2 min-[450px]:gap-4 grow justify-end">
+        <div class="flex items-center gap-4 max-md:hidden flex-1 w-max shrink-0 pr-4">
+          <!-- Navigation links -->
+          <NuxtLink
+            to="/for-plantskolor"
+            @click="closeMenu"
+            class="shrink-0 w-max"
+            active-class="text-primary font-bold underline router-link-active"
+          >
+            För plantskolor
+          </NuxtLink>
+          <NuxtLink
+            to="/om-oss"
+            @click="closeMenu"
+            class="shrink-0 w-max"
+            active-class="text-primary font-bold underline router-link-active"
+          >
+            Om oss
+          </NuxtLink>
+        </div>
+        <div
+          class="items-center flex-row flex gap-2 min-[450px]:gap-4 justify-end max-md:w-full max-md:grow"
+        >
           <!-- Search bar using InlineSearch component -->
           <InlineSearch
             mode="navbar"
-            class="w-full"
+            class="grow shrink basis-0"
             @select="handleMobileSearchFocus"
             @deslect="handleMobileSearchBlur"
           />
 
           <!-- Login button using Nuxt UI UButton -->
-          <UButton class="hidden md:inline-flex w-max" size="xl" to="/plantskola-admin/login"
+          <UButton class="max-md:hidden w-max shrink-0" size="xl" to="/plantskola-admin/login"
             >Plantskola Login</UButton
           >
-          <div class="max-md:hidden"><ColorModeButton /></div>
+          <div class="max-md:hidden shrink-0"><ColorModeButton /></div>
           <UButton
             v-if="menuOpen"
             icon="i-material-symbols-close-rounded"
