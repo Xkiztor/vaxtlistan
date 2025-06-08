@@ -24,7 +24,7 @@ function handleMobileSearchBlur() {
     <nav
       class="fixed z-40 top-0 left-0 right-0 h-20 has-[.mobile-nav]:h-screen has-[.mobile-nav]:bottom-0 has-[.mobile-nav]:grid grid-rows-[auto_1fr]"
     >
-      <div class="border-regular border-b-1 flex justify-between p-4 bg-elevated h-20">
+      <div class="border-border border-b-1 flex justify-between p-4 bg-bg-elevated h-20">
         <!-- Top part -->
         <transition name="logo-fade">
           <div
@@ -117,7 +117,7 @@ function handleMobileSearchBlur() {
       <transition name="fade">
         <div
           v-if="menuOpen"
-          class="mobile-nav p-4 bg-elevated flex flex-col justify-between gap-8 text-2xl"
+          class="mobile-nav p-4 bg-bg-elevated flex flex-col justify-between gap-8 text-2xl"
         >
           <div class="flex flex-col gap-4">
             <!-- Navigation links -->
@@ -139,7 +139,7 @@ function handleMobileSearchBlur() {
             </NuxtLink>
           </div>
           <!-- Search and Login buttons using Nuxt UI UButton -->
-          <div class="flex flex-col gap-4 border-t-1 border-regular pt-4 mt-4">
+          <div class="flex flex-col gap-4 border-t-1 border-border pt-4 mt-4">
             <UButton class="w-full" size="xl" @click="closeMenu" to="/plantskola-admin/login"
               >Plantskola - Login</UButton
             >

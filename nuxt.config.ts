@@ -24,4 +24,22 @@ export default defineNuxtConfig({
       LINDERSPLANTSKOLA_SUPABASE_KEY: process.env.LINDERSPLANTSKOLA_SUPABASE_KEY,
     },
   },
+  ui: {
+    theme: {
+      colors: [
+        'primary',
+        'secondary',
+        'info',
+        'success',
+        'warning',
+        'error',
+        'trad',
+        'barrtrad',
+        'perenn',
+        'ormbunke',
+        'gras',
+        'klattervaxt',
+      ]
+    }
+  }
 })

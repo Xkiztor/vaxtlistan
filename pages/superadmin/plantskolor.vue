@@ -66,7 +66,7 @@ const handleDelete = async (id: number) => {
       <li
         v-for="plantskola in unverifiedPlantskolor"
         :key="plantskola.id"
-        class="flex gap-4 border-regular border-1 p-4 rounded-md"
+        class="flex gap-4 border-border border-1 p-4 rounded-md"
       >
         <div>
           <span class="font-bold text-xl"
@@ -77,13 +77,15 @@ const handleDelete = async (id: number) => {
               v-if="plantskola.verified"
           /></span>
           <div class="flex gap-2 flex-wrap mt-2">
-            <span class="text-toned">{{ plantskola.email }}</span>
-            <span class="text-toned">{{ plantskola.phone }}</span>
-            <span class="text-toned">{{ plantskola.adress }}</span>
+            <span class="text-t-toned">{{ plantskola.email }}</span>
+            <span class="text-t-toned">{{ plantskola.phone }}</span>
+            <span class="text-t-toned">{{ plantskola.adress }}</span>
           </div>
         </div>
         <div>
-          <span class="text-toned">{{ plantskola.created_at.replace('T', ' ').slice(0, 16) }}</span>
+          <span class="text-t-toned">{{
+            plantskola.created_at.replace('T', ' ').slice(0, 16)
+          }}</span>
           <div class="flex gap-2 mt-2">
             <UButton
               v-if="!plantskola.verified"

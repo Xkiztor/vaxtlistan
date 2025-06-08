@@ -75,7 +75,7 @@ definePageMeta({
         <li
           v-for="plant in lagerPreview"
           :key="plant.id"
-          class="flex flex-col sm:flex-row items-center gap-4 p-2 rounded-lg bg-elevated border-1 border-regular"
+          class="flex flex-col sm:flex-row items-center gap-4 p-2 rounded-lg bg-bg-elevated border-1 border-border"
         >
           <div class="flex-1">
             <div>
@@ -104,7 +104,7 @@ definePageMeta({
           </div>
         </li>
       </ul>
-      <div v-else class="text-muted italic py-4">Du har inga växter i lager ännu.</div>
+      <div v-else class="text-t-muted italic py-4">Du har inga växter i lager ännu.</div>
       <UButton class="mt-6 w-full md:w-auto" color="primary" size="xl" @click="goToLager">
         Visa alla
       </UButton>

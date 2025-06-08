@@ -155,19 +155,21 @@ const plantName = computed(() => {
 </script>
 
 <template>
-  <li class="flex flex-col p-2 rounded-lg bg-elevated border-1 border-regular transition-colors">
+  <li class="flex flex-col p-2 rounded-lg bg-bg-elevated border-1 border-border transition-colors">
     <!-- Main Info -->
     <div class="flex-1 flex">
       <div class="flex flex-1 items-center gap-2 max-md:gap-0 max-md:flex-col max-md:items-start">
         <span
-          class="font-bold text-lg"
-          :class="{ 'text-toned flex items-center gap-2': plant.hidden }"
+          class="font-bold text-md md:text-lg"
+          :class="{ 'text-t-toned flex items-center gap-2': plant.hidden }"
         >
           <UIcon v-if="plant.hidden" name="material-symbols:visibility-off" size="xs" class="" />
           {{ plantName }}
         </span>
 
-        <span>{{ facit?.find((item) => item.id === plant.facit_id)?.sv_name || '' }}</span>
+        <span class="max-md:text-sm">{{
+          facit?.find((item) => item.id === plant.facit_id)?.sv_name || ''
+        }}</span>
         <span v-if="plant.name_by_plantskola"> ({{ plant.name_by_plantskola }})</span>
       </div>
       <!-- Stock and Price -->
@@ -216,7 +218,7 @@ const plantName = computed(() => {
         size="xl"
         variant="ghost"
         color="neutral"
-        class="ml-4 p-0 pr-2"
+        class="ml-2 md:ml-4 p-0 md:pr-2"
         aria-label="Expandera detaljer"
         @click="isExpanded = !isExpanded"
       />
@@ -224,14 +226,30 @@ const plantName = computed(() => {
 
     <!-- Collapsible Details -->
     <Transition name="expand-fade">
-      <div v-show="isExpanded" class="border-t-1 border-regular mt-4 pt-4">
+      <div v-show="isExpanded" class="border-t-1 border-border mt-4 pt-4">
         <!-- Badges -->
         <div class="flex flex-wrap gap-2">
-          <UBadge color="primary" variant="subtle" v-if="plant.height">
+          <UBadge
+            :color="
+              letterToType(facit?.find((item) => item.id === plant.facit_id)?.type || '')
+                .toLowerCase()
+                .replace(/å/g, 'a')
+                .replace(/ä/g, 'a')
+                .replace(/ö/g, 'o')
+            "
+            variant="subtle"
+            :class="
+              letterToType(facit?.find((item) => item.id === plant.facit_id)?.type || '')
+                .toLowerCase()
+                .replace(/å/g, 'a')
+                .replace(/ä/g, 'a')
+                .replace(/ö/g, 'o')
+            "
+          >
             {{ letterToType(facit?.find((item) => item.id === plant.facit_id)?.type || '') }}
           </UBadge>
-          <UBadge class="flex items-center gap-2" v-if="plant.pot" color="neutral" variant="subtle">
-            Kruka: {{ plant.pot }}
+          <UBadge class="flex items-center gap-2" color="neutral" variant="subtle">
+            Kruka: {{ plant.pot ? plant.pot : '---' }}
             <UButton
               v-if="canEdit"
               icon="i-heroicons-pencil-square"
@@ -242,13 +260,8 @@ const plantName = computed(() => {
               @click="openEdit('pot', plant.pot)"
             />
           </UBadge>
-          <UBadge
-            class="flex items-center gap-2"
-            v-if="plant.height"
-            color="neutral"
-            variant="subtle"
-          >
-            Höjd: {{ plant.height }}
+          <UBadge class="flex items-center gap-2" color="neutral" variant="subtle">
+            Höjd: {{ plant.height ? plant.height + ' cm' : '---' }}
             <UButton
               v-if="canEdit"
               icon="i-heroicons-pencil-square"
@@ -262,8 +275,9 @@ const plantName = computed(() => {
         </div>
         <!-- Description -->
         <div class="flex items-center gap-2 mt-2">
-          <span v-if="plant.description_by_plantskola" class="text-sm">
-            <span class="text-toned">Beskrivning:</span> {{ plant.description_by_plantskola }}
+          <span class="text-sm">
+            <span class="text-t-toned">Beskrivning:</span>
+            {{ plant.description_by_plantskola ? plant.description_by_plantskola : '---' }}
           </span>
           <UButton
             v-if="canEdit"
@@ -275,7 +289,7 @@ const plantName = computed(() => {
           />
         </div>
         <!-- Actions -->
-        <div class="flex items-center justify-end gap-2 mt-4 w-full border-t-1 border-regular pt-2">
+        <div class="flex items-center justify-end gap-2 mt-4 w-full border-t-1 border-border pt-2">
           <UButton
             v-if="canEdit"
             icon="i-heroicons-pencil-square"
@@ -293,7 +307,7 @@ const plantName = computed(() => {
             variant="outline"
             @click="showDeleteModal = true"
           >
-            Ta bort växt
+            Ta bort
           </UButton>
           <UButton
             :icon="plant.hidden ? 'material-symbols:visibility' : 'material-symbols:visibility-off'"
@@ -302,7 +316,7 @@ const plantName = computed(() => {
             variant="outline"
             @click="showHideModal = true"
           >
-            {{ plant.hidden ? 'Visa växt' : 'Dölj växt' }}
+            {{ plant.hidden ? 'Visa' : 'Dölj' }}
           </UButton>
         </div>
       </div>

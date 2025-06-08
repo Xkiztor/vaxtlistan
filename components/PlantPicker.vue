@@ -189,24 +189,24 @@ const addSelectPlant = (id: number) => {
     </div>
 
     <!-- Virtual plant list -->
-    <div v-else class="border border-regular rounded-lg bg-elevated h-72 md:h-96">
+    <div v-else class="border border-border rounded-lg bg-bg-elevated h-72 md:h-96">
       <div v-bind="containerProps" class="overflow-scroll h-full" v-if="filteredPlants.length > 0">
         <div v-bind="wrapperProps">
           <div
             v-for="item in list"
             :key="item.data.id"
-            class="cursor-pointer hover:bg-accented transition px-4 py-3 flex gap-1 border-b border-regular last:border-b-0 items-center"
+            class="cursor-pointer hover:bg-bg-accented transition px-4 py-3 flex gap-1 border-b border-border last:border-b-0 items-center"
             @click="selectPlant(item.data.id)"
           >
             <span
               class="grow"
               :class="{
-                'text-muted': item.data.id === currentPlantID,
+                'text-t-muted': item.data.id === currentPlantID,
                 'text-primary': item.data.id === editValue,
               }"
             >
               <span class="font-semibold max-md:block mr-1">{{ item.data.name }}</span>
-              <span v-if="item.data.sv_name" class="text-muted text-sm">{{
+              <span v-if="item.data.sv_name" class="text-t-muted text-sm">{{
                 item.data.sv_name
               }}</span>
             </span>
@@ -222,13 +222,13 @@ const addSelectPlant = (id: number) => {
       </div>
       <div
         v-else-if="search.length > minSearchLength"
-        class="text-muted italic px-4 py-3 absolute w-full"
+        class="text-t-muted italic px-4 py-3 absolute w-full"
       >
         Inga växter hittades.
       </div>
     </div>
     <div>
-      <span class="text-toned text-sm">Finns inte växten?</span>
+      <span class="text-t-toned text-sm">Finns inte växten?</span>
       <UModal v-model:open="modalOpen" @close="closeAdd" :close="{ onClick: closeAdd }">
         <UButton class="w-full" variant="outline" icon="material-symbols:add"> Ny växt </UButton>
         <template #content>

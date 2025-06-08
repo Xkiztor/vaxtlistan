@@ -1,13 +1,12 @@
 @import 'tailwindcss';
 @import '@nuxt/ui';
-
 :root {
-  --primary-green-dark: #7fa94f;
   /* --primary-green-dark: #8ac957; */
   --primary-green-light: #76994e;
+  --primary-green-dark: #81a35a;
 
-  --primary-yellow-dark: #f0cd34;
   --primary-yellow-light: #e39b00;
+  --primary-yellow-dark: #f0cd34;
 
   --primary-blue-light: #2164d0;
   --primary-blue-dark: #4881dd;
@@ -17,6 +16,24 @@
 
   --link-light: #0645ad;
   --link-dark: #75b4f8;
+
+  --trad-light: #99c467;
+  --trad-dark: #99c467;
+
+  --barrtrad-light: #59a14f;
+  --barrtrad-dark: #19592d;
+
+  --perenn-light: #ff929d;
+  --perenn-dark: #ff929d;
+
+  --klattervaxt-light: #cf995f;
+  --klattervaxt-dark: #b57d41;
+
+  --ormbunke-light: #98bd2b;
+  --ormbunke-dark: #98bd2b;
+
+  --gräs-light: #ece275;
+  --gräs-dark: #ece275;
 
   --title-color-light: #000000;
   --title-color-dark: #fef6ec;
@@ -30,7 +47,7 @@
   --mute-text-light: #b0a99f;
   --mute-text-dark: #625a52;
 
-  --bg-color-light: #eeeae1;
+  --bg-color-light: #f3eee3;
   --bg-color-dark: #181410;
 
   --element-bg-light: #eae5d8;
@@ -83,6 +100,13 @@
   --ui-bg-elevated-hover: #e6e3da;
   --ui-bg-accented-hover: #d7d2c6;
   --ui-border-hover: #e0ddd7;
+
+  --ui-trad: var(--trad-light);
+  --ui-barrtrad: var(--barrtrad-light);
+  --ui-perenn: var(--perenn-light);
+  --ui-klattervaxt: var(--klattervaxt-light);
+  --ui-ormbunke: var(--ormbunke-light);
+  --ui-gräs: var(--gräs-light);
 }
 
 .dark {
@@ -125,10 +149,58 @@
   --ui-bg-elevated-hover: #31281f;
   --ui-bg-accented-hover: #3d3328;
   --ui-border-hover: #463b2f;
+
+  --ui-trad: var(--trad-dark);
+  --ui-barrtrad: var(--barrtrad-dark);
+  --ui-perenn: var(--perenn-dark);
+  --ui-klattervaxt: var(--klattervaxt-dark);
+  --ui-ormbunke: var(--ormbunke-dark);
+  --ui-gräs: var(--gräs-dark);
+}
+
+@theme {
+  --color-primary: var(--ui-primary);
+  --color-secondary: var(--ui-secondary);
+  --color-success: var(--ui-success);
+  --color-info: var(--ui-info);
+  --color-warning: var(--ui-warning);
+  --color-error: var(--ui-error);
+  --color-link: var(--ui-link);
+
+  --color-t-dimmed: var(--ui-text-dimmed);
+  --color-t-muted: var(--ui-text-muted);
+  --color-t-toned: var(--ui-text-toned);
+  --color-t-regular: var(--ui-text);
+  --color-t-highlighted: var(--ui-text-highlighted);
+  --color-t-inverted: var(--ui-text-inverted);
+
+  --color-bg: var(--ui-bg);
+  --color-bg-muted: var(--ui-bg-muted);
+  --color-bg-elevated: var(--ui-bg-elevated);
+  --color-bg-accented: var(--ui-bg-accented);
+  --color-bg-inverted: var(--ui-bg-inverted);
+
+  --color-border: var(--ui-border);
+  --color-border-muted: var(--ui-border-muted);
+  --color-border-accented: var(--ui-border-accented);
+  --color-border-inverted: var(--ui-border-inverted);
+
+  --color-primary-hover: var(--ui-primary-hover);
+  --color-secondary-hover: var(--ui-secondary-hover);
+  --color-success-hover: var(--ui-success-hover);
+  --color-info-hover: var(--ui-info-hover);
+  --color-warning-hover: var(--ui-warning-hover);
+  --color-error-hover: var(--ui-error-hover);
+
+  --color-t-regular-hover: var(--ui-text-hover);
+  --color-bg-hover: var(--ui-bg-hover);
+  --color-bg-elevated-hover: var(--ui-bg-elevated-hover);
+  --color-bg-accented-hover: var(--ui-bg-accented-hover);
+  --color-border-hover: var(--ui-border-hover);
 }
 
 /* Primary colors */
-.text-primary {
+/* .text-primary {
   color: var(--ui-primary);
 }
 .bg-primary {
@@ -191,7 +263,7 @@
   border-color: var(--ui-error);
 }
 
-/* Text colors */
+
 .text-dimmed {
   color: var(--ui-text-dimmed);
 }
@@ -217,7 +289,7 @@
   color: var(--ui-link);
 }
 
-/* Hover Text colors */
+
 .hover-text-primary:hover {
   color: var(--ui-primary-hover);
 }
@@ -240,7 +312,7 @@
   color: var(--ui-text-hover);
 }
 
-/* Background colors */
+
 .bg-regular {
   background-color: var(--ui-bg);
 }
@@ -257,7 +329,7 @@
   background-color: var(--ui-bg-inverted);
 }
 
-/* Hover Background colors */
+
 .hover-bg-primary:hover {
   background-color: var(--ui-primary-hover);
 }
@@ -286,7 +358,7 @@
   background-color: var(--ui-bg-accented-hover);
 }
 
-/* Border colors */
+
 .border-regular {
   border-color: var(--ui-border);
 }
@@ -300,7 +372,7 @@
   border-color: var(--ui-border-inverted);
 }
 
-/* Hover Border colors */
+
 .hover-border-primary:hover {
   border-color: var(--ui-primary-hover);
 }
@@ -321,7 +393,7 @@
 }
 .hover-border-regular:hover {
   border-color: var(--ui-border-hover);
-}
+} */
 
 *,
 ::before,

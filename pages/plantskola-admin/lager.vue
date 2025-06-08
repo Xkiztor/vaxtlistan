@@ -73,30 +73,99 @@ const filteredLager = computed(() => {
   return result;
 });
 
-// --- Add new plant to lager ---
-const addPlantModalOpen = ref(false);
-const newPlantFacitId = ref<number | null>(null);
-const addPlantLoading = ref(false);
+// --- Add new plant to lager (two-step modal) ---
+const addPlantModalOpen = ref(false); // Modal open state
+const addStep = ref<'pick' | 'form'>('pick'); // Step: 'pick' or 'form'
+const prevStep = ref<'pick' | 'form'>('pick'); // Track previous step for direction
+const newPlantFacitId = ref<number | null>(null); // Selected facit id
+const addPlantLoading = ref(false); // Loading state for save
+const addForm = reactive({
+  name_by_plantskola: '',
+  description_by_plantskola: '',
+  pot: '',
+  height: '',
+  price: null as number | null,
+  stock: null as number | null,
+});
 
-const onPlantPickerSelect = (facitId: number) => {
-  newPlantFacitId.value = facitId;
+// Slide direction for modal steps
+const slideDirection = computed(() => {
+  if (addStep.value === prevStep.value) return 'left'; // default
+  return addStep.value === 'form' ? 'left' : 'right';
+});
+
+watch(addStep, (val, oldVal) => {
+  prevStep.value = oldVal;
+});
+
+// Reset modal state
+const resetAddModal = () => {
+  addStep.value = 'pick';
+  newPlantFacitId.value = null;
+  addForm.name_by_plantskola = '';
+  addForm.description_by_plantskola = '';
+  addForm.pot = '';
+  addForm.height = '';
+  addForm.price = null;
+  addForm.stock = null;
 };
 
+// Open modal
+const openAddModal = () => {
+  resetAddModal();
+  addPlantModalOpen.value = true;
+};
+
+// PlantPicker select handler
+const onPlantPickerSelect = (facitId: number) => {
+  newPlantFacitId.value = facitId;
+  addStep.value = 'form';
+};
+
+// PlantPicker addSelect handler (for when a new plant is added to facit)
+const onPlantPickerAddSelect = (facitId: number) => {
+  newPlantFacitId.value = facitId;
+  addStep.value = 'form';
+};
+
+// Save new plant to lager
 const addPlantToLager = async () => {
   if (!plantskola.value || !newPlantFacitId.value) return;
+  // Validate required fields
+  if (!addForm.price || !addForm.stock) {
+    useToast().add({
+      title: 'Fel',
+      description: 'Pris och lager är obligatoriska.',
+      color: 'error',
+    });
+    return;
+  }
   addPlantLoading.value = true;
-  await lagerStore.addPlantToLager(supabase, {
+  const result = await lagerStore.addPlantToLager(supabase, {
     facit_id: newPlantFacitId.value,
     plantskola_id: plantskola.value.id,
+    name_by_plantskola: addForm.name_by_plantskola,
+    description_by_plantskola: addForm.description_by_plantskola,
+    pot: addForm.pot,
+    height: addForm.height,
+    price: addForm.price,
+    stock: addForm.stock,
+    hidden: false,
     created_at: new Date().toISOString(),
     last_edited: new Date().toISOString(),
-    stock: 0,
-    price: 0,
-    hidden: false,
   });
   addPlantLoading.value = false;
+  if (!result) {
+    useToast().add({
+      title: 'Fel',
+      description: lagerStore.error.value || 'Kunde inte lägga till växt.',
+      color: 'error',
+    });
+    return;
+  }
   addPlantModalOpen.value = false;
-  newPlantFacitId.value = null;
+  resetAddModal();
+  useToast().add({ title: 'Växt tillagd', color: 'primary' });
 };
 </script>
 
@@ -105,8 +174,21 @@ const addPlantToLager = async () => {
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-8">
       <div>
         <h1 class="text-3xl md:text-4xl font-black">Lager</h1>
-        <div class="text-muted text-lg">Alla växter för {{ plantskola?.name || 'plantskola' }}</div>
+        <div class="text-t-muted text-lg">
+          Alla växter för {{ plantskola?.name || 'plantskola' }}
+        </div>
       </div>
+      <!-- Add Plant Button: Professional, accessible, disables if not ready -->
+      <UButton
+        color="primary"
+        size="xl"
+        icon="material-symbols:add"
+        class="w-full md:w-auto"
+        :disabled="!plantskola || lagerStore.status === 'pending'"
+        @click="openAddModal"
+      >
+        Lägg till växt
+      </UButton>
     </div>
     <!-- Search and filter -->
     <div class="flex flex-col md:flex-row gap-4 mb-4">
@@ -151,16 +233,79 @@ const addPlantToLager = async () => {
         @update="lagerStore.updatePlant"
       />
     </div>
-    <div v-else class="text-muted italic py-8 text-center">Inga växter hittades.</div>
+    <div v-else class="text-t-muted italic py-8 text-center">Inga växter hittades.</div>
     <!-- Add plant modal -->
-    <UModal v-model="addPlantModalOpen" title="Lägg till växt">
+    <UModal v-model:open="addPlantModalOpen" title="Lägg till växt" class="p-4 overflow-hidden">
       <template #content>
-        <PlantPicker @select="onPlantPickerSelect" />
-      </template>
-      <template #footer>
-        <UButton :loading="addPlantLoading" @click="addPlantToLager" variant="primary" size="lg">
-          Lägg till
-        </UButton>
+        <div class="modal-slide-outer">
+          <div
+            class="modal-slide-inner"
+            :class="slideDirection"
+            :style="{ transform: addStep === 'pick' ? 'translateX(0%)' : 'translateX(-50%)' }"
+          >
+            <div class="modal-slide-step">
+              <PlantPicker
+                v-if="addStep === 'pick' || slideDirection === 'right'"
+                @select="onPlantPickerSelect"
+                @addSelect="onPlantPickerAddSelect"
+              />
+            </div>
+            <div class="modal-slide-step">
+              <div v-if="addStep === 'form' || slideDirection === 'left'">
+                <div class="flex flex-col gap-4">
+                  <UFormField label="Beskrivning (valfritt)">
+                    <UInput
+                      v-model="addForm.description_by_plantskola"
+                      placeholder=""
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField label="Kruka (valfritt)">
+                    <UInput v-model="addForm.pot" placeholder="ex. C5" class="w-full" />
+                  </UFormField>
+                  <UFormField label="Höjd (valfritt)">
+                    <UInput v-model="addForm.height" placeholder="ex. 100-120" class="w-full" />
+                  </UFormField>
+                  <UFormField label="Pris" required>
+                    <UInput
+                      v-model="addForm.price"
+                      type="number"
+                      placeholder="kr"
+                      step="10"
+                      class="w-full"
+                    />
+                  </UFormField>
+                  <UFormField label="Lager" required>
+                    <UInput v-model="addForm.stock" type="number" placeholder="st" class="w-full" />
+                  </UFormField>
+                </div>
+                <div class="flex gap-2 justify-end mt-4">
+                  <UButton
+                    v-if="addStep === 'form'"
+                    color="neutral"
+                    variant="outline"
+                    @click="addStep = 'pick'"
+                    class="w-max"
+                    icon="material-symbols:arrow-back-ios-new"
+                  >
+                    Tillbaka
+                  </UButton>
+                  <UButton
+                    v-if="addStep === 'form'"
+                    :loading="addPlantLoading"
+                    @click="addPlantToLager"
+                    :disabled="!addForm.price || !addForm.stock"
+                    color="primary"
+                    class="flex-1"
+                    icon="material-symbols:add"
+                  >
+                    Lägg till
+                  </UButton>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </template>
     </UModal>
   </div>
@@ -175,5 +320,38 @@ const addPlantToLager = async () => {
 .appear-leave-to {
   width: 0;
   /* opacity: 0; */
+}
+
+.slide-x-enter-active,
+.slide-x-leave-active {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.slide-x-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+.slide-x-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.modal-slide-outer {
+  overflow: hidden;
+  width: 100%;
+  position: relative;
+  min-height: 350px;
+}
+.modal-slide-inner {
+  display: flex;
+  width: 200%;
+  max-width: 200%;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.modal-slide-step {
+  width: 50%;
+  max-width: 50%;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  overflow-x: auto;
 }
 </style>

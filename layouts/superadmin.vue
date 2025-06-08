@@ -15,7 +15,9 @@ const handleLogout = async () => {
 
 <template>
   <div class="grid grid-rows-[auto_1fr] min-h-screen w-full">
-    <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-10 p-4 bg-elevated">
+    <div
+      class="flex flex-col md:flex-row items-center justify-between gap-4 mb-10 p-4 bg-bg-elevated"
+    >
       <h1 class="text-2xl font-bold flex items-center gap-2">
         <span class="bg-primary leading-0 p-1.5 rounded-xl">
           <UIcon name="devicon-plain:bash" size="30" class="text-inverted leading-0" />
@@ -23,7 +25,7 @@ const handleLogout = async () => {
         Superadmin Panel
       </h1>
       <div class="flex flex-row gap-4 items-center">
-        <div class="text-toned">
+        <div class="text-t-toned">
           Inloggad som: <span class="font-mono">{{ user?.email }}</span>
         </div>
         <UButton color="error" @click="handleLogout" class="">Logga ut</UButton>

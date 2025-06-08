@@ -36,7 +36,7 @@ function closeMenu() {
     <nav
       class="fixed z-40 top-0 left-0 right-0 h-20 has-[.mobile-nav]:h-screen has-[.mobile-nav]:bottom-0 has-[.mobile-nav]:grid grid-rows-[auto_1fr]"
     >
-      <div class="border-regular border-b-1 flex gap-6 justify-between p-4 bg-elevated h-20">
+      <div class="border-border border-b-1 flex gap-6 justify-between p-4 bg-bg-elevated h-20">
         <!-- Top part -->
         <div class="flex gap-6 items-center">
           <NuxtLink to="/" class="font-black text-2xl">Växtlistan.se</NuxtLink>
@@ -97,7 +97,7 @@ function closeMenu() {
       <transition name="fade">
         <div
           v-if="menuOpen"
-          class="mobile-nav p-4 bg-elevated flex flex-col text-2xl justify-between"
+          class="mobile-nav p-4 bg-bg-elevated flex flex-col text-2xl justify-between"
         >
           <div class="flex flex-col gap-4">
             <NuxtLink
@@ -122,7 +122,7 @@ function closeMenu() {
               >Profil</NuxtLink
             >
           </div>
-          <div class="flex flex-col gap-4 border-t-1 border-regular pt-4 mt-4">
+          <div class="flex flex-col gap-4 border-t-1 border-border pt-4 mt-4">
             <ColorModeButton full />
             <UButton color="error" class="w-full" size="xl" @click="handleLogout">Logga ut</UButton>
           </div>

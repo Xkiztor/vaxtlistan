@@ -1,140 +1,266 @@
 <script setup lang="ts">
-import type { FacitFuse } from '~/types/supabase-tables';
-import Fuse from 'fuse.js'; // Import Fuse.js for fuzzy search
-import { useFacitStore } from '~/stores/facit';
+import type { Facit } from '~/types/supabase-tables';
 
 const supabase = useSupabaseClient();
-const runtimeConfig = useRuntimeConfig();
-
 const route = useRoute();
 const router = useRouter();
-
-const facitStore = useFacitStore();
-
-const lignosdatabasen = useLignosdatabasen(); // Import lignosdatabasen if needed
-const { data: lignosdatabasenData } = await useAsyncData('lignosdatabasen', () =>
-  lignosdatabasen.getLignosdatabasen(runtimeConfig)
-);
+const { searchPlants } = useSearch();
 
 // Search input, initialized from query param if present
-const search = ref(route.query.q || '');
-// Filtered and sorted plant results
-const filteredPlants = ref<FacitFuse[]>([]);
+const search = ref(typeof route.query.q === 'string' ? route.query.q : '');
+// Filtered plant results from search query
+const searchResults = ref<Facit[]>([]);
 const hasSearched = ref(false);
 // Loading and error states
-const loading = ref(true);
+const loading = ref(false);
 const errorMsg = ref('');
+const searchTime = ref(0);
+const totalResults = ref(0);
 
-// Fetch all plants using Pinia store (only fetches if not already loaded)
-async function fetchAllPlants() {
+// Pagination - initialize from URL params
+const currentPage = ref(typeof route.query.sida === 'string' ? parseInt(route.query.sida) || 1 : 1);
+const itemsPerPage = 60;
+const totalPages = computed(() => Math.ceil(totalResults.value / itemsPerPage));
+
+// Minimum character threshold for search
+const MIN_SEARCH_LENGTH = 2;
+
+/**
+ * High-performance server-side search functionality
+ * Only triggers on explicit user action (Enter key or button click)
+ */
+async function performSearch(immediate = false) {
+  if (!search.value || search.value.length < MIN_SEARCH_LENGTH) {
+    searchResults.value = [];
+    hasSearched.value = false;
+    totalResults.value = 0;
+    return;
+  }
+
   loading.value = true;
   errorMsg.value = '';
+
+  // Update URL for deep linking without page reload - include both search query and page
+  const query: Record<string, string | undefined> = {
+    ...route.query,
+    q: search.value || undefined,
+    sida: currentPage.value > 1 ? currentPage.value.toString() : undefined,
+  };
+
+  router.replace({ query });
+
   try {
-    await facitStore.fetchFacit(supabase);
-  } catch (e) {
-    errorMsg.value = 'Kunde inte hämta växtdata.';
+    const offset = (currentPage.value - 1) * itemsPerPage;
+
+    // Use the new ultra-fast optimized search function
+    const result = await searchPlants(search.value, {
+      limit: itemsPerPage,
+      offset,
+      includeCount: currentPage.value === 1, // Only get count on first page
+    });
+
+    searchResults.value = result.results;
+    searchTime.value = result.searchTime;
+
+    if (currentPage.value === 1) {
+      totalResults.value = result.totalCount;
+    }
+
+    hasSearched.value = true;
+  } catch (error) {
+    console.error('Search error:', error);
+    errorMsg.value = 'Ett fel uppstod vid sökning. Försök igen.';
+    searchResults.value = [];
+    totalResults.value = 0;
   } finally {
     loading.value = false;
   }
 }
 
-// Perform fuzzy search using Fuse.js
-function performSearch() {
-  hasSearched.value = true;
-  // Update query param for SEO and navigation
-  router.replace({ query: { ...route.query, q: search.value || undefined } });
-  if (!search.value) {
-    filteredPlants.value = [];
-    return;
-  }
-  // Use Fuse.js for smart, fuzzy search
-  const fuse = new Fuse(facitStore.facit || [], {
-    keys: ['name', 'sv_name'],
-    threshold: 0.4, // Adjust for strictness
-    includeScore: true,
-    ignoreLocation: true,
-    includeMatches: true,
-  });
-  const results = fuse.search(search.value);
-  filteredPlants.value = results
-    .map((item) => {
-      if (item.matches && item.matches[0]?.key === 'sv_name' && typeof item.score === 'number') {
-        return { ...item, score: item.score * 10 };
-      }
-      return item;
-    })
-    .sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
-  // filteredPlants.value = results.length > 6 ? results.filter((item) => item.score! < 0.5) : results;
+// Trigger search on button click or Enter key
+function onSearch() {
+  currentPage.value = 1; // Reset to first page
+  performSearch(true);
 }
 
-// --- Lifecycle: fetch and search on mount, and watch for query changes ---
+// Handle pagination
+function goToPage(page: number) {
+  currentPage.value = page;
+  performSearch(true);
+  // Scroll to top of results
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Load search results on mount if URL contains search parameters
 onMounted(async () => {
-  await fetchAllPlants();
-  if (search.value) performSearch();
+  // This handles initial loading when navigating directly to a search URL
+  if (search.value && search.value.length >= MIN_SEARCH_LENGTH) {
+    performSearch(true);
+  }
 });
 
 // Watch for changes in the route query (e.g., browser navigation)
 watch(
-  () => route.query.q,
-  (newQ) => {
-    if (typeof newQ === 'string') {
+  () => route.query,
+  (newQuery) => {
+    const newQ = newQuery.q;
+    const newPage = newQuery.sida;
+
+    // Handle search query changes
+    if (typeof newQ === 'string' && newQ !== search.value) {
       search.value = newQ;
-      performSearch();
     }
-  }
+
+    // Handle page changes
+    const pageNum = typeof newPage === 'string' ? parseInt(newPage) || 1 : 1;
+    if (pageNum !== currentPage.value) {
+      currentPage.value = pageNum;
+    }
+
+    // Perform search if we have a query and it's from URL navigation
+    if (search.value && search.value.length >= MIN_SEARCH_LENGTH) {
+      performSearch(true);
+    }
+  },
+  { deep: true }
 );
 
-// Trigger search on button click or Enter
-function onSearch() {
-  performSearch();
-}
+// Clear results when search input is completely cleared
+watch(search, (newValue) => {
+  if (newValue.length === 0) {
+    searchResults.value = [];
+    hasSearched.value = false;
+    totalResults.value = 0;
+    // Clear URL query parameters when search is cleared
+    router.replace({ query: {} });
+  }
+});
+
+// Set page metadata for SEO
+useHead({
+  title: search.value ? `Sök växter: ${search.value} | Växtlistan` : 'Sök växter | Växtlistan',
+  meta: [
+    {
+      name: 'description',
+      content: search.value
+        ? `Sök efter ${search.value} och andra växter i Växtlistan - hitta tillgängliga växter i svenska plantskolor.`
+        : 'Sök efter växter i Växtlistan - hitta tillgängliga växter i svenska plantskolor.',
+    },
+  ],
+});
+
+const testVar = ref(1234567); // Example variable for testing purposes
 </script>
 
 <template>
   <!-- Main container -->
-  <UContainer class="py-8">
+  <div class="p-4 sm:p-8 max-w-7xl mx-auto">
     <!-- Search input -->
-    <div class="flex flex-col sm:flex-row items-center gap-4 mb-8">
-      <UInput
-        v-model="search"
-        placeholder="Sök växtnamn..."
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4">
+      <div class="relative w-full sm:w-96 flex-grow">
+        <UInput
+          v-model="search"
+          placeholder="Sök växtnamn..."
+          size="xl"
+          class="w-full"
+          leading-icon="i-material-symbols-search-rounded"
+          @keydown.enter="onSearch"
+          :ui="{
+            leadingIcon: 'pointer-events-none',
+            leading: 'pointer-events-none',
+          }"
+          autocomplete="off"
+        >
+          <template #trailing>
+            <UButton
+              v-if="search.length > 0"
+              color="neutral"
+              variant="ghost"
+              size="xs"
+              icon="i-material-symbols-close-rounded"
+              @click="search = ''"
+              class="!p-1"
+              aria-label="Rensa sökfält"
+            />
+          </template>
+        </UInput>
+      </div>
+      <UButton
+        @click="onSearch"
         size="xl"
-        class="w-full sm:w-96"
-        @keyup.enter="onSearch"
-        @blur="performSearch"
-        @submit.prevent="onSearch"
         icon="i-material-symbols-search-rounded"
-        rounded
-      />
-      <UButton color="primary" size="xl" @click="onSearch" rounded>Sök</UButton>
+        loading-icon="ant-design:loading-outlined"
+        :loading="loading"
+        :disabled="search.length < MIN_SEARCH_LENGTH || loading"
+      >
+        Sök
+      </UButton>
+    </div>
+
+    <!-- Search results info -->
+    <div v-if="hasSearched && !loading" class="mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <p class="text-t-muted">
+          <span v-if="totalResults > 0"> {{ totalResults.toLocaleString('sv-SE') }} resultat </span>
+          <span v-else> Inga resultat </span>
+        </p>
+        <p v-if="searchTime > 0" class="text-sm text-t-muted">
+          Sökning tog {{ Math.round(searchTime) }}ms
+        </p>
+      </div>
+    </div>
+
+    <!-- Error message -->
+    <div v-if="errorMsg" class="mb-6">
+      <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+        {{ errorMsg }}
+      </div>
     </div>
 
     <!-- Loading state -->
-    <div v-if="loading" class="flex justify-center items-center py-16">
-      <!-- <ULoader size="lg" color="primary" /> -->
-      Laddar...
+    <div v-if="loading" class="flex justify-center py-12">
+      <div class="flex items-center flex-col gap-3 text-t-muted">
+        <UIcon name="ant-design:loading-outlined" class="animate-spin" size="40" />
+        <span>Söker...</span>
+      </div>
     </div>
 
-    <!-- Error state -->
-    <div v-if="errorMsg" color="error" variant="soft" class="mb-4">
-      {{ errorMsg }}
+    <!-- Search results -->
+    <div v-else-if="hasSearched">
+      <div v-if="searchResults.length > 0" class="space-y-4">
+        <!-- Results grid -->
+        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <SearchResultCard v-for="plant in searchResults" :key="plant.id" :plant="plant" />
+        </div>
+
+        <!-- Pagination -->
+        <div v-if="totalPages > 1" class="flex justify-center mt-8">
+          <UPagination
+            v-model:page="currentPage"
+            :items-per-page="itemsPerPage"
+            :total="totalResults"
+            @update:page="goToPage"
+            show-first
+            show-last
+          />
+        </div>
+      </div>
+
+      <!-- No results -->
+      <div v-else class="text-center py-12">
+        <UIcon name="i-material-symbols-search-off-rounded" size="48" class="text-t-muted mb-4" />
+        <h3 class="text-xl font-semibold mb-2">Inga resultat hittades - Kontrollera stavningen</h3>
+        <p class="text-t-muted mb-6">Du kan söka efter vetenskapligt eller svenskt namn</p>
+      </div>
     </div>
 
-    <!-- No results -->
-    <div v-if="!loading && filteredPlants && filteredPlants.length === 0 && search && hasSearched">
-      <div color="info" variant="soft">Inga växter hittades för "{{ search }}".</div>
+    <!-- Initial state -->
+    <div v-else class="text-center py-12">
+      <UIcon name="i-material-symbols-search-rounded" size="48" class="text-t-muted mb-4" />
+      <h3 class="text-xl font-semibold mb-2">Sök efter växter</h3>
+      <p class="text-t-muted">
+        Använd sökfältet ovan för att hitta växter i vårt register med 170 000+ arter.
+      </p>
     </div>
-
-    <!-- Results list -->
-    <div
-      v-if="filteredPlants && filteredPlants.length > 0"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-    >
-      <SearchResultCard v-for="plant in filteredPlants" :key="plant.item.id" :plant="plant" />
-    </div>
-  </UContainer>
+  </div>
 </template>
-
-<style scoped>
-/* No custom colors, use Tailwind or Nuxt UI classes only */
-</style>

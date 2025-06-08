@@ -1,9 +1,7 @@
 <script setup lang="ts">
 // InlineSearch component for navbar/hero
-// Uses Fuse.js and Pinia store for fast fuzzy search
-import Fuse from 'fuse.js';
-import type { FacitFuse } from '~/types/supabase-tables';
-import { useFacitStore } from '~/stores/facit';
+// Updated to use high-performance server-side search instead of loading all data into memory
+import type { Facit } from '~/types/supabase-tables';
 
 // Props: mode controls size/layout
 const props = defineProps<{ mode?: 'navbar' | 'hero' | 'dropdown' }>();
@@ -16,64 +14,48 @@ const isFocused = ref(false);
 
 const supabase = useSupabaseClient();
 const router = useRouter();
-const facitStore = useFacitStore();
+const { searchPlants, getSearchSuggestions } = useSearch();
 
 const search = ref('');
-const results = ref<FacitFuse[]>([]);
+const results = ref<Facit[]>([]);
 const loading = ref(false);
 const showDropdown = ref(false);
-const minChars = 3;
+const minChars = 2; // Reduced from 3 for better UX
 const maxResults = 5;
 const inputRef = ref<HTMLInputElement | null>(null);
 
-// Fetch all plants if not already loaded
-async function ensureFacitLoaded() {
-  loading.value = true;
-  try {
-    await facitStore.fetchFacit(supabase);
-  } catch (e) {
-    // Optionally handle error
-  } finally {
-    loading.value = false;
-  }
-}
-
-// Perform fuzzy search using Fuse.js
-async function performSearch() {
-  await ensureFacitLoaded();
+// Debounced search to avoid too many API calls
+const debouncedSearch = useDebounceFn(async () => {
   if (search.value.length < minChars) {
     results.value = [];
     showDropdown.value = false;
     return;
   }
-  const fuse = new Fuse(facitStore.facit || [], {
-    keys: ['name', 'sv_name'],
-    threshold: 0.4,
-    includeScore: true,
-    ignoreLocation: true,
-    includeMatches: true,
-  });
-  const fuseResults = fuse.search(search.value);
-  // results.value = fuseResults.slice(0, maxResults).filter((item) => item.score! < 0.45);
-  results.value = fuseResults
-    .slice(0, maxResults)
-    .map((item) => {
-      if (item.matches && item.matches[0]?.key === 'sv_name' && typeof item.score === 'number') {
-        return { ...item, score: item.score * 10 };
-      }
-      return item;
-    })
-    .sort((a, b) => (a.score ?? 0) - (b.score ?? 0));
 
-  showDropdown.value = results.value.length > 0;
-}
+  loading.value = true;
+  try {
+    const searchResult = await searchPlants(search.value, {
+      limit: maxResults,
+      threshold: 0.2, // Lower threshold for more fuzzy results
+    });
 
-// Watch search input and trigger search
+    results.value = searchResult.results;
+    showDropdown.value = results.value.length > 0;
+  } catch (error) {
+    console.error('Search error:', error);
+    results.value = [];
+    showDropdown.value = false;
+  } finally {
+    loading.value = false;
+  }
+}, 300);
+
+// Watch search input and trigger debounced search
 watch(
   () => search.value,
   (val) => {
     if (val.length >= minChars) {
-      performSearch();
+      debouncedSearch();
     } else {
       results.value = [];
       showDropdown.value = false;
@@ -96,9 +78,10 @@ function onEnter(e: KeyboardEvent) {
 
 // Handle click outside to close dropdown
 function onBlurDropdown(e: FocusEvent) {
+  // Small delay to allow for clicking on dropdown items
   setTimeout(() => {
     showDropdown.value = false;
-  }, 120); // Delay to allow click on dropdown
+  }, 120);
 }
 
 // Focus input when hero mode
@@ -113,14 +96,17 @@ function handleFocus() {
   emit('select');
   if (search.value.length >= minChars && results.value.length > 0) showDropdown.value = true;
 }
+
 function handleBlur(e: FocusEvent) {
   isFocused.value = false;
   emit('deslect');
   onBlurDropdown(e);
 }
+
 function clearSearch() {
   search.value = '';
-  // Try to blur the input in a robust way
+  results.value = [];
+  showDropdown.value = false;
 }
 
 const deSelect = () => {
@@ -165,6 +151,8 @@ const deSelect = () => {
       :size="width > expandSearchScreenWidth ? 'xl' : 'lg'"
       class="w-full"
       leading-icon="i-material-symbols-search-rounded"
+      loading-icon="ant-design:loading-outlined"
+      :loading="loading"
       @keydown.enter="onEnter"
       @focus="handleFocus"
       @blur="handleBlur"
@@ -192,16 +180,16 @@ const deSelect = () => {
     <transition name="fade">
       <div
         v-if="showDropdown && results.length > 0"
-        class="absolute left-0 right-0 z-50 bg-elevated border-1 border-regular rounded-lg shadow-lg mt-2 overflow-hidden"
+        class="absolute left-0 right-0 z-50 bg-bg-elevated border-1 border-border rounded-lg shadow-lg mt-2 overflow-hidden"
       >
         <ul>
           <li
             v-for="plant in results"
-            :key="plant.item.id"
-            class="hover:bg-accented cursor-pointer px-4 py-3 flex flex-col gap-1 border-b-1 border-regular last:border-b-0"
+            :key="plant.id"
+            class="hover:bg-bg-accented cursor-pointer px-4 py-3 flex flex-col gap-1 border-b-1 border-border last:border-b-0"
             @mousedown.prevent="
               router.push({
-                path: `/vaxt/${plant.item.id}/${plant.item.name
+                path: `/vaxt/${plant.id}/${plant.name
                   .toLowerCase()
                   .replace(/[^a-z0-9åäö\- ]/gi, '')
                   .replace(/\s+/g, '+')
@@ -211,26 +199,17 @@ const deSelect = () => {
                 deSelect()
             "
           >
-            <span class="font-semibold">{{ plant.item.name }}</span>
-            <span v-if="plant.item.sv_name" class="text-muted text-sm">{{
-              plant.item.sv_name
-            }}</span>
+            <span class="font-semibold">{{ plant.name }}</span>
+            <span v-if="plant.sv_name" class="text-t-muted text-sm">{{ plant.sv_name }}</span>
             <div class="flex gap-2 mt-1 max-md:hidden">
-              <UBadge v-if="plant.item.type" color="primary" variant="soft">{{
-                plant.item.type
+              <UBadge v-if="plant.plant_type" color="primary" variant="soft">{{
+                plant.plant_type
               }}</UBadge>
-              <UBadge v-if="plant.item.edible" color="primary" variant="soft">Ätlig</UBadge>
-              <UBadge v-if="plant.item.zone" color="neutral" variant="soft"
-                >Zon {{ plant.item.zone }}</UBadge
-              >
-              <!-- <UBadge color="neutral" variant="soft">{{ plant.score }}</UBadge>
-              <UBadge color="neutral" variant="soft">Nr: {{ plant.refIndex }}</UBadge>
-              <UBadge color="neutral" variant="soft">{{ plant.matches }}</UBadge> -->
             </div>
           </li>
         </ul>
         <UButton
-          class="w-full rounded-none border-t-1 border-regular font-bold underline text-secondary"
+          class="w-full rounded-none border-t-1 border-border font-bold underline text-secondary"
           size="xl"
           color="none"
           @mousedown.prevent="goToAllResults"

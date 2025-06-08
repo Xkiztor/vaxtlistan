@@ -71,7 +71,7 @@ async function register() {
 </script>
 
 <template>
-  <div class="flex flex-col items-center justify-center min-h-screen bg-elevated p-4">
+  <div class="flex flex-col items-center justify-center min-h-screen bg-bg-elevated p-4">
     <UCard class="w-full max-w-md">
       <h1 class="text-2xl font-bold mb-4">Registrera din plantskola</h1>
       <form @submit.prevent="register" class="flex flex-col gap-4">

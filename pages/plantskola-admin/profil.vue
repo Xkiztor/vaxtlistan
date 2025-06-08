@@ -86,7 +86,7 @@ async function save() {
 
 <template>
   <div class="flex flex-col items-center justify-center min-h-[calc(100vh-5rem)] p-4">
-    <div class="w-full max-w-lg border-1 border-regular p-6 rounded-lg bg-elevated">
+    <div class="w-full max-w-lg border-1 border-border p-6 rounded-lg bg-bg-elevated">
       <h1 class="text-2xl font-bold mb-4">
         Min plantskola
         <UIcon
