@@ -67,20 +67,32 @@ export const usePlantAttributes = (plant: ComputedRef<Facit | null> | Ref<Facit 
       .filter(label => label !== undefined)
       .join(', ');
   });
-
-  const plantTypeLabel = computed(() => {
-    if (!plant.value?.plant_type) return null;
+  // Get RHS type labels from plant
+  const rhsTypeLabels = computed(() => {
+    if (!plant.value?.rhs_types?.length) return null;
     
-    const typeMap = {
-      'T': 'Träd',
-      'B': 'Barrträd', 
-      'G': 'Gräs',
-      'O': 'Ormbunke',
-      'K': 'Klätterväxt',
-      'P': 'Perenn'
+    const RHS_TYPE_LABELS = {
+      1: "Perenn",
+      2: "Klätterväxt", 
+      3: "Säsongsväxt",
+      4: "Lökar",
+      5: "Ormbunke",
+      6: "Buske",
+      8: "Alpin/Stenparti",
+      9: "Ros",
+      10: "Gräslik",
+      11: "Växthus",
+      12: "Ätbar växt",
+      13: "Träd",
+      17: "Bambu",
+      18: "Våtmark",
+      19: "Barrträd"
     } as const;
     
-    return typeMap[plant.value.plant_type as keyof typeof typeMap] || plant.value.plant_type;
+    return plant.value.rhs_types
+      .map(type => RHS_TYPE_LABELS[type as keyof typeof RHS_TYPE_LABELS])
+      .filter(label => label)
+      .join(', ');
   });
   // Decompress color strings and organize by season for timeline display
   const colorsBySeason = computed(() => {
@@ -266,7 +278,7 @@ export const usePlantAttributes = (plant: ComputedRef<Facit | null> | Ref<Facit 
     phLabels,
     exposureLabels,
     seasonOfInterestLabels,
-    plantTypeLabel,
+    rhsTypeLabels,
     colorsBySeason,
     getColorClass,
     getBaseIcon,

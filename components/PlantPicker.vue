@@ -1,88 +1,140 @@
 <script setup lang="ts">
 // PlantPicker.vue - reusable plant selection component for edit/create
-// Uses Nuxt UI, SSR-friendly, emits selected plant id
+// Uses optimized search without fetching entire facit table
 import type { Facit } from '~/types/supabase-tables';
 import { useVirtualList } from '@vueuse/core';
-import Fuse from 'fuse.js'; // Import Fuse.js
 
 // Supabase client
 const supabase = useSupabaseClient();
+const { searchPlants } = useSearch();
 
 const props = defineProps<{
   editValue: number; // Selected plant id
   currentPlantID: number; // ID of the current plant
 }>();
 
-// Search input
+// Search input and state
 const search = ref('');
-const minSearchLength = 3; // Minimum length for search to trigger
+const minSearchLength = 2; // Minimum length for search to trigger
+const searchResults = ref<Facit[]>([]);
+const loading = ref(false);
+const hasSearched = ref(false);
+const canSearch = computed(() => search.value.length >= minSearchLength);
 
-// Use facit store for SSR-friendly plant data
-const facitStore = useFacitStore();
-const loading = computed(() => facitStore.loading.value);
-const error = computed(() => facitStore.error.value);
+// Get current plant data if available
+const { data: currentPlant } = await useAsyncData(
+  `currentPlant-${props.currentPlantID}`,
+  async () => {
+    if (!props.currentPlantID) return null;
+    const { data, error } = await supabase
+      .from('facit')
+      .select('*')
+      .eq('id', props.currentPlantID)
+      .single();
 
-await useAsyncData('allFacit', () => facitStore.fetchFacit(supabase));
-
-// Fuse.js options for strict search
-const fuseOptions = {
-  keys: [
-    { name: 'name', weight: 0.7 },
-    { name: 'sv_name', weight: 0.3 },
-  ],
-  threshold: 0.3, // strict matching
-  ignoreLocation: true,
-  minMatchCharLength: minSearchLength,
-  // Normalize and strip diacritics/special characters for both search and data
-  getFn: (obj: Facit, path: string) => {
-    const value = (obj as any)[path];
-    if (typeof value !== 'string') return value;
-    // Normalize to NFD and remove diacritics and special characters
-    return value
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-      .replace(/[^a-zA-Z0-9\s]/g, '') // Remove special characters
-      .toLowerCase();
-  },
-};
-let fuse: Fuse<Facit> | null = null;
-
-// Watch facit and update Fuse instance
-watch(
-  () => facitStore.facit,
-  (facit) => {
-    if (facit) {
-      fuse = new Fuse(facit, fuseOptions);
+    if (error) {
+      console.error('Error fetching current plant:', error);
+      return null;
     }
+    return data;
   },
-  { immediate: true }
+  { server: false }
 );
 
-// Filtered list based on search using Fuse.js
-const filteredPlants = computed(() => {
-  if (!facitStore.facit) return [];
-  // If search is empty or too short, show only the selected plant (editValue) if it exists
+// Perform search using optimized search function
+const performSearch = async () => {
   if (!search.value || search.value.length < minSearchLength) {
-    const selected = facitStore.facit.find((p) => p.id === props.currentPlantID);
-    return selected ? [selected] : [];
+    searchResults.value = [];
+    hasSearched.value = false;
+    return;
   }
-  if (!fuse) return [];
-  // Use Fuse for strict fuzzy search
-  return fuse.search(search.value).map((result) => result.item);
+
+  loading.value = true;
+  hasSearched.value = true;
+
+  try {
+    const result = await searchPlants(search.value, {
+      limit: 50, // Limit results for picker
+      offset: 0,
+      includeCount: false, // Don't need count for picker
+    });
+
+    searchResults.value = result.results;
+  } catch (error) {
+    console.error('Search error:', error);
+    searchResults.value = [];
+    useToast().add({
+      title: 'Sökfel',
+      description: 'Kunde inte utföra sökning. Försök igen.',
+      color: 'error',
+    });
+  } finally {
+    loading.value = false;
+  }
+};
+
+// Handle manual search trigger (button click or Enter key)
+const triggerSearch = () => {
+  if (canSearch.value) {
+    performSearch();
+  }
+};
+
+// Handle Enter key press
+const handleKeyPress = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') {
+    triggerSearch();
+  }
+};
+
+// Remove automatic search watching - now manual only
+// watch(search, () => {
+//   if (search.value.length >= minSearchLength) {
+//     debouncedSearch();
+//   } else {
+//     searchResults.value = [];
+//     hasSearched.value = false;
+//   }
+// });
+
+// Clear results when search is too short
+watch(search, () => {
+  if (search.value.length < minSearchLength) {
+    searchResults.value = [];
+    hasSearched.value = false;
+  }
 });
 
-// Virtual list setup for filteredPlants (VueUse docs style)
-const { list, containerProps, wrapperProps } = useVirtualList(filteredPlants, {
+// Plants to display in list
+const plantsToDisplay = computed(() => {
+  // If we have search results, show them
+  if (hasSearched.value && searchResults.value.length > 0) {
+    return searchResults.value;
+  }
+
+  // If no search or search is too short, show current plant if available
+  if ((!search.value || search.value.length < minSearchLength) && currentPlant.value) {
+    return [currentPlant.value];
+  }
+
+  return [];
+});
+
+// Virtual list setup for plantsToDisplay
+const { list, containerProps, wrapperProps } = useVirtualList(plantsToDisplay, {
   itemHeight: 73,
 });
 
 // Add plant
-const types = [
-  { value: 'T', label: 'Träd' },
-  { value: 'B', label: 'Barrträd' },
-  { value: 'P', label: 'Perenn' },
-  { value: 'K', label: 'Klätterväxt' },
-  { value: 'O', label: 'Ormbunke' },
+const rhs_types_options = [
+  { value: 13, label: 'Träd' },
+  { value: 19, label: 'Barrträd' },
+  { value: 1, label: 'Perenn' },
+  { value: 2, label: 'Klätterväxt' },
+  { value: 5, label: 'Ormbunke' },
+  { value: 6, label: 'Buske' },
+  { value: 9, label: 'Ros' },
+  { value: 12, label: 'Ätbar växt' },
 ];
 
 const modalOpen = ref(false);
@@ -90,24 +142,17 @@ const closeAdd = () => {
   modalOpen.value = false;
   addInputName.value = '';
   addInputSv.value = '';
-  addInputZon.value = null;
-  addInputType.value = '';
-  addInputEdible.value = false;
+  addInputRhsType.value = undefined;
 };
 
 const addInputName = ref('');
 const addInputSv = ref('');
-const addInputZon = ref(null);
-const addInputType = ref('');
-const addInputEdible = ref(false);
+const addInputRhsType = ref<number | undefined>(undefined);
 
-// Add plant to facit table via store
+// Add plant to facit table
 const addPlant = async () => {
-  if (addInputZon.value === 0) {
-    addInputZon.value = null;
-  }
   // Validate required fields
-  if (!addInputName.value.trim() || !addInputType.value) {
+  if (!addInputName.value.trim() || !addInputRhsType.value) {
     useToast().add({
       title: 'Fel',
       description: 'Artnamn och typ är obligatoriska.',
@@ -115,13 +160,24 @@ const addPlant = async () => {
     });
     return;
   }
-  // Fetch plantskola id for created_by
+
+  // Get plantskola id for created_by
   const user = useSupabaseUser();
+  if (!user.value) {
+    useToast().add({
+      title: 'Fel',
+      description: 'Du måste vara inloggad.',
+      color: 'error',
+    });
+    return;
+  }
+
   const { data: pk, error: pkError } = await supabase
     .from('plantskolor')
     .select('id')
     .eq('user_id', user.value.id)
     .single();
+
   if (pkError || !pk) {
     useToast().add({
       title: 'Fel',
@@ -130,35 +186,48 @@ const addPlant = async () => {
     });
     return;
   }
-  // Prepare insert data
+
+  // Prepare insert data according to new facit structure
   const newPlant = {
     name: addInputName.value.trim(),
     sv_name: addInputSv.value.trim() || null,
-    type: addInputType.value,
-    edible: addInputEdible.value,
-    zone: addInputZon.value ? Number(addInputZon.value) : null,
+    rhs_types: addInputRhsType.value ? [addInputRhsType.value] : null,
     user_submitted: true,
-    created_at: new Date().toISOString(),
-    last_edited: new Date().toISOString(),
-    created_by: pk.id,
+    created_by: (pk as any).id,
   };
-  // Add via facit store
-  const added = await facitStore.addFacit(supabase, newPlant);
-  if (!added) {
+  try {
+    // Insert directly via Supabase instead of using store
+    const { data: added, error: addError } = await supabase
+      .from('facit')
+      .insert(newPlant as any)
+      .select()
+      .single();
+
+    if (addError || !added) {
+      console.error('Error adding plant:', addError);
+      useToast().add({
+        title: 'Fel vid uppladdning',
+        description: 'Kunde inte lägga till växt.',
+        color: 'error',
+      });
+      return;
+    }
+
+    // Select the newly added plant by id
+    addSelectPlant((added as any).id);
+    useToast().add({
+      title: 'Växt tillagd',
+      color: 'primary',
+    });
+    closeAdd();
+  } catch (error) {
+    console.error('Error adding plant:', error);
     useToast().add({
       title: 'Fel vid uppladdning',
-      description: facitStore.error.value || 'Kunde inte lägga till växt.',
+      description: 'Kunde inte lägga till växt.',
       color: 'error',
     });
-    return;
   }
-  // Select the newly added plant by id
-  addSelectPlant(added.id);
-  useToast().add({
-    title: 'Växt tillagd',
-    color: 'primary',
-  });
-  closeAdd();
 };
 
 // Emit selected plant id
@@ -173,24 +242,48 @@ const addSelectPlant = (id: number) => {
 
 <template>
   <div class="flex flex-col gap-4">
-    <!-- Search input -->
-    <UInput
-      v-model="search"
-      placeholder="Sök växtnamn..."
-      icon="i-heroicons-magnifying-glass"
-      size="xl"
-      class="w-full"
-      :disabled="loading"
-    />
+    <!-- Search input with button -->
+    <div class="flex gap-2">
+      <UInput
+        v-model="search"
+        placeholder="Sök växtnamn..."
+        icon="i-heroicons-magnifying-glass"
+        size="xl"
+        class="flex-1"
+        :disabled="loading"
+        @keypress="handleKeyPress"
+      />
+      <UButton
+        size="xl"
+        color="primary"
+        icon="i-heroicons-magnifying-glass"
+        :disabled="!canSearch || loading"
+        :loading="loading"
+        @click="triggerSearch"
+      >
+        Sök
+      </UButton>
+    </div>
 
-    <!-- Loading state -->
-    <div v-if="loading" class="flex justify-center py-8">
-      <USkeleton class="h-10 w-full rounded-lg" />
+    <!-- Loading state with nice spinner -->
+    <div
+      v-if="loading"
+      class="border border-border rounded-lg bg-bg-elevated h-72 md:h-96 flex items-center justify-center"
+    >
+      <div class="flex flex-col items-center gap-4">
+        <div class="relative">
+          <div class="w-12 h-12 border-4 border-border rounded-full"></div>
+          <div
+            class="absolute top-0 left-0 w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"
+          ></div>
+        </div>
+        <span class="text-t-muted text-sm">Söker växter...</span>
+      </div>
     </div>
 
     <!-- Virtual plant list -->
     <div v-else class="border border-border rounded-lg bg-bg-elevated h-72 md:h-96">
-      <div v-bind="containerProps" class="overflow-scroll h-full" v-if="filteredPlants.length > 0">
+      <div v-bind="containerProps" class="overflow-scroll h-full" v-if="plantsToDisplay.length > 0">
         <div v-bind="wrapperProps">
           <div
             v-for="item in list"
@@ -210,21 +303,42 @@ const addSelectPlant = (id: number) => {
                 item.data.sv_name
               }}</span>
             </span>
-            <UButton
-              size="sm"
-              class="shrink-0 h-min"
-              :disabled="item.data.id === currentPlantID || item.data.id === editValue"
-            >
+            <UButton size="sm" class="shrink-0 h-min" :disabled="item.data.id === currentPlantID">
               Välj</UButton
             >
           </div>
         </div>
       </div>
       <div
-        v-else-if="search.length > minSearchLength"
-        class="text-t-muted italic px-4 py-3 absolute w-full"
+        v-else-if="hasSearched && search.length >= minSearchLength"
+        class="text-t-muted italic px-4 py-3 flex items-center justify-center h-full"
       >
-        Inga växter hittades.
+        <div class="text-center">
+          <UIcon name="i-heroicons-magnifying-glass" class="w-8 h-8 mx-auto mb-2 text-t-toned" />
+          <div>Inga växter hittades för "{{ search }}".</div>
+          <div class="text-sm mt-1">Försök med andra sökord eller lägg till en ny växt.</div>
+        </div>
+      </div>
+      <div
+        v-else-if="!hasSearched && search.length >= minSearchLength"
+        class="text-t-muted italic px-4 py-3 flex items-center justify-center h-full"
+      >
+        <div class="text-center">
+          <UIcon name="i-heroicons-magnifying-glass" class="w-8 h-8 mx-auto mb-2 text-t-toned" />
+          <div>Tryck på "Sök" eller Enter för att söka</div>
+        </div>
+      </div>
+      <div v-else class="text-t-muted italic px-4 py-3 flex items-center justify-center h-full">
+        <div class="text-center">
+          <UIcon name="i-heroicons-magnifying-glass" class="w-8 h-8 mx-auto mb-2 text-t-toned" />
+          <div>
+            {{
+              currentPlant
+                ? 'Nuvarande växt visas ovan'
+                : 'Sök efter växter genom att skriva i sökfältet'
+            }}.
+          </div>
+        </div>
       </div>
     </div>
     <div>
@@ -244,21 +358,13 @@ const addSelectPlant = (id: number) => {
               <UFormField label="Svenskt namn">
                 <UInput v-model="addInputSv" size="md" class="w-full" />
               </UFormField>
-              <UFormField label="Zon">
-                <UInputNumber v-model="addInputZon" size="md" class="w-full" />
-              </UFormField>
               <UFormField label="Typ" required>
                 <USelect
-                  v-model="addInputType"
-                  :items="types"
+                  v-model="addInputRhsType"
+                  :options="rhs_types_options"
                   class="w-full"
                   :ui="{ item: 'cursor-pointer' }"
                 />
-                <!-- <UInput v-model="addInputType" placeholder="Typ" size="md" class="w-full" /> -->
-              </UFormField>
-              <UFormField label="Ätbar?" required>
-                <USwitch v-model="addInputEdible" size="md" class="w-full" />
-                <!-- <UInput v-model="addInputEdible" placeholder="Ätbar?" size="md" class="w-full" /> -->
               </UFormField>
             </div>
             <div class="flex gap-2 justify-end">

@@ -9,6 +9,7 @@ This is for a production website!! (VERY IMPORTANT!!) Write everything proffessi
 Always use Nuxt UI components (only the up to date ones that exist). They start with U and then the normal name of the element. Use https://ui.nuxt.com/
 Write comments for everything. Write readable code.
 Use supabase like: "const supabase = useSupabaseClient();"
+The facit is 170k rows and the intire table can not be fetched. So use useAsyncData and fetch only the plants needed.
 Use Typescript and define types
 You don't need to import to vue files as everything is auto-imported (some things still needs to be imported, like types, nothing else)
 Use Nuxt 3 conventions (definePageMeta, useAsyncData, etc.)
@@ -78,35 +79,36 @@ This is the data structure in supabase:
 
 ### Table: "plantskolor"
 
-| Column Name | Data Type  | Description           |
-| ----------- | ---------- | --------------------- |
-| id          | Int8       | Unique identifier     |
-| name        | Text       | Nursery name          |
-| adress      | Text       | Address               |
-| email       | Text       | Contact email         |
-| phone       | Text       | Contact phone number  |
-| verified    | Bool       | Verification status   |
-| description | Text       | Nursery description   |
-| user_id     | UUID       | Linked user ID        |
-| created_at  | Timestampz | Creation timestamp    |
-| last_edited | Timestampz | Last edited timestamp |
+| Column Name | Data Type  | Description              |
+| ----------- | ---------- | ------------------------ |
+| id          | Int8       | Unique identifier        |
+| name        | Text       | Nursery name             |
+| adress      | Text       | Address                  |
+| email       | Text       | Contact email            |
+| phone       | Text       | Contact phone number     |
+| verified    | Bool       | Verification status      |
+| hidden      | Bool       | hides the all the plants |
+| description | Text       | Nursery description      |
+| user_id     | UUID       | Linked user ID           |
+| created_at  | Timestampz | Creation timestamp       |
+| last_edited | Timestampz | Last edited timestamp    |
 
 ### Table: "totallager"
 
-| Column Name               | Data Type  | Description                                |
-| ------------------------- | ---------- | ------------------------------------------ |
-| id                        | Int8       | Unique identifier                          |
-| facit_id                  | Int8       | FK to facit table (linked plant reference) |
-| plantskola_id             | Int8       | FK to plantskolor table (linked nursery)   |
-| name_by_plantskola        | Text       | Plant name as provided by the nursery      |
-| description_by_plantskola | Text       | Plant description from the nursery         |
-| pot                       | Text       | Pot size/type                              |
-| height                    | Text       | Plant height                               |
-| price                     | Numeric    | Price of the plant                         |
-| hidden                    | Bool       | Visibility status (hidden or shown)        |
-| stock                     | Int8       | Number of plants in stock                  |
-| created_at                | Timestampz | Creation timestamp                         |
-| last_edited               | Timestampz | Last edited timestamp                      |
+| Column Name           | Data Type  | Description                                |
+| --------------------- | ---------- | ------------------------------------------ |
+| id                    | Int8       | Unique identifier                          |
+| facit_id              | Int8       | FK to facit table (linked plant reference) |
+| plantskola_id         | Int8       | FK to plantskolor table (linked nursery)   |
+| name_by_plantskola    | Text       | Plant name as provided by the nursery      |
+| comment_by_plantskola | Text       | Plant comment from the nursery             |
+| pot                   | Text       | Pot size/type                              |
+| height                | Text       | Plant height                               |
+| price                 | Numeric    | Price of the plant                         |
+| hidden                | Bool       | Visibility status (hidden or shown)        |
+| stock                 | Int8       | Number of plants in stock                  |
+| created_at            | Timestampz | Creation timestamp                         |
+| last_edited           | Timestampz | Last edited timestamp                      |
 
 // The name of the plant is never presented here. Instead it fetched from the facit table by the id. So when editing or adding a new plant the user has to chose one of the current plant names in the facit.
 
@@ -125,34 +127,34 @@ This is the data structure in supabase:
 
 This table contains detailed taxonomic and horticultural information for each plant. Example data and field explanations below:
 
-| column_name        | data_type                | Example / Description                           |
-| ------------------ | ------------------------ | ----------------------------------------------- |
-| id                 | bigint (auto-generated)  | 72388 (unique ID)                               |
-| created_at         | timestamp with time zone | '2024-05-22T12:00:00Z' (auto-set on insert)     |
-| name               | text                     | "Pinus cembra 'Stricta'" (scientific name)      |
-| sv_name            | text                     | "Arolla pine 'Stricta'" (common/native name)    |
-| is_recommended     | boolean                  | true/false                                      |
-| is_original        | boolean                  | true/false                                      |
-| is_synonym         | boolean                  | true/false                                      |
-| synonym_to         | text                     | If synonym, the accepted name it refers to      |
-| taxonomy_type      | text                     | 'species', 'cultivar', etc.                     |
-| plant_type         | text                     | 'T', etc.                                       |
-| rhs_hardiness      | bigint                   | 9 (see mapping below)                           |
-| spread             | text                     | '2.5-4 meter'                                   |
-| height             | text                     | '8-12 meter'                                    |
-| rhs_id             | bigint                   | RHS database ID                                 |
-| sunlight           | smallint[]               | [1] (see mapping below)                         |
-| soil_type          | smallint[]               | [1,3] (see mapping below)                       |
-| full_height_time   | smallint[]               | [5] (see mapping below)                         |
-| moisture           | smallint[]               | [1] (see mapping below)                         |
-| ph                 | smallint[]               | [1,3] (see mapping below)                       |
-| exposure           | smallint[]               | [2,1] (see mapping below)                       |
-| season_of_interest | smallint[]               | [1,2,3,4] (see mapping below)                   |
-| colors             | text[]                   | Array of compressed strings ["8-3-1", "11-3-1"] |
-| rhs_types          | smallint[]               | [6] (see mapping below)                         |
-| user_submitted     | boolean                  | true/false (default: false)                     |
-| created_by         | bigint                   | User or nursery who created the entry (FK)      |
-| last_edited        | timestamp with time zone | '2024-05-22T12:00:00Z' (auto-set on update)     |
+| column_name        | data_type                | Example / Description                                |
+| ------------------ | ------------------------ | ---------------------------------------------------- |
+| id                 | bigint (auto-generated)  | 72388 (unique ID)                                    |
+| created_at         | timestamp with time zone | '2024-05-22T12:00:00Z' (auto-set on insert)          |
+| name               | text                     | "Pinus cembra 'Stricta'" (scientific name)           |
+| sv_name            | text                     | "Arolla pine 'Stricta'" (common/native name)         |
+| is_recommended     | boolean                  | true/false                                           |
+| is_original        | boolean                  | true/false                                           |
+| is_synonym         | boolean                  | true/false                                           |
+| synonym_to         | text                     | If synonym, the accepted name it refers to           |
+| taxonomy_type      | text                     | 'species', 'cultivar', etc.                          |
+| plant_type         | text                     | 'T', etc.                                            |
+| rhs_types          | smallint[]               | [6] (see mapping below), Sub-catergory to plant_type |
+| rhs_hardiness      | bigint                   | 9 (see mapping below)                                |
+| spread             | text                     | '2.5-4 meter'                                        |
+| height             | text                     | '8-12 meter'                                         |
+| rhs_id             | bigint                   | RHS database ID                                      |
+| sunlight           | smallint[]               | [1] (see mapping below)                              |
+| soil_type          | smallint[]               | [1,3] (see mapping below)                            |
+| full_height_time   | smallint[]               | [5] (see mapping below)                              |
+| moisture           | smallint[]               | [1] (see mapping below)                              |
+| ph                 | smallint[]               | [1,3] (see mapping below)                            |
+| exposure           | smallint[]               | [2,1] (see mapping below)                            |
+| season_of_interest | smallint[]               | [1,2,3,4] (see mapping below)                        |
+| colors             | text[]                   | Array of compressed strings ["8-3-1", "11-3-1"]      |
+| user_submitted     | boolean                  | true/false (default: false)                          |
+| created_by         | bigint                   | User or nursery who created the entry (FK)           |
+| last_edited        | timestamp with time zone | '2024-05-22T12:00:00Z' (auto-set on update)          |
 
 **Notes:**
 
@@ -194,3 +196,103 @@ This table contains detailed taxonomic and horticultural information for each pl
   18: "Bogs",
   19: "Conifers"
   }
+
+---
+
+## Database Functions
+
+### get_plantskola_lager_complete(plantskola_id)
+
+A SQL function that fetches complete lager information for a specific plantskola. It joins the `totallager` table with the `facit` table to provide enriched plant data in a single query. Data from facit is prefixed with facit\_
+
+**Usage:**
+
+```typescript
+// Using Supabase RPC
+const { data } = await supabase.rpc('get_plantskola_lager_complete', { p_plantskola_id: plantskolaId });
+
+// Or with select to choose specific columns
+const { data } = await supabase
+  .rpc('get_plantskola_lager_complete', { p_plantskola_id: plantskolaId }) as { data: LagerComplete[] }
+  .select('id, name_by_plantskola, facit_name, facit_sv_name, stock, price');
+```
+
+**Returns:** Array of `LagerComplete` objects containing both lager and facit data.
+
+---
+
+### Plant Search Functions
+
+The platform provides optimized search functions for the 170k+ plants in the facit table. All functions support multi-word search and normalize text (remove accents, special characters).
+
+#### search_plants_prefix(search_term, limit, offset)
+
+Ultra-fast prefix search, ideal for autocomplete and short queries. Supports multi-word search.
+
+**Usage:**
+
+```typescript
+// Basic search
+const { data } = await supabase.rpc('search_plants_prefix', {
+  search_term: 'acer palm',
+  result_limit: 20,
+});
+
+// With pagination
+const { data } = await supabase.rpc('search_plants_prefix', {
+  search_term: 'rosa',
+  result_limit: 20,
+  result_offset: 40,
+});
+```
+
+#### search_plants_substring(search_term, limit, offset)
+
+Substring search for longer queries. Optimized for single words, supports multi-word search.
+
+**Usage:**
+
+```typescript
+const { data } = await supabase.rpc('search_plants_substring', {
+  search_term: 'japanese maple red',
+  result_limit: 30,
+});
+```
+
+#### search_plants_similarity(search_term, threshold, limit, offset)
+
+Advanced trigram similarity search with fuzzy matching. Use sparingly on free tier due to performance cost.
+
+**Usage:**
+
+```typescript
+const { data } = await supabase.rpc('search_plants_similarity', {
+  search_term: 'acr palmatum', // finds "Acer palmatum" despite typo
+  similarity_threshold: 0.3,
+  result_limit: 15,
+});
+```
+
+#### count_search_results(search_term, use_prefix)
+
+Efficiently counts search results to match the search behavior accurately.
+
+**Usage:**
+
+```typescript
+const { data: count } = await supabase.rpc('count_search_results', {
+  search_term: 'acer',
+  use_prefix: true,
+});
+```
+
+**Performance Tips:**
+
+- Use `search_plants_prefix` for autocomplete and short queries
+- Use `search_plants_substring` for longer, more specific searches
+- Use `search_plants_similarity` only when fuzzy matching is needed
+- All functions return consistent plant data structure with scientific name, Swedish name, plant type, etc.
+
+### Virtual Scrolling
+
+The lager page uses `vue-virtual-scroller@next` for efficient rendering of large plant inventories.

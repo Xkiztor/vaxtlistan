@@ -99,32 +99,45 @@ function closeMenu() {
           v-if="menuOpen"
           class="mobile-nav p-4 bg-bg-elevated flex flex-col text-2xl justify-between"
         >
-          <div class="flex flex-col gap-4">
-            <NuxtLink
-              to="/plantskola-admin"
-              @click="closeMenu"
-              class="block"
-              active-class="text-primary font-bold underline router-link-active"
-              >Översikt</NuxtLink
-            >
-            <NuxtLink
-              to="/plantskola-admin/lager"
-              @click="closeMenu"
-              class="block"
-              active-class="text-primary font-bold underline router-link-active"
-              >Lager</NuxtLink
-            >
-            <NuxtLink
-              to="/plantskola-admin/profil"
-              @click="closeMenu"
-              class="block"
-              active-class="text-primary font-bold underline router-link-active"
-              >Profil</NuxtLink
-            >
-          </div>
-          <div class="flex flex-col gap-4 border-t-1 border-border pt-4 mt-4">
-            <ColorModeButton full />
-            <UButton color="error" class="w-full" size="xl" @click="handleLogout">Logga ut</UButton>
+          <div class="flex flex-col gap-4 h-full">
+            <div class="flex flex-col gap-4 py-2">
+              <NuxtLink
+                to="/plantskola-admin"
+                @click="closeMenu"
+                class="block"
+                active-class="text-primary font-bold underline router-link-active"
+                >Översikt</NuxtLink
+              >
+              <NuxtLink
+                to="/plantskola-admin/lager"
+                @click="closeMenu"
+                class="block"
+                active-class="text-primary font-bold underline router-link-active"
+                >Lager</NuxtLink
+              >
+              <NuxtLink
+                to="/plantskola-admin/profil"
+                @click="closeMenu"
+                class="block"
+                active-class="text-primary font-bold underline router-link-active"
+                >Profil</NuxtLink
+              >
+            </div>
+            <div class="flex flex-col gap-4 border-t-1 border-border pt-4">
+              <ColorModeButton full />
+              <UButton
+                to="/"
+                class="px-1 text-t-regular py-0"
+                active-class="text-primary font-bold underline router-link-active"
+                variant="link"
+                icon="tabler:arrow-back-up"
+                color="neutral"
+                >Tillbaka till huvudsidan</UButton
+              >
+              <UButton color="error" class="w-full" size="xl" @click="handleLogout"
+                >Logga ut</UButton
+              >
+            </div>
           </div>
         </div>
       </transition>

@@ -91,6 +91,7 @@ function handleMobileSearchBlur() {
                 key="hamburger"
                 icon="i-material-symbols-menu-rounded"
                 variant="ghost"
+                color="neutral"
                 class="md:hidden flex items-center justify-center p-0 text-regular"
                 size="xl"
                 :ui="{ leadingIcon: 'scale-125' }"
@@ -103,6 +104,7 @@ function handleMobileSearchBlur() {
                 key="close"
                 icon="i-material-symbols-close-rounded"
                 variant="ghost"
+                color="neutral"
                 class="md:hidden flex items-center justify-center p-0 text-regular"
                 size="xl"
                 :ui="{ leadingIcon: 'scale-125' }"
@@ -115,12 +117,17 @@ function handleMobileSearchBlur() {
       </div>
       <!-- Mobile menu overlay (bottom part) -->
       <transition name="fade">
-        <div
-          v-if="menuOpen"
-          class="mobile-nav p-4 bg-bg-elevated flex flex-col justify-between gap-8 text-2xl"
-        >
-          <div class="flex flex-col gap-4">
+        <div v-if="menuOpen" class="mobile-nav p-4 bg-bg-elevated flex flex-col gap-4 text-xl">
+          <div class="py-2 flex flex-col gap-4">
             <!-- Navigation links -->
+            <NuxtLink
+              to="/"
+              @click="closeMenu"
+              class="block"
+              active-class="text-primary font-bold underline router-link-active"
+            >
+              Startsidan
+            </NuxtLink>
             <NuxtLink
               to="/for-plantskolor"
               @click="closeMenu"
@@ -138,8 +145,7 @@ function handleMobileSearchBlur() {
               Om oss
             </NuxtLink>
           </div>
-          <!-- Search and Login buttons using Nuxt UI UButton -->
-          <div class="flex flex-col gap-4 border-t-1 border-border pt-4 mt-4">
+          <div class="flex flex-col gap-4 border-t-1 border-border pt-4">
             <UButton class="w-full" size="xl" @click="closeMenu" to="/plantskola-admin/login"
               >Plantskola - Login</UButton
             >

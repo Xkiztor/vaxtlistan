@@ -1,21 +1,18 @@
 <script setup lang="ts">
 // Component for displaying a single plant in lager
-import type { Totallager, Facit } from '~/types/supabase-tables';
+import type { LagerComplete } from '~/types/supabase-tables';
 import { ref, computed } from 'vue';
 import { useLagerStore } from '~/stores/lager';
 import { usePlantType } from '~/composables/usePlantType';
+
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
 const { width, height } = useWindowSize();
-const props = defineProps<{ plant: Totallager }>();
-// const props = defineProps<{ plant: Totallager; facit: Facit[] }>();
+const props = defineProps<{ plant: LagerComplete }>();
 const emit = defineEmits(['update']);
 
-const facitStore = useFacitStore();
-const { data: facit } = await useAsyncData('allFacit', () => facitStore.fetchFacit(supabase));
-
 const lagerStore = useLagerStore();
-const { letterToType } = usePlantType();
+const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
 // State
 const isExpanded = ref(false);
@@ -85,7 +82,7 @@ const closeEdit = () => {
 // Update field in Lager Store
 type EditableField =
   | 'name_by_plantskola'
-  | 'description_by_plantskola'
+  | 'comment_by_plantskola'
   | 'pot'
   | 'height'
   | 'price'
@@ -105,9 +102,11 @@ const updateField = async () => {
   );
   loading.value = false;
   if (!success) {
-    error.value = lagerStore.error.value || 'Kunde inte uppdatera växt.';
+    error.value = lagerStore.error || 'Kunde inte uppdatera växt.';
     return;
   }
+  // Emit update event to notify parent to refresh data
+  emit('update');
   closeEdit();
 };
 
@@ -133,9 +132,11 @@ const toggleHidePlant = async () => {
   hideLoading.value = true;
   hideError.value = null;
   try {
+    const updateData = { hidden: !props.plant.hidden };
     const { error } = await supabase
       .from('totallager')
-      .update({ hidden: !props.plant.hidden })
+      // @ts-expect-error - Supabase generated types issue
+      .update(updateData)
       .eq('id', props.plant.id);
     if (error) throw new Error(error.message);
     lagerStore.setPlantHiddenState(props.plant.id, !props.plant.hidden); // update local state
@@ -149,67 +150,70 @@ const toggleHidePlant = async () => {
 };
 
 const plantName = computed(() => {
-  const facitItem = facit.value?.find((item) => item.id === props.plant.facit_id);
-  return facitItem ? facitItem.name : '';
+  return props.plant.facit_name || '';
+});
+
+const plantSwedishName = computed(() => {
+  return props.plant.facit_sv_name || '';
+});
+
+const plantTypes = computed(() => {
+  return props.plant.facit_rhs_types || [];
 });
 </script>
 
 <template>
-  <li class="flex flex-col p-2 rounded-lg bg-bg-elevated border-1 border-border transition-colors">
+  <li class="flex flex-col p-2 pl-4 border-border border-b transition-colors">
     <!-- Main Info -->
-    <div class="flex-1 flex">
-      <div class="flex flex-1 items-center gap-2 max-md:gap-0 max-md:flex-col max-md:items-start">
+    <div class="flex-1 max-md:flex md:grid md:grid-cols-[59%_37%_4%] place-items-center">
+      <div
+        class="flex flex-1 items-center gap-2 max-md:gap-0 max-md:leading-4 max-md:flex-col max-md:items-start md:place-self-start"
+      >
         <span
-          class="font-bold text-md md:text-lg"
+          class="font-semibold text-md md:text-lg whitespace-nowrap text-nowrap"
           :class="{ 'text-t-toned flex items-center gap-2': plant.hidden }"
         >
           <UIcon v-if="plant.hidden" name="material-symbols:visibility-off" size="xs" class="" />
           {{ plantName }}
         </span>
-
-        <span class="max-md:text-sm">{{
-          facit?.find((item) => item.id === plant.facit_id)?.sv_name || ''
+        <span v-if="plantSwedishName" class="max-md:text-sm opacity-60">{{
+          plantSwedishName
         }}</span>
         <span v-if="plant.name_by_plantskola"> ({{ plant.name_by_plantskola }})</span>
       </div>
       <!-- Stock and Price -->
-      <div class="flex items-center gap-2 max-md:flex-col max-md:items-end max-md:gap-1">
-        <UBadge
-          class="flex items-center gap-2"
-          v-if="plant.stock !== undefined"
-          :color="plant.stock > 0 ? 'neutral' : 'error'"
-          :size="width < 550 ? 'md' : 'lg'"
-          variant="subtle"
-          >Lager: <span class="font-black">{{ plant.stock }} st</span>
+      <!-- class="max-md:flex gap-2 max-md:flex-col max-md:items-end max-md:gap-1 max-md:text-xs md:text-md md:grid md:grid-cols-[60%_30%] md:w-full md:place-items-start md:gap-4 md:pr-4" -->
+      <div
+        class="max-md:flex gap-2 max-md:flex-col max-md:items-end max-md:gap-1 max-md:text-xs md:text-md md:grid md:grid-cols-[60%_30%] md:w-full md:place-items-start md:gap-4 md:pr-4 text-nowrap whitespace-nowrap"
+      >
+        <div class="flex items-center gap-2" v-if="plant.stock !== undefined">
+          Lager:
+          <span class="font-black md:font-bold">{{ plant.stock ? plant.stock : '?' }}</span>
           <UButton
             v-if="canEdit"
             icon="i-heroicons-pencil-square"
             size="xs"
             color="primary"
             variant="ghost"
-            class="p-0"
+            class="p-0 scale-150 opacity-60 hover:opacity-100"
+            :ui="{ leadingIcon: 'scale-[67%]' }"
             @click="openEdit('stock', plant.stock)"
           />
-        </UBadge>
+        </div>
 
-        <UBadge
-          class="flex items-center gap-2"
-          v-if="plant.price !== undefined"
-          color="neutral"
-          :size="width < 550 ? 'md' : 'lg'"
-          variant="subtle"
-        >
-          <span class="font-black">{{ plant.price }} kr</span>
+        <div class="flex items-center gap-2" v-if="plant.price !== undefined">
+          <span class="font-black md:font-bold">{{ plant.price ? plant.price : '-' }} kr</span>
           <UButton
             v-if="canEdit"
             icon="i-heroicons-pencil-square"
             size="xs"
             color="primary"
             variant="ghost"
-            class="p-0"
+            class="p-0 scale-150 opacity-60 hover:opacity-100"
+            :ui="{ leadingIcon: 'scale-[67%]' }"
             @click="openEdit('price', plant.price)"
           />
-        </UBadge>
+        </div>
       </div>
       <!-- Expand/Collapse Button -->
       <UButton
@@ -218,7 +222,7 @@ const plantName = computed(() => {
         size="xl"
         variant="ghost"
         color="neutral"
-        class="ml-2 md:ml-4 p-0 md:pr-2"
+        class="ml-2 md:ml-0 p-0 hover:bg-transparent"
         aria-label="Expandera detaljer"
         @click="isExpanded = !isExpanded"
       />
@@ -226,28 +230,15 @@ const plantName = computed(() => {
 
     <!-- Collapsible Details -->
     <Transition name="expand-fade">
-      <div v-show="isExpanded" class="border-t-1 border-border mt-4 pt-4">
+      <div v-show="isExpanded" class="mt-2 pt-2 pr-2 border-t border-border">
         <!-- Badges -->
         <div class="flex flex-wrap gap-2">
-          <UBadge
-            :color="
-              letterToType(facit?.find((item) => item.id === plant.facit_id)?.type || '')
-                .toLowerCase()
-                .replace(/å/g, 'a')
-                .replace(/ä/g, 'a')
-                .replace(/ö/g, 'o')
-            "
-            variant="subtle"
-            :class="
-              letterToType(facit?.find((item) => item.id === plant.facit_id)?.type || '')
-                .toLowerCase()
-                .replace(/å/g, 'a')
-                .replace(/ä/g, 'a')
-                .replace(/ö/g, 'o')
-            "
-          >
-            {{ letterToType(facit?.find((item) => item.id === plant.facit_id)?.type || '') }}
-          </UBadge>
+          <!-- RHS Type badges -->
+          <template v-for="label in getAllRhsTypeLabels(plantTypes)" :key="label">
+            <UBadge color="primary" variant="subtle">
+              {{ label }}
+            </UBadge>
+          </template>
           <UBadge class="flex items-center gap-2" color="neutral" variant="subtle">
             Kruka: {{ plant.pot ? plant.pot : '---' }}
             <UButton
@@ -276,8 +267,8 @@ const plantName = computed(() => {
         <!-- Description -->
         <div class="flex items-center gap-2 mt-2">
           <span class="text-sm">
-            <span class="text-t-toned">Beskrivning:</span>
-            {{ plant.description_by_plantskola ? plant.description_by_plantskola : '---' }}
+            <span class="text-t-toned">Kommentar:</span>
+            {{ plant.comment_by_plantskola ? plant.comment_by_plantskola : '---' }}
           </span>
           <UButton
             v-if="canEdit"
@@ -285,11 +276,11 @@ const plantName = computed(() => {
             size="xs"
             color="primary"
             variant="ghost"
-            @click="openEdit('description_by_plantskola', plant.description_by_plantskola)"
+            @click="openEdit('comment_by_plantskola', plant.comment_by_plantskola)"
           />
         </div>
         <!-- Actions -->
-        <div class="flex items-center justify-end gap-2 mt-4 w-full border-t-1 border-border pt-2">
+        <div class="flex items-center justify-end gap-2 mt-2 w-full pt-2">
           <UButton
             v-if="canEdit"
             icon="i-heroicons-pencil-square"
@@ -318,6 +309,13 @@ const plantName = computed(() => {
           >
             {{ plant.hidden ? 'Visa' : 'Dölj' }}
           </UButton>
+          <UButton
+            icon="material-symbols:open-in-new-rounded"
+            :to="`/vaxt/${plant.facit_id}/${plantName.replace(' ', '+')}/`"
+            target="_blank"
+            size="sm"
+            variant="outline"
+          ></UButton>
         </div>
       </div>
     </Transition>
@@ -355,12 +353,24 @@ const plantName = computed(() => {
           <div v-if="error" class="text-error">{{ error }}</div>
         </div>
         <form v-else @submit.prevent="updateField" class="flex flex-col gap-4">
+          <h2 class="text-lg font-semibold">
+            {{
+              editField
+                ? {
+                    comment_by_plantskola: 'Kommentar',
+                    pot: 'Kruka',
+                    height: 'Höjd',
+                    price: 'Pris',
+                    stock: 'Lager',
+                  }[editField] || editField
+                : ''
+            }}
+          </h2>
           <UInputNumber
             v-if="editField === 'price' || editField === 'stock'"
             v-model="editValue"
             :label="editField"
-            :step="editField === 'price' ? 10 : 1"
-            required
+            :step="1"
             autofocus
             size="xl"
           />
@@ -368,8 +378,7 @@ const plantName = computed(() => {
             v-else
             v-model="editValue"
             :label="editField"
-            :type="['price', 'stock'].includes(editField) ? 'number' : 'text'"
-            required
+            :type="editField && ['price', 'stock'].includes(editField) ? 'number' : 'text'"
             autofocus
             size="xl"
           />
@@ -384,13 +393,20 @@ const plantName = computed(() => {
         </form>
       </template>
     </UModal>
-
     <!-- Delete Modal -->
     <UModal
       v-model:open="showDeleteModal"
       title="Ta bort växt"
-      @close="() => (showDeleteModal = false)"
-      :close="{ onClick: () => (showDeleteModal = false) }"
+      @close="
+        () => {
+          showDeleteModal = false;
+        }
+      "
+      :close="{
+        onClick: () => {
+          showDeleteModal = false;
+        },
+      }"
       :ui="{ content: 'p-4' }"
     >
       <template #content>
@@ -400,7 +416,11 @@ const plantName = computed(() => {
             type="button"
             color="neutral"
             variant="ghost"
-            @click="() => (showDeleteModal = false)"
+            @click="
+              () => {
+                showDeleteModal = false;
+              }
+            "
           >
             Avbryt
           </UButton>
@@ -411,13 +431,20 @@ const plantName = computed(() => {
         <div v-if="deleteError" class="text-error">{{ deleteError }}</div>
       </template>
     </UModal>
-
     <!-- Hide Modal -->
     <UModal
       v-model:open="showHideModal"
       title="Dölj/Visa växt"
-      @close="() => (showHideModal = false)"
-      :close="{ onClick: () => (showHideModal = false) }"
+      @close="
+        () => {
+          showHideModal = false;
+        }
+      "
+      :close="{
+        onClick: () => {
+          showHideModal = false;
+        },
+      }"
       :ui="{ content: 'p-4' }"
     >
       <template #content>
@@ -427,11 +454,20 @@ const plantName = computed(() => {
             type="button"
             color="neutral"
             variant="ghost"
-            @click="() => (showHideModal = false)"
+            @click="
+              () => {
+                showHideModal = false;
+              }
+            "
           >
             Avbryt
           </UButton>
-          <UButton type="button" color="warning" :loading="hideLoading" @click="toggleHidePlant">
+          <UButton
+            type="button"
+            :color="plant.hidden ? 'primary' : 'error'"
+            :loading="hideLoading"
+            @click="toggleHidePlant"
+          >
             {{ plant.hidden ? 'Visa' : 'Dölj' }}
           </UButton>
         </div>
@@ -442,20 +478,25 @@ const plantName = computed(() => {
 </template>
 
 <style scoped>
-/* Only use Nuxt UI and Tailwind classes */
+/* Optimize for virtual scrolling - prevent layout shifts */
 .expand-fade-enter-active,
 .expand-fade-leave-active {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .expand-fade-enter-from,
 .expand-fade-leave-to {
-  transform: translateY(-20px);
+  transform: translateY(-5px);
   max-height: 0;
   opacity: 0;
 }
 .expand-fade-enter-to,
 .expand-fade-leave-from {
-  max-height: 500px;
+  max-height: 150px;
   opacity: 1;
+}
+
+/* Ensure consistent sizing for virtual scroller */
+li {
+  contain: layout;
 }
 </style>

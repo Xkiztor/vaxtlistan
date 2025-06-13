@@ -1,26 +1,23 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
-import type { Totallager } from '~/types/supabase-tables';
+import type { Totallager, LagerComplete } from '~/types/supabase-tables';
 
 export const useLagerStore = defineStore('lager', () => {
-  // Global state for lager data
-  const lager = ref<Totallager[] | null>(null);
+  // Global state for complete lager data with facit information
+  const lagerComplete = ref<LagerComplete[] | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
-
-  // Fetch lager for a plantskola
-  const fetchLager = async (supabase: any, plantskolaId: number) => {
+  // Fetch complete lager data using the SQL function
+  const fetchLagerComplete = async (supabase: any, plantskolaId: number) => {
     loading.value = true;
     error.value = null;
     try {
-      const { data, error: fetchError } = await supabase
-        .from('totallager')
-        .select('*')
-        .eq('plantskola_id', plantskolaId)
-        .order('created_at', { ascending: false });
+      const { data, error: fetchError } = await supabase.rpc('get_plantskola_lager_complete', {
+        p_plantskola_id: plantskolaId
+      } as any); // Type assertion to handle Supabase RPC parameter typing
       if (fetchError) throw fetchError;
-      lager.value = data as Totallager[];
-      return lager.value;
+      lagerComplete.value = data as LagerComplete[];
+      return lagerComplete.value;
     } catch (e: any) {
       error.value = e.message || 'Kunde inte hämta lager.';
       return null;
@@ -28,7 +25,6 @@ export const useLagerStore = defineStore('lager', () => {
       loading.value = false;
     }
   };
-
   // Add a new plant to lager
   const addPlantToLager = async (supabase: any, plant: Partial<Totallager>) => {
     loading.value = true;
@@ -40,11 +36,6 @@ export const useLagerStore = defineStore('lager', () => {
         .select('*')
         .single();
       if (addError) throw addError;
-      if (lager.value) {
-        lager.value = [data as Totallager, ...lager.value];
-      } else {
-        lager.value = [data as Totallager];
-      }
       return data as Totallager;
     } catch (e: any) {
       error.value = e.message || 'Kunde inte lägga till växt.';
@@ -71,10 +62,10 @@ export const useLagerStore = defineStore('lager', () => {
         .eq('id', id);
       if (upError) throw upError;
       // Update local state
-      if (lager.value) {
-        const idx = lager.value.findIndex((p) => p.id === id);
+      if (lagerComplete.value) {
+        const idx = lagerComplete.value.findIndex((p) => p.id === id);
         if (idx !== -1) {
-          lager.value[idx] = { ...lager.value[idx], ...updateObj };
+          lagerComplete.value[idx] = { ...lagerComplete.value[idx], ...updateObj };
         }
       }
       return true;
@@ -88,26 +79,36 @@ export const useLagerStore = defineStore('lager', () => {
 
   // Remove a plant from lager (local state only)
   const removePlantFromLager = (id: number) => {
-    if (lager.value) {
-      lager.value = lager.value.filter((p) => p.id !== id);
+    if (lagerComplete.value) {
+      lagerComplete.value = lagerComplete.value.filter((p) => p.id !== id);
     }
   };
 
   // Update hidden state for a plant in lager (local state only)
   const setPlantHiddenState = (id: number, hidden: boolean) => {
-    if (lager.value) {
-      const idx = lager.value.findIndex((p) => p.id === id);
+    if (lagerComplete.value) {
+      const idx = lagerComplete.value.findIndex((p) => p.id === id);
       if (idx !== -1) {
-        lager.value[idx] = { ...lager.value[idx], hidden };
+        lagerComplete.value[idx] = { ...lagerComplete.value[idx], hidden };
       }
     }
   };
 
   // Refresh lager
   const refreshLager = async (supabase: any, plantskolaId: number) => {
-    lager.value = null;
-    return await fetchLager(supabase, plantskolaId);
+    lagerComplete.value = null;
+    return await fetchLagerComplete(supabase, plantskolaId);
   };
 
-  return { lager, loading, error, fetchLager, addPlantToLager, updateLagerField, refreshLager, removePlantFromLager, setPlantHiddenState };
+  return { 
+    lagerComplete, 
+    loading, 
+    error, 
+    fetchLagerComplete, 
+    addPlantToLager, 
+    updateLagerField, 
+    refreshLager, 
+    removePlantFromLager, 
+    setPlantHiddenState 
+  };
 });

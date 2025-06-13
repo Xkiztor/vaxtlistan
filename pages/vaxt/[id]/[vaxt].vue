@@ -52,7 +52,7 @@ const {
   phLabels,
   exposureLabels,
   seasonOfInterestLabels,
-  plantTypeLabel,
+  rhsTypeLabels,
   colorsBySeason,
   getColorClass,
   getBaseIcon,
@@ -95,6 +95,7 @@ const lignosText = () => {
   let desc = lignosdatabasenPlant.value.text;
 
   desc = desc.replace(/!\[.*?\]\(.*?\)|\[.*?\]\(.*?\)/g, ''); // Remove markdown image and link syntax
+  desc = desc.replace(/text=".*?"/g, ''); // Remove any text="..." attributes
   desc = desc.replace(/[*\-_#{}\[\]]/g, ''); // Remove markdown formatting characters
   desc = desc.replace(/::\w+/g, ''); // Remove ::Fify
   desc = desc.replace(/::/g, ''); // Remove ::
@@ -142,7 +143,7 @@ function openImage(s: string) {
 
     <!-- Plant details -->
     <div v-else-if="plant" class="p-6">
-      <div v-if="lignosImages" class="mb-6">
+      <div v-if="lignosImages" class="mb-10">
         <UCarousel
           v-slot="{ item }"
           dots
@@ -169,11 +170,17 @@ function openImage(s: string) {
 
       <div class="flex flex-col gap-4">
         <!-- Plant Type -->
-        <div class="flex flex-wrap items-center gap-4">
-          <div v-if="plantTypeLabel" class="flex flex-wrap items-center gap-2">
+        <div class="flex flex-wrap items-center gap-4 mt-4">
+          <div v-if="rhsTypeLabels" class="flex flex-wrap items-center gap-2">
             <span class="font-semibold">Typ:</span>
-            <UBadge color="primary" size="lg" variant="soft">
-              {{ plantTypeLabel }}
+            <UBadge
+              v-for="label in rhsTypeLabels.split(' / ')"
+              :key="label"
+              color="primary"
+              size="lg"
+              variant="soft"
+            >
+              {{ label.trim() }}
             </UBadge>
           </div>
 
@@ -198,7 +205,7 @@ function openImage(s: string) {
           </div>
         </div>
 
-        <div v-if="lignosdatabasenPlant">
+        <div v-if="lignosdatabasenPlant" class="mb-4">
           <div class="prose max-w-none" v-html="lignosText()"></div>
           <div class="mt-1">
             <UButton
@@ -221,41 +228,43 @@ function openImage(s: string) {
           </div>
         </div>
 
+        <div class="space-y-2 mb-4">
+          <h3 class="text-xl font-semibold">Finns att köpa:</h3>
+        </div>
+
         <!-- Growing Conditions -->
         <div class="space-y-2 mb-4">
           <h3 class="text-xl font-semibold">Odlingsförhållanden</h3>
-          <div class="grid gap-2 md:grid-cols-2 md:gap-16">
-            <div class="flex gap-2 w-full justify-between">
-              <div v-if="sunlightLabels" class="flex flex-col gap-2">
-                <span class="font-bold">Ljus</span>
-                <div>
-                  <div class="flex gap-2">
-                    <UIcon
-                      v-for="(label, idx) in sunlightLabels.split(' / ')"
-                      :key="idx"
-                      :name="
-                        label.trim() === 'Soligt'
-                          ? 'material-symbols:clear-day-rounded'
-                          : label.trim() === 'Delvis skuggigt'
-                          ? 'meteocons:partly-cloudy-day-fill'
-                          : label.trim() === 'Helt skuggigt'
-                          ? 'meteocons:cloudy-fill'
-                          : 'mdi:help-circle-outline'
-                      "
-                      class="w-8 h-8"
-                      :class="{
-                        'text-info': label.trim() === 'Soligt',
-                        'h-12 w-12': label.trim() !== 'Soligt',
-                      }"
-                      :title="label.trim()"
-                    />
-                  </div>
+          <div class="flex flex-wrap gap-2 w-full justify-between md:gap-16">
+            <div v-if="sunlightLabels" class="flex flex-col gap-2">
+              <span class="font-bold">Ljus</span>
+              <div>
+                <div class="flex gap-2">
+                  <UIcon
+                    v-for="(label, idx) in sunlightLabels.split(' / ')"
+                    :key="idx"
+                    :name="
+                      label.trim() === 'Soligt'
+                        ? 'material-symbols:clear-day-rounded'
+                        : label.trim() === 'Delvis skuggigt'
+                        ? 'meteocons:partly-cloudy-day-fill'
+                        : label.trim() === 'Helt skuggigt'
+                        ? 'meteocons:cloudy-fill'
+                        : 'mdi:help-circle-outline'
+                    "
+                    class="w-8 h-8"
+                    :class="{
+                      'text-info': label.trim() === 'Soligt',
+                      'h-12 w-12': label.trim() !== 'Soligt',
+                    }"
+                    :title="label.trim()"
+                  />
                 </div>
               </div>
-              <div v-if="exposureLabels" class="flex flex-col gap-2">
-                <span class="font-bold">Exponering</span>
-                <span>{{ exposureLabels }}</span>
-              </div>
+            </div>
+            <div v-if="exposureLabels" class="flex flex-col gap-2">
+              <span class="font-bold">Exponering</span>
+              <span>{{ exposureLabels }}</span>
             </div>
 
             <div class="flex flex-col gap-2">

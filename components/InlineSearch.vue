@@ -2,6 +2,7 @@
 // InlineSearch component for navbar/hero
 // Updated to use high-performance server-side search instead of loading all data into memory
 import type { Facit } from '~/types/supabase-tables';
+import { usePlantType } from '~/composables/usePlantType';
 
 // Props: mode controls size/layout
 const props = defineProps<{ mode?: 'navbar' | 'hero' | 'dropdown' }>();
@@ -14,7 +15,8 @@ const isFocused = ref(false);
 
 const supabase = useSupabaseClient();
 const router = useRouter();
-const { searchPlants, getSearchSuggestions } = useSearch();
+const { searchPlants } = useSearch();
+const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
 const search = ref('');
 const results = ref<Facit[]>([]);
@@ -36,7 +38,6 @@ const debouncedSearch = useDebounceFn(async () => {
   try {
     const searchResult = await searchPlants(search.value, {
       limit: maxResults,
-      threshold: 0.2, // Lower threshold for more fuzzy results
     });
 
     results.value = searchResult.results;
@@ -202,16 +203,16 @@ const deSelect = () => {
             <span class="font-semibold">{{ plant.name }}</span>
             <span v-if="plant.sv_name" class="text-t-muted text-sm">{{ plant.sv_name }}</span>
             <div class="flex gap-2 mt-1 max-md:hidden">
-              <UBadge v-if="plant.plant_type" color="primary" variant="soft">{{
-                plant.plant_type
-              }}</UBadge>
+              <template v-for="label in getAllRhsTypeLabels(plant.rhs_types)" :key="label">
+                <UBadge color="primary" variant="soft">{{ label }}</UBadge>
+              </template>
             </div>
           </li>
         </ul>
         <UButton
           class="w-full rounded-none border-t-1 border-border font-bold underline text-secondary"
           size="xl"
-          color="none"
+          color="neutral"
           @mousedown.prevent="goToAllResults"
         >
           Visa alla resultat...

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { Facit } from '~/types/supabase-tables';
+import { usePlantType } from '~/composables/usePlantType';
+
 const props = defineProps<{ plant: Facit }>();
 const supabase = useSupabaseClient();
+const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
 const lignosdatabasen = useLignosdatabasen();
 const facitStore = useFacitStore();
@@ -61,12 +64,11 @@ const image = computed(() => {
             >Synonym{{ plant.synonym_to ? ' till ' : '' }}{{ plant.synonym_to }}</UBadge
           >
         </div>
-
         <!-- Plant attributes -->
         <div class="flex flex-wrap gap-2 mt-2">
-          <UBadge v-if="plant.plant_type" color="primary" variant="soft">{{
-            plant.plant_type
-          }}</UBadge>
+          <template v-for="label in getAllRhsTypeLabels(plant.rhs_types)" :key="label">
+            <UBadge color="primary" variant="soft">{{ label }}</UBadge>
+          </template>
           <UBadge v-if="plant.height" color="neutral" variant="soft"
             >Höjd: {{ plant.height }}</UBadge
           >

@@ -146,35 +146,70 @@ export const COLORS_LABELS = {
   [COLORS.GOLD]: "Guld"
 } as const;
 
+export const RHS_TYPES = {
+  PERENNIAL: 1,
+  CLIMBER_WALL_SHRUB: 2,
+  BEDDING: 3,
+  BULBS: 4,
+  FERNS: 5,
+  SHRUBS: 6,
+  ALPINE_ROCKERY: 8,
+  ROSES: 9,
+  GRASS_LIKE: 10,
+  CONSERVATORY_GREENHOUSE: 11,
+  FRUIT_EDIBLE: 12,
+  TREES: 13,
+  BAMBOOS: 17,
+  BOGS: 18,
+  CONIFERS: 19
+} as const;
+
+export const RHS_TYPES_LABELS = {
+  [RHS_TYPES.PERENNIAL]: "Perenn",
+  [RHS_TYPES.CLIMBER_WALL_SHRUB]: "Klätterväxt",
+  [RHS_TYPES.BEDDING]: "Utplanteringsväxt",
+  [RHS_TYPES.BULBS]: "Lökväxt",
+  [RHS_TYPES.FERNS]: "Ormbunke",
+  [RHS_TYPES.SHRUBS]: "Buske",
+  [RHS_TYPES.ALPINE_ROCKERY]: "Alpinväxt",
+  [RHS_TYPES.ROSES]: "Ros",
+  [RHS_TYPES.GRASS_LIKE]: "Gräsliknande",
+  [RHS_TYPES.CONSERVATORY_GREENHOUSE]: "Växthusväxt",
+  [RHS_TYPES.FRUIT_EDIBLE]: "Ätbar växt",
+  [RHS_TYPES.TREES]: "Träd",
+  [RHS_TYPES.BAMBOOS]: "Bambu",
+  [RHS_TYPES.BOGS]: "Kärrväxt",
+  [RHS_TYPES.CONIFERS]: "Barrträd"
+} as const;
+
 // Table: facit
 export interface Facit {
-  id: number; // bigint. Unique identifier for the plant taxon.
+  id: number; // bigint (auto-generated). Unique identifier for the plant.
   created_at: string; // timestamp with time zone (ISO string). When the record was created.
   name: string; // text. Scientific name (e.g. "Pinus cembra 'Stricta'").
-  sv_name: string; // text. Native/common name (e.g. "Arolla pine 'Stricta'").
-  full_json: any; // jsonb. Full JSON object with all plant data (see example in AI-instructions.md).
-  is_recommended: boolean; // boolean. Whether this is a recommended name.
-  is_original: boolean; // boolean. Whether this is the original name.
-  is_synonym: boolean; // boolean. Whether this is a synonym.
-  synonym_to: string; // text. If synonym, the accepted name it refers to.
-  taxonomy_type: string; // text. Type of taxonomy (e.g. "species", "cultivar").
-  plant_type: string; // text. Plant type/category (e.g. "T").
-  rhs_hardiness: number; // bigint. RHS hardiness level (see AI-instructions.md for mapping).
-  spread: string; // text. Typical spread (e.g. "2.5-4 metres").
-  height: string; // text. Typical height (e.g. "8-12 metres").
-  rhs_id: number; // bigint. RHS database ID.
-  sunlight: number[]; // ARRAY of smallint. Sunlight preferences (see AI-instructions.md for mapping).
-  soil_type: number[]; // ARRAY of smallint. Soil type preferences (see AI-instructions.md for mapping).
-  full_height_time: number[]; // ARRAY of smallint. Time to full height (see AI-instructions.md for mapping).
-  moisture: number[]; // ARRAY of smallint. Moisture preferences (see AI-instructions.md for mapping).
-  ph: number[]; // ARRAY of smallint. Soil pH preferences (see AI-instructions.md for mapping).
-  exposure: number[]; // ARRAY of smallint. Exposure preferences (see AI-instructions.md for mapping).
-  season_of_interest: number[]; // ARRAY of smallint. Seasons of interest (see AI-instructions.md for mapping).
-  colors: string[]; // ARRAY of string  Color attributes (see AI-instructions.md for mapping).
-  rhs_types: number[]; // ARRAY of smallint. RHS types (see AI-instructions.md for mapping).
-  user_submitted: boolean; // boolean. Whether the entry was user-submitted.
-  created_by: number; // bigint. User or nursery who created the entry.
-  last_edited: string; // timestamp with time zone (ISO string). When the record was last edited.
+  sv_name?: string | null; // text. Native/common name (e.g. "Arolla pine 'Stricta'").
+  is_recommended?: boolean | null; // boolean. Whether this is a recommended name.
+  is_original?: boolean | null; // boolean. Whether this is the original name.
+  is_synonym?: boolean | null; // boolean. Whether this is a synonym.
+  synonym_to?: string | null; // text. If synonym, the accepted name it refers to.
+  taxonomy_type?: string | null; // text. Type of taxonomy (e.g. "species", "cultivar").
+  plant_type?: string | null; // text. Plant type/category (e.g. "T" for trees).
+  rhs_hardiness?: number | null; // bigint. RHS hardiness level.
+  spread?: string | null; // text. Typical spread (e.g. "2.5-4 meter").
+  height?: string | null; // text. Typical height (e.g. "8-12 meter").
+  rhs_id?: number | null; // bigint. RHS database ID.
+  sunlight?: number[] | null; // ARRAY of smallint. Sunlight preferences.
+  soil_type?: number[] | null; // ARRAY of smallint. Soil type preferences.
+  full_height_time?: number[] | null; // ARRAY of smallint. Time to full height.
+  moisture?: number[] | null; // ARRAY of smallint. Moisture preferences.
+  ph?: number[] | null; // ARRAY of smallint. Soil pH preferences.
+  exposure?: number[] | null; // ARRAY of smallint. Exposure preferences.
+  season_of_interest?: number[] | null; // ARRAY of smallint. Seasons of interest.
+  colors?: string[] | null; // ARRAY of text. Color attributes in compressed format.
+  rhs_types?: number[] | null; // ARRAY of smallint. RHS plant types. Sub-category of plant_type.
+  user_submitted?: boolean | null; // boolean. Whether the entry was user-submitted.
+  created_by?: number | null; // bigint. User or nursery who created the entry.
+  last_edited?: string | null; // timestamp with time zone (ISO string). When last edited.
 }
 
 // Table: plantskolor
@@ -185,6 +220,7 @@ export interface Plantskola {
   email: string; // Text
   phone: string; // Text
   verified: boolean; // Bool
+  hidden: boolean; // Bool
   description: string; // Text
   user_id: string; // UUID
   created_at: string; // Timestampz (ISO string)
@@ -197,7 +233,7 @@ export interface Totallager {
   facit_id: number; // Int8 (FK facit, linked)
   plantskola_id: number; // Int8 (FK plantskolor, linked)
   name_by_plantskola: string; // Text
-  description_by_plantskola: string; // Text
+  comment_by_plantskola: string; // Text
   pot: string; // Text
   height: string; // Text
   price: number; // Numeric
@@ -211,4 +247,68 @@ export interface Totallager {
 export interface Superadmin {
   id: number; // Int8
   user_id: string; // UUID
+}
+
+// Function return type for get_plantskola_lager_complete() in lager-fetch.sql
+export interface LagerComplete {
+  // Totallager fields
+  id: number;
+  facit_id: number;
+  plantskola_id: number;
+  name_by_plantskola: string;
+  comment_by_plantskola: string;
+  pot: string;
+  height: string;
+  price: number;
+  hidden: boolean;
+  stock: number;
+  created_at: string;
+  last_edited: string;
+  
+  // Facit fields (enriched data)
+  facit_name: string;
+  facit_sv_name?: string | null;
+  facit_is_recommended?: boolean | null;
+  facit_is_original?: boolean | null;
+  facit_is_synonym?: boolean | null;
+  facit_synonym_to?: string | null;
+  facit_taxonomy_type?: string | null;
+  facit_plant_type?: string | null;
+  facit_rhs_types?: number[] | null;
+  facit_rhs_hardiness?: number | null;
+  facit_spread?: string | null;
+  facit_height?: string | null;
+  facit_rhs_id?: number | null;
+  facit_sunlight?: number[] | null;
+  facit_soil_type?: number[] | null;
+  facit_full_height_time?: number[] | null;
+  facit_moisture?: number[] | null;
+  facit_ph?: number[] | null;
+  facit_exposure?: number[] | null;
+  facit_season_of_interest?: number[] | null;
+  facit_colors?: string[] | null;
+  facit_user_submitted?: boolean | null;
+  facit_created_by?: number | null;
+  facit_created_at?: string | null;
+  facit_last_edited?: string | null;
+}
+
+// Search function return types
+export interface PlantSearchResult {
+  id: number;
+  name: string;
+  sv_name?: string | null;
+  plant_type?: string | null;
+  rhs_types?: number[] | null;
+  is_synonym?: boolean | null;
+  synonym_to?: string | null;
+  rhs_hardiness?: number | null;
+  spread?: string | null;
+  height?: string | null;
+  colors?: string[] | null;
+  last_edited?: string | null;
+}
+
+export interface PlantSimilaritySearchResult extends PlantSearchResult {
+  similarity_score: number;
 }

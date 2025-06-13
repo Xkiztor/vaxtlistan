@@ -22,7 +22,7 @@ const isDark = computed({
     color="neutral"
     variant="ghost"
     @click="isDark = !isDark"
-    class="px-1 py-2"
+    class="px-1 py-0"
     >{{ full ? (isDark ? 'Mörkt läge' : 'Ljust läge') : '' }}</UButton
   >
   <!-- </ClientOnly> -->
