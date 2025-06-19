@@ -165,24 +165,77 @@ const plantTypes = computed(() => {
 <template>
   <li class="flex flex-col p-2 pl-4 border-border border-b transition-colors">
     <!-- Main Info -->
-    <div class="flex-1 max-md:flex md:grid md:grid-cols-[59%_37%_4%] place-items-center">
+    <div
+      class="flex-1 max-md:flex w-full md:grid md:grid-cols-[59%_37%_4%] xl:grid-cols-[37%_37%_23%_3%] place-items-center"
+    >
       <div
-        class="flex flex-1 items-center gap-2 max-md:gap-0 max-md:leading-4 max-md:flex-col max-md:items-start md:place-self-start"
+        class="flex overflow-x-hidden relative min-w-0 flex-1 mr-1 items-center gap-2 max-md:gap-0 max-md:leading-5 max-md:flex-col max-md:items-start md:place-self-start"
       >
         <span
-          class="font-semibold text-md md:text-lg whitespace-nowrap text-nowrap"
-          :class="{ 'text-t-toned flex items-center gap-2': plant.hidden }"
+          class="font-semibold text-md md:text-lg min-w-0 flex-shrink"
+          :class="{
+            'text-t-toned flex items-center gap-2': plant.hidden,
+            'overflow-hidden text-nowrap text-ellipsis': !isExpanded,
+          }"
         >
-          <UIcon v-if="plant.hidden" name="material-symbols:visibility-off" size="xs" class="" />
+          <UIcon
+            v-if="plant.hidden"
+            name="material-symbols:visibility-off"
+            size="xs"
+            class="flex-shrink-0"
+          />
           {{ plantName }}
         </span>
-        <span v-if="plantSwedishName" class="max-md:text-sm opacity-60">{{
-          plantSwedishName
-        }}</span>
-        <span v-if="plant.name_by_plantskola"> ({{ plant.name_by_plantskola }})</span>
+        <span
+          v-if="plantSwedishName"
+          class="max-md:text-sm opacity-60 truncate min-w-0 flex-shrink"
+          >{{ plantSwedishName }}</span
+        >
+        <div
+          class="absolute md:hidden right-0 top-0 bottom-0 w-6 z-10 pointer-events-none bg-gradient-to-l from-bg to-transparent"
+        ></div>
       </div>
       <!-- Stock and Price -->
       <!-- class="max-md:flex gap-2 max-md:flex-col max-md:items-end max-md:gap-1 max-md:text-xs md:text-md md:grid md:grid-cols-[60%_30%] md:w-full md:place-items-start md:gap-4 md:pr-4" -->
+      <div
+        class="max-xl:hidden grid grid-cols-[5%_50%_35%] gap-4 pr-4 w-full place-items-[center_start] text-nowrap whitespace-nowrap"
+      >
+        <div class="flex items-center gap-2">
+          <UTooltip
+            :delay-duration="0"
+            :text="'Kommentar: ' + plant.comment_by_plantskola"
+            v-if="plant.comment_by_plantskola"
+          >
+            <UIcon name="material-symbols:info-rounded" />
+          </UTooltip>
+        </div>
+        <div class="flex items-center gap-2">
+          <span>Höjd:</span>
+          <span class="font-bold">{{ plant.height ? plant.height + ' cm' : '---' }}</span>
+          <UButton
+            v-if="canEdit"
+            icon="i-heroicons-pencil-square"
+            size="xs"
+            color="primary"
+            variant="ghost"
+            class="p-0 opacity-60 hover:opacity-100"
+            @click="openEdit('height', plant.height)"
+          />
+        </div>
+        <div class="flex items-center gap-2">
+          <span>Kruka:</span>
+          <span class="font-bold">{{ plant.pot ? plant.pot : '---' }}</span>
+          <UButton
+            v-if="canEdit"
+            icon="i-heroicons-pencil-square"
+            size="xs"
+            color="primary"
+            variant="ghost"
+            class="p-0 opacity-60 hover:opacity-100"
+            @click="openEdit('pot', plant.pot)"
+          />
+        </div>
+      </div>
       <div
         class="max-md:flex gap-2 max-md:flex-col max-md:items-end max-md:gap-1 max-md:text-xs md:text-md md:grid md:grid-cols-[60%_30%] md:w-full md:place-items-start md:gap-4 md:pr-4 text-nowrap whitespace-nowrap"
       >
@@ -222,7 +275,7 @@ const plantTypes = computed(() => {
         size="xl"
         variant="ghost"
         color="neutral"
-        class="ml-2 md:ml-0 p-0 hover:bg-transparent"
+        class="ml-2 md:ml-0 p-0 hover:bg-transparent min-w-max w-max"
         aria-label="Expandera detaljer"
         @click="isExpanded = !isExpanded"
       />
@@ -230,16 +283,19 @@ const plantTypes = computed(() => {
 
     <!-- Collapsible Details -->
     <Transition name="expand-fade">
-      <div v-show="isExpanded" class="mt-2 pt-2 pr-2 border-t border-border">
+      <div
+        v-show="isExpanded"
+        class="mt-2 pt-2 pr-2 border-t border-border/40 md:flex md:gap-4 md:flex-wrap xl:flex-nowrap md:gap-y-2 md:items-center xl:justify-between xl:pb-2 xl:pt-4 xl:mt-4"
+      >
         <!-- Badges -->
-        <div class="flex flex-wrap gap-2">
+        <div class="flex flex-wrap gap-2 xl:min-w-max">
           <!-- RHS Type badges -->
           <template v-for="label in getAllRhsTypeLabels(plantTypes)" :key="label">
             <UBadge color="primary" variant="subtle">
               {{ label }}
             </UBadge>
           </template>
-          <UBadge class="flex items-center gap-2" color="neutral" variant="subtle">
+          <UBadge class="flex items-center gap-2 xl:hidden" color="neutral" variant="subtle">
             Kruka: {{ plant.pot ? plant.pot : '---' }}
             <UButton
               v-if="canEdit"
@@ -251,7 +307,7 @@ const plantTypes = computed(() => {
               @click="openEdit('pot', plant.pot)"
             />
           </UBadge>
-          <UBadge class="flex items-center gap-2" color="neutral" variant="subtle">
+          <UBadge class="flex items-center gap-2 xl:hidden" color="neutral" variant="subtle">
             Höjd: {{ plant.height ? plant.height + ' cm' : '---' }}
             <UButton
               v-if="canEdit"
@@ -265,7 +321,7 @@ const plantTypes = computed(() => {
           </UBadge>
         </div>
         <!-- Description -->
-        <div class="flex items-center gap-2 mt-2">
+        <div class="flex items-center gap-2 max-md:mt-2 xl:min-w-max">
           <span class="text-sm">
             <span class="text-t-toned">Kommentar:</span>
             {{ plant.comment_by_plantskola ? plant.comment_by_plantskola : '---' }}
@@ -279,8 +335,47 @@ const plantTypes = computed(() => {
             @click="openEdit('comment_by_plantskola', plant.comment_by_plantskola)"
           />
         </div>
+        <!-- Eget namn -->
+        <div
+          v-if="
+            plant.name_by_plantskola &&
+            plant.name_by_plantskola.toLocaleLowerCase() !== plantName.toLocaleLowerCase()
+          "
+          class="flex items-center gap-2 max-md:mt-2 xl:min-w-max"
+        >
+          <span class="text-sm">
+            <span class="text-t-toned">Eget namn:</span>
+            {{ plant.name_by_plantskola }}
+          </span>
+        </div>
+        <div class="flex items-center gap-2 text-xs max-md:mt-2 text-t-muted xl:min-w-max">
+          <span>
+            <span>Tillagd: </span>
+            <span>
+              {{
+                new Date(plant.created_at).toLocaleDateString('sv-SE', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                })
+              }}
+            </span>
+          </span>
+          <span v-if="plant.last_edited && plant.last_edited !== plant.created_at" class="ml-2">
+            <span>Senast ändrad: </span>
+            <span>
+              {{
+                new Date(plant.last_edited).toLocaleDateString('sv-SE', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                })
+              }}
+            </span>
+          </span>
+        </div>
         <!-- Actions -->
-        <div class="flex items-center justify-end gap-2 mt-2 w-full pt-2">
+        <div class="flex items-center justify-end gap-2 max-md:mt-2 w-full max-xl:pt-2">
           <UButton
             v-if="canEdit"
             icon="i-heroicons-pencil-square"

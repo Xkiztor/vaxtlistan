@@ -50,6 +50,11 @@ definePageMeta({
 
 <template>
   <UContainer class="flex flex-col items-center justify-center min-h-screen">
+    <div class="top-4 left-4 absolute">
+      <UButton to="/" color="neutral" icon="tabler:arrow-back-up" variant="outline"
+        >Tillbaka till startsidan</UButton
+      >
+    </div>
     <UCard class="w-full max-w-md mt-10">
       <h1 class="text-2xl font-bold mb-4">Superadmin Login</h1>
       <form @submit.prevent="handleLogin" autocomplete="on">

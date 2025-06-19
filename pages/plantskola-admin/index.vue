@@ -28,7 +28,12 @@ definePageMeta({
   <div class="max-w-2xl mx-auto py-10 px-4">
     <!-- Greeting -->
     <h1 class="text-3xl md:text-4xl font-bold mb-6 flex items-center gap-2">
-      Hej <span class="italic underline font-black">{{ plantskola?.name || 'plantskola' }}</span>
+      <span
+        class="truncate max-w-full flex-shrink text-ellipsis whitespace-nowrap overflow-hidden"
+        style="font-size: clamp(1.5rem, 5vw, 2.5rem)"
+      >
+        Hej <span class="italic underline font-black">{{ plantskola?.name || 'plantskola' }}</span>
+      </span>
       <UIcon
         name="material-symbols:verified-rounded"
         class="text-secondary"

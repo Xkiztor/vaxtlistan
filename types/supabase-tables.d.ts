@@ -219,6 +219,9 @@ export interface Plantskola {
   adress: string; // Text
   email: string; // Text
   phone: string; // Text
+  url: string; // Text
+  postorder: boolean; // Bool
+  on_site: boolean; // Bool
   verified: boolean; // Bool
   hidden: boolean; // Bool
   description: string; // Text
@@ -234,6 +237,7 @@ export interface Totallager {
   plantskola_id: number; // Int8 (FK plantskolor, linked)
   name_by_plantskola: string; // Text
   comment_by_plantskola: string; // Text
+  private_comment_by_plantskola: string; // Text
   pot: string; // Text
   height: string; // Text
   price: number; // Numeric
@@ -257,6 +261,7 @@ export interface LagerComplete {
   plantskola_id: number;
   name_by_plantskola: string;
   comment_by_plantskola: string;
+  private_comment_by_plantskola: string;
   pot: string;
   height: string;
   price: number;
@@ -293,7 +298,7 @@ export interface LagerComplete {
   facit_last_edited?: string | null;
 }
 
-// Search function return types
+// Search function return types for ALL plants (used by PlantPicker)
 export interface PlantSearchResult {
   id: number;
   name: string;
@@ -310,5 +315,28 @@ export interface PlantSearchResult {
 }
 
 export interface PlantSimilaritySearchResult extends PlantSearchResult {
+  similarity_score: number;
+}
+
+// Search function return types for AVAILABLE plants (used by search page and inline search)
+export interface AvailablePlantSearchResult {
+  id: number;
+  name: string;
+  sv_name?: string | null;
+  plant_type?: string | null;
+  rhs_types?: number[] | null;
+  is_synonym?: boolean | null;
+  synonym_to?: string | null;
+  rhs_hardiness?: number | null;
+  spread?: string | null;
+  height?: string | null;
+  colors?: string[] | null;
+  last_edited?: string | null;
+  available_count: number; // Total stock across all plantskolor
+  plantskolor_count: number; // Number of plantskolor that have this plant
+  prices: number[]; // Array of all prices for this plant across plantskolor
+}
+
+export interface AvailablePlantSimilaritySearchResult extends AvailablePlantSearchResult {
   similarity_score: number;
 }

@@ -33,7 +33,7 @@ const { data: plantskola, refresh } = await useAsyncData('plantskola', async () 
 // Initialize form with fetched data
 watchEffect(() => {
   if (plantskola.value) {
-    form.value = { ...plantskola.value };
+    form.value = { ...(plantskola.value as Plantskola) };
   }
 });
 
@@ -44,40 +44,56 @@ async function save() {
   loading.value = true;
   try {
     if (!user.value) throw new Error('Ingen användare inloggad.');
+
     // Check if email is changed
-    const emailChanged = form.value.email && form.value.email !== user.value.email;
-    if (emailChanged) {
-      // Update email in Supabase Auth first
-      const { error: authError } = await supabase.auth.updateUser({ email: form.value.email });
-      if (authError) throw new Error('Kunde inte uppdatera e-post: ' + authError.message);
-      toast.add({
-        title: 'Bekräfta ny e-post',
-        description:
-          'En bekräftelselänk har skickats till din nya e-postadress. E-postadressen ändras först när du bekräftar via länken.',
-        color: 'primary',
-      });
-      loading.value = false;
-      return;
-    }
-    // Update plantskolor table
-    const { error: updateError } = await supabase
+    const emailChanged = form.value.email && form.value.email !== user.value.email; // Always update plantskolor table first with current form data
+    const updatePayload = {
+      name: form.value.name || '',
+      adress: form.value.adress || '',
+      email: form.value.email || '',
+      phone: form.value.phone || '',
+      url: form.value.url || '',
+      postorder: form.value.postorder || false,
+      on_site: form.value.on_site || false,
+      description: form.value.description || '',
+      last_edited: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await (supabase as any)
       .from('plantskolor')
-      .update({
-        name: form.value.name,
-        adress: form.value.adress,
-        email: form.value.email,
-        phone: form.value.phone,
-        description: form.value.description,
-        last_edited: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('user_id', user.value.id);
     if (updateError) throw new Error(updateError.message);
-    toast.add({ title: 'Uppdaterad', description: 'Profilen har sparats.' });
+
+    // If email was changed, also update it in Supabase Auth
+    if (emailChanged) {
+      const { error: authError } = await supabase.auth.updateUser({ email: form.value.email });
+      if (authError) {
+        // Auth email update failed, but plantskolor table was updated
+        toast.add({
+          title: 'Profil uppdaterad',
+          description: 'Profilen sparades men e-poständring misslyckades. Försök igen senare.',
+          color: 'warning',
+        });
+      } else {
+        // Auth email update succeeded
+        toast.add({
+          title: 'Profil uppdaterad',
+          description:
+            'Profilen har sparats. En bekräftelselänk har skickats till din nya e-postadress för att slutföra e-poständringen.',
+          color: 'primary',
+        });
+      }
+    } else {
+      // No email change, just regular update
+      toast.add({ title: 'Uppdaterad', description: 'Profilen har sparats.' });
+    }
+
     success.value = true;
     await refresh();
   } catch (e: any) {
     error.value = e.message;
-    toast.add({ title: 'Fel', description: e.message, color: 'red' });
+    toast.add({ title: 'Fel', description: e.message, color: 'error' });
   } finally {
     loading.value = false;
   }
@@ -100,13 +116,27 @@ async function save() {
           <UInput v-model="form.name" required class="w-full" />
         </UFormField>
         <UFormField label="Adress" required>
-          <UInput v-model="form.adress" required class="w-full" />
+          <UInput
+            v-model="form.adress"
+            required
+            placeholder="Gatuadress, postnummer och stad"
+            class="w-full"
+          />
         </UFormField>
         <UFormField label="Beskrivning av plantskola">
           <UTextarea v-model="form.description" class="w-full" />
         </UFormField>
         <UFormField label="Telefonnummer">
           <UInput v-model="form.phone" type="tel" class="w-full" />
+        </UFormField>
+        <UFormField label="Webbsida">
+          <UInput v-model="form.url" type="url" placeholder="https://..." class="w-full" />
+        </UFormField>
+        <UFormField label="Postorder">
+          <UCheckbox v-model="form.postorder" />
+        </UFormField>
+        <UFormField label="Hämtning på plats">
+          <UCheckbox v-model="form.on_site" />
         </UFormField>
         <UFormField label="E-post" required>
           <UInput v-model="form.email" type="email" required class="w-full" />

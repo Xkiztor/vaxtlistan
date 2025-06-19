@@ -28,7 +28,10 @@ const {
 
 // Handler to verify a plantskola
 const handleVerify = async (id: number) => {
-  const { error } = await supabase.from('plantskolor').update({ verified: true }).eq('id', id);
+  const { error } = await (supabase as any)
+    .from('plantskolor')
+    .update({ verified: true })
+    .eq('id', id);
   if (error) {
     toast.add({ title: 'Fel', description: 'Kunde inte verifiera.' });
   } else {
@@ -38,7 +41,10 @@ const handleVerify = async (id: number) => {
 };
 // Handler to verify a plantskola
 const handleUnVerify = async (id: number) => {
-  const { error } = await supabase.from('plantskolor').update({ verified: false }).eq('id', id);
+  const { error } = await (supabase as any)
+    .from('plantskolor')
+    .update({ verified: false })
+    .eq('id', id);
   if (error) {
     toast.add({ title: 'Fel', description: 'Kunde inte verifiera.' });
   } else {
@@ -80,6 +86,33 @@ const handleDelete = async (id: number) => {
             <span class="text-t-toned">{{ plantskola.email }}</span>
             <span class="text-t-toned">{{ plantskola.phone }}</span>
             <span class="text-t-toned">{{ plantskola.adress }}</span>
+            <span v-if="plantskola.url" class="text-t-toned">
+              <UButton
+                :href="plantskola.url"
+                target="_blank"
+                variant="ghost"
+                size="xs"
+                icon="i-heroicons-globe-alt"
+              >
+                Webbsida
+              </UButton>
+            </span>
+            <UBadge
+              v-if="plantskola.postorder !== undefined"
+              :color="plantskola.postorder ? 'success' : 'neutral'"
+              variant="soft"
+              size="sm"
+            >
+              {{ plantskola.postorder ? 'Postorder' : 'Endast hämtning' }}
+            </UBadge>
+            <UBadge
+              v-if="plantskola.on_site !== undefined"
+              :color="plantskola.on_site ? 'success' : 'neutral'"
+              variant="soft"
+              size="sm"
+            >
+              {{ plantskola.on_site ? 'Hämtning på plats' : 'Ingen hämtning' }}
+            </UBadge>
           </div>
         </div>
         <div>

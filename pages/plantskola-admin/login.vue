@@ -47,11 +47,16 @@ async function login() {
 
 <template>
   <div class="flex flex-col items-center justify-center min-h-screen bg-bg-elevated p-4">
+    <div class="top-4 left-4 absolute">
+      <UButton to="/" color="neutral" icon="tabler:arrow-back-up" variant="outline"
+        >Tillbaka till startsidan</UButton
+      >
+    </div>
     <UCard class="w-full max-w-md">
       <h1 class="text-2xl font-bold mb-4">Plantskola Login</h1>
-      <form @submit.prevent="login" class="flex flex-col gap-4">
-        <UInput v-model="form.email" label="E-post" type="email" required />
-        <UInput v-model="form.password" label="Lösenord" type="password" required />
+      <form @submit.prevent="login" class="flex flex-col gap-4 login">
+        <UInput v-model="form.email" label="E-post" type="email" required size="lg" />
+        <UInput v-model="form.password" label="Lösenord" type="password" size="lg" required />
         <UButton type="submit" :loading="loading" class="w-full bg-primary text-white"
           >Logga in</UButton
         >
@@ -66,6 +71,9 @@ async function login() {
   </div>
 </template>
 
-<style scoped>
+<style>
+form.login input {
+  font-size: 16px;
+}
 /* Add any custom styles if needed */
 </style>

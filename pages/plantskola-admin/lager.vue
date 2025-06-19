@@ -118,10 +118,20 @@ const virtualScrollerHeight = ref(600); // Default height
 const calculateScrollerHeight = () => {
   if (process.client) {
     const viewport = height.value;
-    const navbarHeight = 80; // Approximate height of navbar
-    const headerHeight = 100; // Approximate height of header, actions, filters
-    const calculatedHeight = viewport - headerHeight - navbarHeight;
-    virtualScrollerHeight.value = Math.min(800, Math.max(400, calculatedHeight));
+    var navbarHeight = 80; // Approximate height of navbar
+    var headerHeight = 100; // Approximate height of header, actions, filters
+    var bottomPadding = 0; // Bottom padding for scroller
+    var borderSpace = 0;
+
+    if (width.value > 768) {
+      // Mobile view
+      navbarHeight = 80; // Adjust for mobile navbar height
+      headerHeight = 128; // Adjust for mobile header height
+      bottomPadding = 32; // Add some padding for mobile
+      borderSpace = 2; // Add border space for mobile
+    }
+    virtualScrollerHeight.value =
+      viewport - headerHeight - navbarHeight - bottomPadding - borderSpace;
   }
 };
 
@@ -129,9 +139,9 @@ const calculateScrollerHeight = () => {
 watch(
   [search, filterType, sortBy, sortOrder, advancedFilters],
   () => {
-    // TODO: Fix TypeScript issue with scrollToTop
-    if (dynamicScrollerRef.value && typeof dynamicScrollerRef.value.scrollToTop === 'function') {
-      dynamicScrollerRef.value.scrollToTop();
+    // Reset scroll position when filters change
+    if (dynamicScrollerRef.value && 'scrollToTop' in dynamicScrollerRef.value) {
+      (dynamicScrollerRef.value as any).scrollToTop();
     }
   },
   { deep: true }
@@ -358,6 +368,282 @@ const onPlantPickerAddSelect = (facitId: number) => {
   addStep.value = 'form';
 };
 
+// --- Export functionality ---
+const showExportModal = ref(false);
+const exportLoading = ref(false);
+const exportOptions = reactive({
+  format: 'csv',
+  includeFields: {
+    facit_name: true,
+    facit_sv_name: true,
+    name_by_plantskola: true,
+    comment_by_plantskola: true,
+    pot: true,
+    height: true,
+    price: true,
+    stock: true,
+    plant_type: true,
+    hidden: false,
+  },
+  includeHidden: false,
+  onlyFiltered: true,
+});
+
+const exportFormatOptions = [
+  { value: 'csv', label: 'CSV (Excel)' },
+  { value: 'json', label: 'JSON' },
+  { value: 'txt', label: 'TXT (Tab-separerat)' },
+];
+
+type ExportFieldKey = keyof typeof exportOptions.includeFields;
+
+const exportFieldOptions: Array<{ key: ExportFieldKey; label: string; enabled: boolean }> = [
+  { key: 'facit_name', label: 'Vetenskapligt namn', enabled: true },
+  { key: 'facit_sv_name', label: 'Svenskt namn', enabled: true },
+  { key: 'comment_by_plantskola', label: 'Kommentar', enabled: true },
+  { key: 'pot', label: 'Kruka', enabled: true },
+  { key: 'height', label: 'Höjd', enabled: true },
+  { key: 'price', label: 'Pris', enabled: true },
+  { key: 'stock', label: 'Lager', enabled: true },
+  { key: 'hidden', label: 'Dold status', enabled: false },
+];
+
+// Get data for export based on options
+const getExportData = () => {
+  let data = exportOptions.onlyFiltered ? filteredLager.value : lagerComplete.value || [];
+
+  // Filter out hidden plants if not included
+  if (!exportOptions.includeHidden) {
+    data = data.filter((plant) => !plant.hidden);
+  }
+
+  return data.map((plant) => {
+    const exportRow: any = {};
+
+    if (exportOptions.includeFields.facit_name)
+      exportRow['Vetenskapligt namn'] = plant.facit_name || '';
+    if (exportOptions.includeFields.facit_sv_name)
+      exportRow['Svenskt namn'] = plant.facit_sv_name || '';
+    if (exportOptions.includeFields.comment_by_plantskola)
+      exportRow['Kommentar'] = plant.comment_by_plantskola || '';
+    if (exportOptions.includeFields.pot) exportRow['Kruka'] = plant.pot || '';
+    if (exportOptions.includeFields.height) exportRow['Höjd'] = plant.height || '';
+    if (exportOptions.includeFields.price) exportRow['Pris'] = plant.price || '';
+    if (exportOptions.includeFields.stock) exportRow['Lager'] = plant.stock || '';
+    if (exportOptions.includeFields.hidden) exportRow['Dold'] = plant.hidden ? 'Ja' : 'Nej';
+
+    return exportRow;
+  });
+};
+
+// Convert data to CSV format
+const convertToCSV = (data: any[]) => {
+  if (data.length === 0) return '';
+
+  const headers = Object.keys(data[0]);
+  const csvContent = [
+    headers.join(','),
+    ...data.map((row) =>
+      headers
+        .map((header) => {
+          const value = row[header]?.toString() || '';
+          // Escape quotes and wrap in quotes if contains comma or quote
+          if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+            return `"${value.replace(/"/g, '""')}"`;
+          }
+          return value;
+        })
+        .join(',')
+    ),
+  ].join('\n');
+
+  return csvContent;
+};
+
+// Convert data to tab-separated format
+const convertToTSV = (data: any[]) => {
+  if (data.length === 0) return '';
+
+  const headers = Object.keys(data[0]);
+  const tsvContent = [
+    headers.join('\t'),
+    ...data.map((row) =>
+      headers.map((header) => (row[header]?.toString() || '').replace(/\t/g, ' ')).join('\t')
+    ),
+  ].join('\n');
+
+  return tsvContent;
+};
+
+// Download file
+const downloadFile = (content: string, filename: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+// Export plants
+const exportPlants = async () => {
+  if (!plantskola.value) return;
+
+  exportLoading.value = true;
+  try {
+    const data = getExportData();
+
+    if (data.length === 0) {
+      useToast().add({
+        title: 'Ingen data',
+        description: 'Det finns ingen data att exportera med valda inställningar.',
+        color: 'warning',
+      });
+      return;
+    }
+
+    const timestamp = new Date().toISOString().split('T')[0];
+    const plantskolaName = plantskola.value.name.replace(/[^a-zA-Z0-9]/g, '_');
+    const filterSuffix =
+      exportOptions.onlyFiltered &&
+      (search.value || filterType.value || hasActiveAdvancedFilters.value)
+        ? '_filtrerat'
+        : '';
+
+    let content: string;
+    let filename: string;
+    let mimeType: string;
+
+    switch (exportOptions.format) {
+      case 'csv':
+        content = convertToCSV(data);
+        filename = `lager_${plantskolaName}_${timestamp}${filterSuffix}.csv`;
+        mimeType = 'text/csv;charset=utf-8';
+        // Add BOM for proper UTF-8 handling in Excel
+        content = '\uFEFF' + content;
+        break;
+      case 'json':
+        content = JSON.stringify(data, null, 2);
+        filename = `lager_${plantskolaName}_${timestamp}${filterSuffix}.json`;
+        mimeType = 'application/json';
+        break;
+      case 'txt':
+        content = convertToTSV(data);
+        filename = `lager_${plantskolaName}_${timestamp}${filterSuffix}.txt`;
+        mimeType = 'text/plain;charset=utf-8';
+        break;
+      default:
+        throw new Error('Okänt exportformat');
+    }
+
+    downloadFile(content, filename, mimeType);
+
+    useToast().add({
+      title: 'Export klar',
+      description: `${data.length} växter exporterade som ${exportOptions.format.toUpperCase()}`,
+      color: 'primary',
+    });
+
+    showExportModal.value = false;
+  } catch (e: any) {
+    useToast().add({
+      title: 'Exportfel',
+      description: e.message || 'Kunde inte exportera data.',
+      color: 'error',
+    });
+  } finally {
+    exportLoading.value = false;
+  }
+};
+
+// --- Delete all lager functionality ---
+const showDeleteModal = ref(false);
+const deleteLoading = ref(false);
+const deleteOptions = reactive({
+  deleteFiltered: false, // If true, delete only filtered plants; if false, delete all
+  includeHidden: false, // Include hidden plants in deletion
+});
+
+// Reset delete confirmation when modal closes
+watch(showDeleteModal, (isOpen) => {
+  if (!isOpen) {
+    deleteOptions.deleteFiltered = false;
+    deleteOptions.includeHidden = false;
+  }
+});
+
+// Get plants to delete based on options
+const getPlantsToDelete = () => {
+  let plantsToDelete = deleteOptions.deleteFiltered
+    ? filteredLager.value
+    : lagerComplete.value || [];
+
+  // Filter out hidden plants if not included
+  if (!deleteOptions.includeHidden) {
+    plantsToDelete = plantsToDelete.filter((plant) => !plant.hidden);
+  }
+
+  return plantsToDelete;
+};
+
+// Get count of plants that would be deleted
+const deleteCount = computed(() => {
+  const plants = getPlantsToDelete();
+  return plants.length;
+});
+
+// Delete multiple plants from lager
+const deleteMultiplePlants = async () => {
+  if (!plantskola.value) return;
+
+  deleteLoading.value = true;
+  try {
+    const plantsToDelete = getPlantsToDelete();
+
+    if (plantsToDelete.length === 0) {
+      useToast().add({
+        title: 'Ingen data',
+        description: 'Det finns inga växter att radera med valda inställningar.',
+        color: 'warning',
+      });
+      return;
+    }
+
+    // Delete plants in batches to avoid overwhelming the database
+    const batchSize = 50;
+    const plantIds = plantsToDelete.map((plant) => plant.id);
+
+    for (let i = 0; i < plantIds.length; i += batchSize) {
+      const batch = plantIds.slice(i, i + batchSize);
+      const { error } = await supabase.from('totallager').delete().in('id', batch);
+
+      if (error) throw new Error(error.message);
+    }
+
+    // Refresh the lager data
+    await refreshLager();
+
+    useToast().add({
+      title: 'Raderingsoperation klar',
+      description: `${plantsToDelete.length} växter raderade från lagret`,
+      color: 'primary',
+    });
+
+    showDeleteModal.value = false;
+  } catch (e: any) {
+    useToast().add({
+      title: 'Raderingsfel',
+      description: e.message || 'Kunde inte radera växter.',
+      color: 'error',
+    });
+  } finally {
+    deleteLoading.value = false;
+  }
+};
+
 // Handle updates from child components
 const handlePlantUpdate = async () => {
   await refreshLager();
@@ -404,7 +690,7 @@ const addPlantToLager = async () => {
 </script>
 
 <template>
-  <div class="max-w-4xl mx-auto pt-8 md:px-4">
+  <div class="max-xl:max-w-4xl mx-auto pt-8 md:px-4 md:pb-8 lager-page">
     <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-4 px-4">
       <div>
         <h1 class="text-3xl md:text-4xl font-black">Lager</h1>
@@ -413,194 +699,221 @@ const addPlantToLager = async () => {
         </div>
       </div>
     </div>
-    <div class="sticky top-20 z-10 bg-bg">
-      <!-- Actions scroller -->
-      <div class="px-4 max-md:border-b max-md:border-t border-border relative">
-        <!-- Left shadow -->
-        <div
-          v-show="actionsScrollState.canScrollLeft"
-          class="absolute left-4 top-0 bottom-0 w-4 z-10 pointer-events-none bg-gradient-to-r from-bg to-transparent opacity-70"
-        ></div>
-        <!-- Right shadow -->
-        <div
-          v-show="actionsScrollState.canScrollRight"
-          class="absolute right-4 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-l from-bg to-transparent"
-        ></div>
-        <div
-          class="flex md:flex-row gap-2 md:gap-4 overflow-x-scroll py-2"
-          ref="actionsScrollerRef"
-        >
-          <UButton
-            color="primary"
-            :size="isMobile ? 'md' : 'xl'"
-            icon="material-symbols:add"
-            class="md:w-auto min-w-max"
-            :disabled="!plantskola"
-            @click="openAddModal"
+    <div class="sticky top-20 z-10">
+      <div class="bg-bg md:py-2">
+        <!-- Actions scroller -->
+        <div class="px-4 max-md:border-b max-md:border-t border-border relative">
+          <!-- Left shadow -->
+          <div
+            v-show="actionsScrollState.canScrollLeft"
+            class="absolute left-4 top-0 bottom-0 w-4 z-10 pointer-events-none bg-gradient-to-r from-bg to-transparent opacity-70"
+          ></div>
+          <!-- Right shadow -->
+          <div
+            v-show="actionsScrollState.canScrollRight"
+            class="absolute right-4 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-l from-bg to-transparent"
+          ></div>
+          <div
+            class="flex md:flex-row gap-2 md:gap-4 overflow-x-auto py-2 scroller-styles"
+            ref="actionsScrollerRef"
           >
-            Lägg till växt
-          </UButton>
-          <UButton
-            color="neutral"
-            :size="isMobile ? 'md' : 'xl'"
-            icon="uil:import"
-            class="min-w-max md:w-auto"
-            variant="subtle"
-            :disabled="!plantskola"
+            <UButton
+              color="primary"
+              :size="isMobile ? 'md' : 'xl'"
+              icon="material-symbols:add"
+              class="md:w-auto min-w-max"
+              :disabled="!plantskola"
+              @click="openAddModal"
+            >
+              Lägg till växt
+            </UButton>
+            <UButton
+              color="neutral"
+              :size="isMobile ? 'md' : 'xl'"
+              icon="uil:import"
+              class="min-w-max md:w-auto"
+              variant="subtle"
+              to="/plantskola-admin/import"
+              :disabled="!plantskola"
+            >
+              Importera
+            </UButton>
+            <UButton
+              color="neutral"
+              :size="isMobile ? 'md' : 'xl'"
+              class="min-w-max md:w-auto"
+              icon="uil:export"
+              variant="subtle"
+              :disabled="!plantskola || !lagerComplete || lagerComplete.length === 0"
+              @click="showExportModal = true"
+            >
+              Exportera
+            </UButton>
+            <UButton
+              color="neutral"
+              :size="isMobile ? 'md' : 'xl'"
+              class="min-w-max md:w-auto"
+              variant="subtle"
+              icon="material-symbols:delete-forever-outline-rounded"
+              :disabled="!plantskola || !lagerComplete || lagerComplete.length === 0"
+              @click="showDeleteModal = true"
+            >
+              Radera lager
+            </UButton>
+          </div>
+        </div>
+        <!-- Search and filter scroller -->
+        <div class="px-4 max-md:border-b-2 border-border relative">
+          <!-- Left shadow -->
+          <div
+            v-show="filtersScrollState.canScrollLeft"
+            class="absolute left-4 top-0 bottom-0 w-4 z-10 pointer-events-none bg-gradient-to-r from-bg to-transparent"
+          ></div>
+          <!-- Right shadow -->
+          <div
+            v-show="filtersScrollState.canScrollRight"
+            class="absolute right-4 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-l from-bg to-transparent"
+          ></div>
+          <div
+            class="flex md:flex-row gap-2 md:gap-4 overflow-x-auto py-2 scroller-styles"
+            ref="filtersScrollerRef"
           >
-            Importera
-          </UButton>
-          <UButton
-            color="neutral"
-            :size="isMobile ? 'md' : 'xl'"
-            class="min-w-max md:w-auto"
-            icon="uil:export"
-            variant="subtle"
-            :disabled="!plantskola"
-          >
-            Exportera
-          </UButton>
-          <UButton
-            color="neutral"
-            :size="isMobile ? 'md' : 'xl'"
-            class="min-w-max md:w-auto"
-            variant="subtle"
-            :disabled="!plantskola"
-          >
-            Exempel
-          </UButton>
+            <UInput
+              v-model="search"
+              placeholder="Sök"
+              :size="isMobile ? 'md' : 'xl'"
+              class="flex-1 min-w-40"
+              icon="i-heroicons-magnifying-glass"
+            >
+              <template #trailing v-if="search">
+                <UButton
+                  variant="ghost"
+                  color="neutral"
+                  @click="search = ''"
+                  icon="material-symbols:close-rounded"
+                  size="xs"
+                  class="p-1 opacity-60 hover:opacity-100"
+                  aria-label="Rensa sökning"
+                />
+              </template>
+            </UInput>
+            <div class="flex flex-row items-center gap-1">
+              <USelect
+                v-model="filterType"
+                :items="types"
+                placeholder="Filtrera på typ"
+                :size="isMobile ? 'md' : 'xl'"
+                class="md:w-60 transition-all"
+                :ui="{ item: 'cursor-pointer' }"
+                value-attribute="value"
+              />
+              <UButton
+                v-if="filterType"
+                variant="outline"
+                color="neutral"
+                class=""
+                @click="filterType = ''"
+                icon="material-symbols:close-rounded"
+                :size="isMobile ? 'md' : 'xl'"
+              />
+            </div>
+            <div class="flex flex-row items-center gap-1">
+              <USelect
+                v-model="sortBy"
+                :items="sortOptions"
+                placeholder="Sortera"
+                :size="isMobile ? 'md' : 'xl'"
+                icon="material-symbols:sort-rounded"
+                class="md:w-40 transition-all min-w-24"
+                :ui="{ item: 'cursor-pointer' }"
+                value-attribute="value"
+              />
+              <UButton
+                variant="outline"
+                color="neutral"
+                @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
+                :icon="
+                  sortOrder === 'asc'
+                    ? 'material-symbols:arrow-upward-rounded'
+                    : 'material-symbols:arrow-downward-rounded'
+                "
+                :size="isMobile ? 'md' : 'xl'"
+              />
+            </div>
+            <UButton
+              variant="subtle"
+              color="neutral"
+              class="min-w-max"
+              @click="showAdvancedFilters = true"
+              icon="material-symbols:filter-list"
+              :size="isMobile ? 'md' : 'xl'"
+            >
+              Fler filter
+              <UBadge v-if="hasActiveAdvancedFilters" size="xs" color="primary" class="ml-1">
+                {{
+                  (advancedFilters.minPrice !== null ? 1 : 0) +
+                  (advancedFilters.maxPrice !== null ? 1 : 0) +
+                  (advancedFilters.minStock !== null ? 1 : 0) +
+                  (advancedFilters.maxStock !== null ? 1 : 0) +
+                  (advancedFilters.pot !== '' ? 1 : 0) +
+                  (advancedFilters.height !== '' ? 1 : 0) +
+                  (advancedFilters.hasComment !== 'all' ? 1 : 0)
+                }}
+              </UBadge>
+            </UButton>
+          </div>
         </div>
       </div>
-      <!-- Search and filter scroller -->
-      <div class="px-4 max-md:border-b-2 border-border relative">
-        <!-- Left shadow -->
-        <div
-          v-show="filtersScrollState.canScrollLeft"
-          class="absolute left-4 top-0 bottom-0 w-4 z-10 pointer-events-none bg-gradient-to-r from-bg to-transparent"
-        ></div>
-        <!-- Right shadow -->
-        <div
-          v-show="filtersScrollState.canScrollRight"
-          class="absolute right-4 top-0 bottom-0 w-8 z-10 pointer-events-none bg-gradient-to-l from-bg to-transparent"
-        ></div>
-        <div
-          class="flex md:flex-row gap-2 md:gap-4 overflow-x-scroll py-2"
-          ref="filtersScrollerRef"
+      <!-- Lager list with virtual scrolling -->
+      <div v-if="!lagerComplete" class="flex justify-center py-12">
+        <!-- <ULoader size="lg" color="primary" /> -->
+        Laddar...
+      </div>
+      <div v-else-if="filteredLager.length === 0" class="py-8 text-center">
+        <p class="text-lg font-bold">Lägg till växter genom att till exempel:</p>
+        <ul class="list-disc list-inside space-y-1">
+          <li>
+            <ULink to="/plantskola-admin/import" class="text-primary underline">Importera</ULink>
+            från excel / google sheets
+          </li>
+          <li>
+            Eller skicka eran lista till oss på mail så importerar vi den åt er
+            <span class="block">ugo.linder@gmail.com</span>
+          </li>
+        </ul>
+      </div>
+      <div v-else class="md:border md:border-border md:rounded-lg md:mx-4 overflow-hidden">
+        <!-- Virtual scroll container with dynamic sizing -->
+        <DynamicScroller
+          ref="dynamicScrollerRef"
+          class="scroller max-md:pb-24"
+          :items="filteredLager"
+          :min-item-size="80"
+          :style="{ height: virtualScrollerHeight + 'px' }"
+          key-field="id"
+          v-slot="{ item: plant, index, active }"
         >
-          <UInput
-            v-model="search"
-            placeholder="Sök"
-            :size="isMobile ? 'md' : 'xl'"
-            class="flex-1 min-w-40"
-            icon="i-heroicons-magnifying-glass"
-          />
-          <div class="flex flex-row items-center gap-1">
-            <USelect
-              v-model="filterType"
-              :items="types"
-              placeholder="Filtrera på typ"
-              :size="isMobile ? 'md' : 'xl'"
-              class="md:w-60 transition-all"
-              :ui="{ item: 'cursor-pointer' }"
-              value-attribute="value"
-            />
-            <UButton
-              v-if="filterType"
-              variant="outline"
-              color="neutral"
-              class=""
-              @click="filterType = ''"
-              icon="material-symbols:close-rounded"
-              :size="isMobile ? 'md' : 'xl'"
-            />
-          </div>
-          <div class="flex flex-row items-center gap-1">
-            <USelect
-              v-model="sortBy"
-              :items="sortOptions"
-              placeholder="Sortera"
-              :size="isMobile ? 'md' : 'xl'"
-              icon="material-symbols:sort-rounded"
-              class="md:w-40 transition-all min-w-24"
-              :ui="{ item: 'cursor-pointer' }"
-              value-attribute="value"
-            />
-            <UButton
-              variant="outline"
-              color="neutral"
-              @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
-              :icon="
-                sortOrder === 'asc'
-                  ? 'material-symbols:arrow-upward'
-                  : 'material-symbols:arrow-downward'
-              "
-              :size="isMobile ? 'md' : 'xl'"
-            />
-          </div>
-          <UButton
-            variant="subtle"
-            color="neutral"
-            class="min-w-max"
-            @click="showAdvancedFilters = true"
-            icon="material-symbols:filter-list"
-            :size="isMobile ? 'md' : 'xl'"
+          <DynamicScrollerItem
+            :item="plant"
+            :active="active"
+            :size-dependencies="[
+              plant.name_by_plantskola,
+              plant.facit_sv_name,
+              plant.facit_name,
+              plant.comment_by_plantskola,
+              plant.pot,
+              plant.height,
+              plant.price,
+              plant.stock,
+            ]"
+            :data-index="index"
+            :data-active="active"
           >
-            Fler filter
-            <UBadge v-if="hasActiveAdvancedFilters" size="xs" color="primary" class="ml-1">
-              {{
-                (advancedFilters.minPrice !== null ? 1 : 0) +
-                (advancedFilters.maxPrice !== null ? 1 : 0) +
-                (advancedFilters.minStock !== null ? 1 : 0) +
-                (advancedFilters.maxStock !== null ? 1 : 0) +
-                (advancedFilters.pot !== '' ? 1 : 0) +
-                (advancedFilters.height !== '' ? 1 : 0) +
-                (advancedFilters.hasComment !== 'all' ? 1 : 0)
-              }}
-            </UBadge>
-          </UButton>
-        </div>
+            <LagerListItem :plant="plant" @update="handlePlantUpdate" class="px-2" />
+          </DynamicScrollerItem>
+        </DynamicScroller>
       </div>
     </div>
-    <!-- Lager list with virtual scrolling -->
-    <div v-if="!lagerComplete" class="flex justify-center py-12">
-      <!-- <ULoader size="lg" color="primary" /> -->
-      Laddar...
-    </div>
-    <div v-else-if="filteredLager.length === 0" class="text-t-muted italic py-8 text-center">
-      Inga växter hittades.
-    </div>
-    <div v-else class="md:border md:border-border md:rounded-lg md:mx-4 overflow-hidden">
-      <!-- Virtual scroll container with dynamic sizing -->
-      <DynamicScroller
-        ref="dynamicScrollerRef"
-        class="scroller pb-24"
-        :items="filteredLager"
-        :min-item-size="80"
-        :style="{ height: virtualScrollerHeight + 'px' }"
-        key-field="id"
-        v-slot="{ item: plant, index, active }"
-      >
-        <DynamicScrollerItem
-          :item="plant"
-          :active="active"
-          :size-dependencies="[
-            plant.name_by_plantskola,
-            plant.facit_sv_name,
-            plant.facit_name,
-            plant.comment_by_plantskola,
-            plant.pot,
-            plant.height,
-            plant.price,
-            plant.stock,
-          ]"
-          :data-index="index"
-          :data-active="active"
-        >
-          <LagerListItem :plant="plant" @update="handlePlantUpdate" class="px-2" />
-        </DynamicScrollerItem>
-      </DynamicScroller>
-    </div>
-
     <!-- Add plant modal -->
     <UModal v-model:open="addPlantModalOpen" title="Lägg till växt" class="p-4 overflow-hidden">
       <template #content>
@@ -673,6 +986,174 @@ const addPlantToLager = async () => {
       </template>
     </UModal>
 
+    <!-- Export Modal -->
+    <UModal v-model:open="showExportModal" title="Exportera lager">
+      <template #content>
+        <div class="p-6 space-y-6">
+          <!-- Export format selection -->
+          <div class="space-y-3">
+            <h3 class="text-lg font-semibold">Exportformat</h3>
+            <USelect
+              v-model="exportOptions.format"
+              :items="exportFormatOptions"
+              placeholder="Välj format"
+              size="lg"
+              value-attribute="value"
+              class="w-full"
+            />
+            <div class="text-sm text-t-muted">
+              <span v-if="exportOptions.format === 'csv'">
+                CSV-format som kan öppnas i Excel eller Google Sheets
+              </span>
+              <span v-else-if="exportOptions.format === 'json'">
+                JSON-format för teknisk användning eller API:er
+              </span>
+              <span v-else-if="exportOptions.format === 'txt'">
+                Tab-separerat textformat som exporteras som vanlig textfil
+              </span>
+            </div>
+          </div>
+
+          <!-- Data scope selection -->
+          <div class="space-y-3">
+            <h3 class="text-lg font-semibold">Dataomfång</h3>
+            <div class="flex flex-col gap-3">
+              <UCheckbox
+                v-model="exportOptions.onlyFiltered"
+                :label="`Endast filtrerade växter (${filteredLager.length} av ${
+                  lagerComplete?.length || 0
+                } st)`"
+                size="lg"
+              />
+              <UCheckbox
+                v-model="exportOptions.includeHidden"
+                label="Inkludera dolda växter"
+                size="lg"
+              />
+            </div>
+          </div>
+          <!-- Field selection -->
+          <div class="space-y-3">
+            <h3 class="text-lg font-semibold">Fält att inkludera</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <UCheckbox
+                v-for="field in exportFieldOptions"
+                :key="field.key"
+                v-model="exportOptions.includeFields[field.key]"
+                :label="field.label"
+                size="lg"
+              />
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex gap-3 justify-end pt-4">
+            <UButton
+              color="neutral"
+              variant="outline"
+              @click="showExportModal = false"
+              :disabled="exportLoading"
+            >
+              Avbryt
+            </UButton>
+            <UButton
+              color="primary"
+              icon="uil:export"
+              :loading="exportLoading"
+              @click="exportPlants"
+              :disabled="!Object.values(exportOptions.includeFields).some(Boolean)"
+            >
+              Exportera
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+    <!-- Delete Confirmation Modal -->
+    <UModal v-model:open="showDeleteModal" title="Radera växter från lager">
+      <template #content>
+        <div class="p-6 space-y-6">
+          <!-- Warning -->
+          <div class="bg-error-50 border border-error-200 p-4 rounded-lg">
+            <div class="flex items-start gap-3">
+              <UIcon
+                name="material-symbols:warning"
+                class="text-error-500 text-xl flex-shrink-0 mt-0.5"
+              />
+              <div>
+                <h4 class="font-semibold text-error-800 mb-1">Varning!</h4>
+                <p class="text-error-700 text-sm">
+                  Den här åtgärden kan inte ångras. Växterna kommer att raderas permanent från ditt
+                  lager.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Delete options -->
+          <div class="space-y-4">
+            <div class="space-y-3">
+              <h3 class="text-lg font-semibold">Vad vill du radera?</h3>
+              <div class="flex flex-col gap-3">
+                <UCheckbox
+                  v-model="deleteOptions.deleteFiltered"
+                  :label="`Endast filtrerade växter (${
+                    filteredLager.filter((p) => (!deleteOptions.includeHidden ? !p.hidden : true))
+                      .length
+                  } st)`"
+                  size="lg"
+                />
+                <UCheckbox
+                  v-model="deleteOptions.includeHidden"
+                  label="Inkludera dolda växter i raderingen"
+                  size="lg"
+                />
+              </div>
+            </div>
+
+            <!-- Preview of what will be deleted -->
+            <div class="bg-bg-soft p-4 rounded-lg">
+              <h4 class="font-semibold mb-2 text-error-600">Kommer att radera:</h4>
+              <div class="text-sm text-t-muted space-y-1">
+                <div class="font-medium text-error-700">
+                  {{ deleteCount }} växt{{ deleteCount === 1 ? '' : 'er' }}
+                </div>
+                <div
+                  v-if="
+                    deleteOptions.deleteFiltered &&
+                    (search || filterType || hasActiveAdvancedFilters)
+                  "
+                >
+                  Baserat på nuvarande filter
+                </div>
+                <div v-if="deleteOptions.includeHidden">Inklusive dolda växter</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action buttons -->
+          <div class="flex gap-3 justify-end pt-4">
+            <UButton
+              color="neutral"
+              variant="outline"
+              @click="showDeleteModal = false"
+              :disabled="deleteLoading"
+            >
+              Avbryt
+            </UButton>
+            <UButton
+              color="error"
+              icon="material-symbols:delete-forever"
+              :loading="deleteLoading"
+              @click="deleteMultiplePlants"
+              :disabled="deleteCount === 0"
+            >
+              Radera {{ deleteCount }} växt{{ deleteCount === 1 ? '' : 'er' }}
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
     <!-- Advanced Filters Modal -->
     <UModal v-model:open="showAdvancedFilters" title="Avancerade filter">
       <template #content>
@@ -687,6 +1168,7 @@ const addPlantToLager = async () => {
                   type="number"
                   placeholder="kr"
                   step="10"
+                  :autofocus="false"
                 />
               </UFormField>
               <UFormField label="Maxpris">
@@ -695,6 +1177,7 @@ const addPlantToLager = async () => {
                   type="number"
                   placeholder="kr"
                   step="10"
+                  :autofocus="false"
                 />
               </UFormField>
             </div>
@@ -705,10 +1188,20 @@ const addPlantToLager = async () => {
             <h3 class="text-lg font-semibold">Lager</h3>
             <div class="grid grid-cols-2 gap-3">
               <UFormField label="Minlager">
-                <UInput v-model="advancedFilters.minStock" type="number" placeholder="st" />
+                <UInput
+                  v-model="advancedFilters.minStock"
+                  type="number"
+                  placeholder="st"
+                  :autofocus="false"
+                />
               </UFormField>
               <UFormField label="Maxlager">
-                <UInput v-model="advancedFilters.maxStock" type="number" placeholder="st" />
+                <UInput
+                  v-model="advancedFilters.maxStock"
+                  type="number"
+                  placeholder="st"
+                  :autofocus="false"
+                />
               </UFormField>
             </div>
           </div>
@@ -718,13 +1211,18 @@ const addPlantToLager = async () => {
             <h3 class="text-lg font-semibold">Fysiska egenskaper</h3>
             <div class="grid grid-cols-2 gap-3">
               <UFormField label="Kruka">
-                <UInput v-model="advancedFilters.pot" placeholder="ex. C5, P9" />
+                <UInput v-model="advancedFilters.pot" placeholder="ex. C5, P9" :autofocus="false" />
               </UFormField>
               <UFormField label="Höjd">
-                <UInput v-model="advancedFilters.height" placeholder="ex. 100, 80-120" />
+                <UInput
+                  v-model="advancedFilters.height"
+                  placeholder="ex. 100, 80-120"
+                  :autofocus="false"
+                />
               </UFormField>
             </div>
           </div>
+
           <!-- Comment filter -->
           <div class="space-y-3">
             <h3 class="text-lg font-semibold">Kommentar</h3>
@@ -824,6 +1322,16 @@ const addPlantToLager = async () => {
   overflow: hidden;
 }
 
+@media screen and (min-width: 768px) {
+  .vue-recycle-scroller__item-view:last-child li {
+    /* border-color: transparent; */
+  }
+  .vue-recycle-scroller__item-wrapper {
+    border-bottom: 1px solid var(--ui-bg);
+    /* border-color: transparent; */
+  }
+}
+
 /* Optimize transitions for virtual scrolling */
 .expand-fade-enter-active,
 .expand-fade-leave-active {
@@ -839,5 +1347,47 @@ const addPlantToLager = async () => {
 .expand-fade-leave-from {
   max-height: 200px;
   opacity: 1;
+}
+
+/* Chromium-based browser detection and styles */
+@supports (-webkit-appearance: none) and (not (-moz-appearance: none)) {
+  /* Optimize virtual scrolling performance for Chromium */
+  .scroller {
+    contain: layout style paint;
+    will-change: scroll-position;
+  }
+
+  /* Better rendering for dynamic content */
+  .vue-recycle-scroller__item-view {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+}
+
+.scroller-styles {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-text-muted) transparent;
+
+  /* Chrome, Edge, Safari */
+  &::-webkit-scrollbar {
+    height: 8px;
+    background: #f8fafc;
+    border-radius: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--ui-text-muted);
+    border-radius: 6px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--ui-bg-accented);
+  }
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+@media screen and (max-width: 768px) {
+  .lager-page input {
+    font-size: 16px;
+  }
 }
 </style>

@@ -1,26 +1,24 @@
 <script setup lang="ts">
-import type { Facit } from '~/types/supabase-tables';
+import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
 
 const supabase = useSupabaseClient();
 const route = useRoute();
 const router = useRouter();
-const { searchPlants } = useSearch();
+const { searchAvailablePlants } = useSearch();
 
 // Search input, initialized from query param if present
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '');
 // Filtered plant results from search query
-const searchResults = ref<Facit[]>([]);
+const searchResults = ref<AvailablePlantSimilaritySearchResult[]>([]);
 const hasSearched = ref(false);
 // Loading and error states
 const loading = ref(false);
 const errorMsg = ref('');
 const searchTime = ref(0);
-const totalResults = ref(0);
 
 // Pagination - initialize from URL params
 const currentPage = ref(typeof route.query.sida === 'string' ? parseInt(route.query.sida) || 1 : 1);
 const itemsPerPage = 60;
-const totalPages = computed(() => Math.ceil(totalResults.value / itemsPerPage));
 
 // Minimum character threshold for search
 const MIN_SEARCH_LENGTH = 2;
@@ -33,7 +31,6 @@ async function performSearch(immediate = false) {
   if (!search.value || search.value.length < MIN_SEARCH_LENGTH) {
     searchResults.value = [];
     hasSearched.value = false;
-    totalResults.value = 0;
     return;
   }
 
@@ -48,30 +45,21 @@ async function performSearch(immediate = false) {
   };
 
   router.replace({ query });
-
   try {
-    const offset = (currentPage.value - 1) * itemsPerPage;
-
-    // Use the new ultra-fast optimized search function
-    const result = await searchPlants(search.value, {
+    const offset = (currentPage.value - 1) * itemsPerPage; // Use the new ultra-fast optimized search function for available plants only
+    const result = await searchAvailablePlants(search.value, {
       limit: itemsPerPage,
       offset,
-      includeCount: currentPage.value === 1, // Only get count on first page
+      includeCount: false, // Skip total count for performance
     });
 
     searchResults.value = result.results;
     searchTime.value = result.searchTime;
-
-    if (currentPage.value === 1) {
-      totalResults.value = result.totalCount;
-    }
-
     hasSearched.value = true;
   } catch (error) {
     console.error('Search error:', error);
     errorMsg.value = 'Ett fel uppstod vid sökning. Försök igen.';
     searchResults.value = [];
-    totalResults.value = 0;
   } finally {
     loading.value = false;
   }
@@ -130,7 +118,6 @@ watch(search, (newValue) => {
   if (newValue.length === 0) {
     searchResults.value = [];
     hasSearched.value = false;
-    totalResults.value = 0;
     // Clear URL query parameters when search is cleared
     router.replace({ query: {} });
   }
@@ -201,7 +188,7 @@ const testVar = ref(1234567); // Example variable for testing purposes
     <div v-if="hasSearched && !loading" class="mb-6">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p class="text-t-muted">
-          <span v-if="totalResults > 0"> {{ totalResults.toLocaleString('sv-SE') }} resultat </span>
+          <span v-if="searchResults.length > 0"> {{ searchResults.length }} resultat </span>
           <span v-else> Inga resultat </span>
         </p>
         <p v-if="searchTime > 0" class="text-sm text-t-muted">
@@ -232,17 +219,11 @@ const testVar = ref(1234567); // Example variable for testing purposes
         <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <SearchResultCard v-for="plant in searchResults" :key="plant.id" :plant="plant" />
         </div>
-
-        <!-- Pagination -->
-        <div v-if="totalPages > 1" class="flex justify-center mt-8">
-          <UPagination
-            v-model:page="currentPage"
-            :items-per-page="itemsPerPage"
-            :total="totalResults"
-            @update:page="goToPage"
-            show-first
-            show-last
-          />
+        <!-- Load more button instead of pagination -->
+        <div v-if="searchResults.length >= itemsPerPage" class="flex justify-center mt-8">
+          <UButton @click="goToPage(currentPage + 1)" size="lg" variant="outline">
+            Ladda fler resultat
+          </UButton>
         </div>
       </div>
 

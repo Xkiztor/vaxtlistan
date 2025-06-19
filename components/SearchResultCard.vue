@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Facit } from '~/types/supabase-tables';
+import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
 import { usePlantType } from '~/composables/usePlantType';
 
-const props = defineProps<{ plant: Facit }>();
+const props = defineProps<{ plant: AvailablePlantSimilaritySearchResult }>();
 const supabase = useSupabaseClient();
 const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
@@ -33,6 +33,27 @@ const image = computed(() => {
     return '';
   }
 });
+
+// Compute the cheapest price for this plant
+const cheapestPrice = computed(() => {
+  if (!props.plant.prices || props.plant.prices.length === 0) {
+    return null;
+  }
+
+  // Find the minimum price from the array
+  const minPrice = Math.min(...props.plant.prices);
+  return minPrice;
+});
+
+// Format price with currency
+const formatPrice = (price: number) => {
+  return new Intl.NumberFormat('sv-SE', {
+    style: 'currency',
+    currency: 'SEK',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(price);
+};
 </script>
 
 <template>
@@ -64,8 +85,12 @@ const image = computed(() => {
             >Synonym{{ plant.synonym_to ? ' till ' : '' }}{{ plant.synonym_to }}</UBadge
           >
         </div>
-        <!-- Plant attributes -->
-        <div class="flex flex-wrap gap-2 mt-2">
+        <!-- Plant attributes and availability -->
+        <div
+          class="flex flex-wrap gap-2 mt-2"
+          v-if="plant.rhs_types || plant.height || plant.spread"
+        >
+          <!-- Plant type badges -->
           <template v-for="label in getAllRhsTypeLabels(plant.rhs_types)" :key="label">
             <UBadge color="primary" variant="soft">{{ label }}</UBadge>
           </template>
@@ -75,6 +100,21 @@ const image = computed(() => {
           <UBadge v-if="plant.spread" color="neutral" variant="soft"
             >Bredd: {{ plant.spread }}</UBadge
           >
+        </div>
+        <div
+          class="p-2 py-1.5 border border-border rounded-lg mt-2 w-fit flex gap-6 text-xs md:text-sm"
+          v-if="cheapestPrice"
+        >
+          <!-- Price information -->
+          <div>
+            Från <span class="font-semibold">{{ formatPrice(cheapestPrice) }}</span>
+          </div>
+          <div>
+            <span v-if="plant.plantskolor_count > 1"
+              ><span class="font-semibold">{{ plant.plantskolor_count }}</span> st plantskolor</span
+            >
+            <span v-else><span class="font-semibold">1</span> plantskola</span>
+          </div>
         </div>
       </div>
     </div>

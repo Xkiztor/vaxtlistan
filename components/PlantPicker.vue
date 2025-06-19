@@ -6,7 +6,7 @@ import { useVirtualList } from '@vueuse/core';
 
 // Supabase client
 const supabase = useSupabaseClient();
-const { searchPlants } = useSearch();
+const { searchAllPlants } = useSearch();
 
 const props = defineProps<{
   editValue: number; // Selected plant id
@@ -53,7 +53,7 @@ const performSearch = async () => {
   hasSearched.value = true;
 
   try {
-    const result = await searchPlants(search.value, {
+    const result = await searchAllPlants(search.value, {
       limit: 50, // Limit results for picker
       offset: 0,
       includeCount: false, // Don't need count for picker

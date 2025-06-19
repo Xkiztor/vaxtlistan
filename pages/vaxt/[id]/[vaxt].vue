@@ -4,6 +4,25 @@ import type { Facit } from '~/types/supabase-tables';
 import { useLignosdatabasen } from '~/stores/lignosdatabasen';
 import { computed } from 'vue';
 
+// Interface for stock data with nursery information
+interface PlantStock {
+  id: number;
+  stock: number;
+  price: number | null;
+  pot: string | null;
+  height: string | null;
+  name_by_plantskola: string;
+  comment_by_plantskola: string | null;
+  last_edited: string;
+  nursery_name: string;
+  nursery_address: string | null;
+  nursery_email: string | null;
+  nursery_phone: string | null;
+  nursery_url: string | null;
+  nursery_postorder: boolean;
+  nursery_on_site: boolean;
+}
+
 const { width, height } = useWindowSize();
 
 const runtimeConfig = useRuntimeConfig();
@@ -43,6 +62,73 @@ const {
   { watch: [id] }
 );
 
+// Fetch stock data for this plant from nurseries
+const {
+  data: stockData,
+  status: statusStock,
+  error: errorStock,
+  pending: pendingStock,
+} = await useAsyncData<PlantStock[]>(
+  `plant-stock-${id.value}`,
+  async () => {
+    if (!plant.value?.id) return [];
+    const { data, error } = await supabase
+      .from('totallager')
+      .select(
+        `
+        id,
+        stock,
+        price,
+        pot,
+        height,
+        name_by_plantskola,
+        comment_by_plantskola,
+        last_edited,        plantskolor:plantskola_id!inner (
+          name,
+          adress,
+          email,
+          phone,
+          url,
+          postorder,
+          on_site
+        )
+      `
+      )
+      .eq('facit_id', plant.value.id)
+      .eq('hidden', false)
+      .eq('plantskolor.verified', true)
+      .gt('stock', 0)
+      .order('stock', { ascending: false });
+    if (error) {
+      console.error('Error fetching stock data:', error.message);
+      throw error;
+    }
+
+    // Transform the data to include nursery information at the top level
+    return (data || []).map((item: any) => ({
+      id: item.id,
+      stock: item.stock,
+      price: item.price,
+      pot: item.pot,
+      height: item.height,
+      name_by_plantskola: item.name_by_plantskola,
+      comment_by_plantskola: item.comment_by_plantskola,
+      last_edited: item.last_edited,
+      nursery_name: item.plantskolor?.name || 'Okänd plantskola',
+      nursery_address: item.plantskolor?.adress || null,
+      nursery_email: item.plantskolor?.email || null,
+      nursery_phone: item.plantskolor?.phone || null,
+      nursery_url: item.plantskolor?.url || null,
+      nursery_postorder: item.plantskolor?.postorder || false,
+      nursery_on_site: item.plantskolor?.on_site || false,
+    })) as PlantStock[];
+  },
+  {
+    watch: [() => plant.value?.id],
+    default: () => [],
+  }
+);
+
 // Use the plant attributes composable
 const {
   sunlightLabels,
@@ -59,6 +145,15 @@ const {
   graphicalPlantBySeason,
   getIconColorStyle,
 } = usePlantAttributes(plant);
+
+// Function to format date for display
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('sv-SE', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+};
 
 const lignosdatabasen = useLignosdatabasen();
 // lignosdatabasen.getLignosdatabasen(runtimeConfig); // Fetch lignosdatabasen data if needed
@@ -113,13 +208,110 @@ function openImage(s: string) {
   });
 }
 
-// watchEffect(() => {
-//   // When plant is loaded and name is available
-//   if (plant.value && plant.value.name && route.params.vaxt !== plant.value.name) {
-//     // Replace the [vaxt] part of the URL with the plant's name (slugified for safety)
+// Generate structured data for SEO
+const structuredData = computed(() => {
+  if (!plant.value) return null;
 
-//   }
-// });
+  const offers =
+    stockData.value?.map((stock) => ({
+      '@type': 'Offer',
+      price: stock.price || 0,
+      priceCurrency: 'SEK',
+      availability:
+        stock.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+      seller: {
+        '@type': 'Organization',
+        name: stock.nursery_name,
+        address: stock.nursery_address || undefined,
+        email: stock.nursery_email || undefined,
+        telephone: stock.nursery_phone || undefined,
+      },
+      itemCondition: 'https://schema.org/NewCondition',
+    })) || [];
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: plant.value.name,
+    alternateName: plant.value.sv_name || undefined,
+    description: lignosdatabasenPlant.value
+      ? lignosText()
+      : `Information om växten ${plant.value.name}`,
+    category: 'Plants & Flowers',
+    image: lignosImages.value?.[0] || undefined,
+    offers: offers.length > 0 ? offers : undefined,
+    brand: {
+      '@type': 'Brand',
+      name: 'Växtlistan',
+    },
+    additionalProperty: [
+      plant.value.height && {
+        '@type': 'PropertyValue',
+        name: 'Höjd',
+        value: plant.value.height,
+      },
+      plant.value.spread && {
+        '@type': 'PropertyValue',
+        name: 'Bredd',
+        value: plant.value.spread,
+      },
+    ].filter(Boolean),
+  };
+});
+
+// Set page meta for SEO
+useHead({
+  title: () =>
+    plant.value
+      ? `${plant.value.name}${plant.value.sv_name ? ` (${plant.value.sv_name})` : ''} - Växtlistan`
+      : 'Laddar...',
+  meta: [
+    {
+      name: 'description',
+      content: () =>
+        plant.value
+          ? `Information om ${plant.value.name}${
+              plant.value.sv_name ? ` (${plant.value.sv_name})` : ''
+            }. ${
+              stockData.value?.length
+                ? `Finns hos ${stockData.value.length} plantskolor.`
+                : 'Ej tillgänglig för närvarande.'
+            }`
+          : 'Laddar växtinformation...',
+    },
+    {
+      property: 'og:title',
+      content: () => (plant.value ? `${plant.value.name} - Växtlistan` : 'Laddar...'),
+    },
+    {
+      property: 'og:description',
+      content: () =>
+        plant.value
+          ? `Information om ${plant.value.name}${
+              plant.value.sv_name ? ` (${plant.value.sv_name})` : ''
+            }. ${
+              stockData.value?.length
+                ? `Finns hos ${stockData.value.length} plantskolor.`
+                : 'Ej tillgänglig för närvarande.'
+            }`
+          : 'Laddar växtinformation...',
+    },
+    {
+      property: 'og:image',
+      content: () => lignosImages.value?.[0] || '/favicon.ico',
+    },
+    {
+      property: 'og:type',
+      content: 'website',
+    },
+  ],
+  script: [
+    {
+      type: 'application/ld+json',
+      innerHTML: () => (structuredData.value ? JSON.stringify(structuredData.value) : ''),
+    },
+  ],
+});
 </script>
 
 <template>
@@ -227,13 +419,214 @@ function openImage(s: string) {
             </UButton>
           </div>
         </div>
+        <!-- Available to Buy Section -->
+        <div class="space-y-4 mb-4">
+          <h3 class="text-xl font-semibold">Finns att köpa</h3>
 
-        <div class="space-y-2 mb-4">
-          <h3 class="text-xl font-semibold">Finns att köpa:</h3>
+          <!-- Loading state for nursery stock -->
+          <div v-if="pendingStock" class="flex items-center gap-2">
+            <UIcon name="i-heroicons-arrow-path" class="animate-spin" />
+            <span>Laddar tillgänglighet...</span>
+          </div>
+
+          <!-- Error state for nursery stock -->
+          <div v-else-if="errorStock" class="text-error">
+            <p>Kunde inte ladda tillgänglighetsdata</p>
+          </div>
+          <!-- No stock available -->
+          <div v-else-if="!stockData || stockData.length === 0" class="text-t-muted">
+            <div class="flex flex-col items-center gap-4 p-6 bg-muted rounded-lg text-center">
+              <UIcon name="i-heroicons-exclamation-triangle" class="w-12 h-12 text-warning" />
+              <div>
+                <h4 class="font-semibold text-lg mb-2">Inte tillgänglig just nu</h4>
+                <p class="text-sm">
+                  Denna växt finns för närvarande inte tillgänglig hos någon av våra registrerade
+                  plantskolor.
+                </p>
+                <p class="text-xs mt-2">
+                  Kontakta din lokala plantskola för att höra om de kan beställa hem växten åt dig.
+                </p>
+              </div>
+              <UButton
+                to="/vaxt/s/"
+                icon="i-heroicons-magnifying-glass"
+                variant="outline"
+                color="primary"
+                size="sm"
+              >
+                Sök efter andra växter
+              </UButton>
+            </div>
+          </div>
+
+          <!-- Stock data available -->
+          <div v-else class="space-y-3">
+            <p class="text-sm text-t-muted">
+              {{ stockData.length }} plantskol{{ stockData.length === 1 ? 'a' : 'or' }} har denna
+              växt i lager
+            </p>
+            <div class="grid gap-4">
+              <article
+                v-for="stock in stockData"
+                :key="stock.id"
+                class="border border-border rounded-lg p-4 hover:shadow-md transition-shadow bg-card"
+                itemscope
+                itemtype="https://schema.org/Offer"
+              >
+                <!-- Nursery Header -->
+                <header class="flex flex-col sm:flex-row sm:items-start gap-2 mb-3">
+                  <div class="flex-1">
+                    <h4
+                      class="font-semibold text-lg"
+                      itemprop="seller"
+                      itemscope
+                      itemtype="https://schema.org/Organization"
+                    >
+                      <span itemprop="name">{{ stock.nursery_name }}</span>
+                    </h4>
+                    <p v-if="stock.nursery_address" class="text-sm text-t-muted" itemprop="address">
+                      {{ stock.nursery_address }}
+                    </p>
+                  </div>
+                </header>
+
+                <!-- Plant Details -->
+                <div class="space-y-3">
+                  <!-- Stock and Price -->
+                  <div class="flex items-center gap-4 flex-wrap">
+                    <div class="flex items-center gap-2">
+                      <UIcon name="i-heroicons-cube" class="text-primary flex-shrink-0" />
+                      <span
+                        class="font-medium"
+                        itemprop="availability"
+                        content="https://schema.org/InStock"
+                      >
+                        {{ stock.stock }} st i lager
+                      </span>
+                    </div>
+                    <div v-if="stock.price" class="flex items-center gap-2">
+                      <UIcon
+                        name="i-heroicons-currency-dollar"
+                        class="text-success flex-shrink-0"
+                      />
+                      <span class="font-medium">
+                        <span itemprop="price" :content="stock.price">{{ stock.price }}</span>
+                        <span itemprop="priceCurrency" content="SEK"> kr</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Plant specifications -->
+                  <div class="flex items-center gap-4 flex-wrap text-sm">
+                    <div v-if="stock.pot" class="flex items-center gap-1">
+                      <UIcon
+                        name="i-heroicons-square-3-stack-3d"
+                        class="text-t-muted flex-shrink-0"
+                      />
+                      <span>{{ stock.pot }}</span>
+                    </div>
+                    <div v-if="stock.height" class="flex items-center gap-1">
+                      <UIcon name="i-heroicons-arrow-up" class="text-t-muted flex-shrink-0" />
+                      <span>{{ stock.height }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Nursery's plant name (if different) -->
+                  <div
+                    v-if="stock.name_by_plantskola && stock.name_by_plantskola !== plant?.name"
+                    class="text-sm"
+                  >
+                    <span class="font-medium">Plantskolans namn:</span>
+                    <span class="italic ml-1">{{ stock.name_by_plantskola }}</span>
+                  </div>
+                  <!-- Nursery's comment -->
+                  <div v-if="stock.comment_by_plantskola" class="text-sm">
+                    <span class="font-medium">Kommentar:</span>
+                    <span class="ml-1">{{ stock.comment_by_plantskola }}</span>
+                  </div>
+                  <!-- Postorder information -->
+                  <div class="text-sm flex items-center gap-2">
+                    <span class="font-medium">Postorder:</span>
+                    <UBadge
+                      :color="stock.nursery_postorder ? 'success' : 'neutral'"
+                      variant="soft"
+                      size="sm"
+                    >
+                      {{
+                        stock.nursery_postorder ? 'Ja, skickar via post' : 'Nej, endast hämtning'
+                      }}
+                    </UBadge>
+                  </div>
+
+                  <!-- On-site pickup information -->
+                  <div class="text-sm flex items-center gap-2">
+                    <span class="font-medium">Hämtning på plats:</span>
+                    <UBadge
+                      :color="stock.nursery_on_site ? 'success' : 'neutral'"
+                      variant="soft"
+                      size="sm"
+                    >
+                      {{ stock.nursery_on_site ? 'Ja, hämtning möjlig' : 'Nej, ingen hämtning' }}
+                    </UBadge>
+                  </div>
+                </div>
+
+                <!-- Contact Information -->
+                <footer
+                  class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 pt-3 border-t border-border"
+                >
+                  <div class="flex items-center gap-3 flex-wrap">
+                    <UButton
+                      v-if="stock.nursery_email"
+                      :href="`mailto:${stock.nursery_email}?subject=Intresse för ${plant?.name}&body=Hej,%0D%0A%0D%0AJag är intresserad av att köpa ${plant?.name} som ni har i er plantskola.%0D%0A%0D%0AMvh`"
+                      icon="i-heroicons-envelope"
+                      color="primary"
+                      variant="outline"
+                      size="sm"
+                    >
+                      Skicka e-post
+                    </UButton>
+
+                    <UButton
+                      v-if="stock.nursery_phone"
+                      :href="`tel:${stock.nursery_phone}`"
+                      icon="i-heroicons-phone"
+                      color="primary"
+                      variant="outline"
+                      size="sm"
+                    >
+                      Ring
+                    </UButton>
+
+                    <UButton
+                      v-if="stock.nursery_url"
+                      :href="stock.nursery_url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      icon="i-heroicons-globe-alt"
+                      color="primary"
+                      variant="outline"
+                      size="sm"
+                    >
+                      Besök webbsida
+                    </UButton>
+                  </div>
+
+                  <!-- Last updated info -->
+                  <div class="text-xs text-t-muted self-start sm:self-center">
+                    Uppdaterat {{ formatDate(stock.last_edited) }}
+                  </div>
+                </footer>
+              </article>
+            </div>
+          </div>
         </div>
 
         <!-- Growing Conditions -->
-        <div class="space-y-2 mb-4">
+        <div
+          class="space-y-2 mb-4"
+          v-if="sunlightLabels || exposureLabels || soilTypeLabels || phLabels || moistureLabels"
+        >
           <h3 class="text-xl font-semibold">Odlingsförhållanden</h3>
           <div class="flex flex-wrap gap-2 w-full justify-between md:gap-16">
             <div v-if="sunlightLabels" class="flex flex-col gap-2">
@@ -287,7 +680,7 @@ function openImage(s: string) {
           </div>
         </div>
         <!-- Seasonal Interest and Colors -->
-        <div class="mb-4 space-y-4">
+        <div class="mb-4 space-y-4" v-if="colorsBySeason || seasonOfInterestLabels">
           <h3 class="text-xl font-semibold">Utseende och säsong</h3>
 
           <!-- General seasonal interest -->

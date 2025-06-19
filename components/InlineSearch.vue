@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // InlineSearch component for navbar/hero
 // Updated to use high-performance server-side search instead of loading all data into memory
-import type { Facit } from '~/types/supabase-tables';
+import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
 import { usePlantType } from '~/composables/usePlantType';
 
 // Props: mode controls size/layout
@@ -15,11 +15,11 @@ const isFocused = ref(false);
 
 const supabase = useSupabaseClient();
 const router = useRouter();
-const { searchPlants } = useSearch();
+const { searchAvailablePlants } = useSearch();
 const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
 const search = ref('');
-const results = ref<Facit[]>([]);
+const results = ref<AvailablePlantSimilaritySearchResult[]>([]);
 const loading = ref(false);
 const showDropdown = ref(false);
 const minChars = 2; // Reduced from 3 for better UX
@@ -36,7 +36,7 @@ const debouncedSearch = useDebounceFn(async () => {
 
   loading.value = true;
   try {
-    const searchResult = await searchPlants(search.value, {
+    const searchResult = await searchAvailablePlants(search.value, {
       limit: maxResults,
     });
 
@@ -73,6 +73,8 @@ function goToAllResults() {
 // Handle Enter key
 function onEnter(e: KeyboardEvent) {
   if (search.value.length >= minChars) {
+    deSelect();
+    e.preventDefault();
     goToAllResults();
   }
 }
@@ -84,13 +86,6 @@ function onBlurDropdown(e: FocusEvent) {
     showDropdown.value = false;
   }, 120);
 }
-
-// Focus input when hero mode
-onMounted(() => {
-  if (props.mode === 'hero' && inputRef.value) {
-    inputRef.value.focus();
-  }
-});
 
 function handleFocus() {
   isFocused.value = true;
@@ -187,7 +182,7 @@ const deSelect = () => {
           <li
             v-for="plant in results"
             :key="plant.id"
-            class="hover:bg-bg-accented cursor-pointer px-4 py-3 flex flex-col gap-1 border-b-1 border-border last:border-b-0"
+            class="hover:bg-bg-accented cursor-pointer px-4 py-3 border-b-1 border-border last:border-b-0 leading-5"
             @mousedown.prevent="
               router.push({
                 path: `/vaxt/${plant.id}/${plant.name
@@ -200,19 +195,14 @@ const deSelect = () => {
                 deSelect()
             "
           >
-            <span class="font-semibold">{{ plant.name }}</span>
+            <span class="font-semibold leading-4 block">{{ plant.name }}</span>
             <span v-if="plant.sv_name" class="text-t-muted text-sm">{{ plant.sv_name }}</span>
-            <div class="flex gap-2 mt-1 max-md:hidden">
-              <template v-for="label in getAllRhsTypeLabels(plant.rhs_types)" :key="label">
-                <UBadge color="primary" variant="soft">{{ label }}</UBadge>
-              </template>
-            </div>
           </li>
         </ul>
         <UButton
-          class="w-full rounded-none border-t-1 border-border font-bold underline text-secondary"
+          class="w-full rounded-none border-t-1 border-border font-bold underline"
           size="xl"
-          color="neutral"
+          color="primary"
           @mousedown.prevent="goToAllResults"
         >
           Visa alla resultat...

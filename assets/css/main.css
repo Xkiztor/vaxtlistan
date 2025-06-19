@@ -4,15 +4,21 @@
   /* --primary-green-dark: #8ac957; */
   --primary-green-light: #76994e;
   --primary-green-dark: #81a35a;
+  --primary-green-bg-light: #def4c5;
+  --primary-green-bg-dark: #182b05;
 
   --primary-yellow-light: #e39b00;
   --primary-yellow-dark: #f0cd34;
 
   --primary-blue-light: #2164d0;
   --primary-blue-dark: #4881dd;
+  --primary-blue-bg-light: #d9e7ff;
+  --primary-blue-bg-dark: #1a2f51;
 
   --primary-red-light: #ef5050;
   --primary-red-dark: #f36161;
+  --primary-red-bg-light: #ffd5c2;
+  --primary-red-bg-dark: #85251e;
 
   --link-light: #0645ad;
   --link-dark: #75b4f8;
@@ -107,6 +113,10 @@
   --ui-klattervaxt: var(--klattervaxt-light);
   --ui-ormbunke: var(--ormbunke-light);
   --ui-gräs: var(--gräs-light);
+
+  --ui-primary-bg: var(--primary-green-bg-light);
+  --ui-secondary-bg: var(--primary-blue-bg-light);
+  --ui-error-bg: var(--primary-red-bg-light);
 }
 
 .dark {
@@ -156,6 +166,10 @@
   --ui-klattervaxt: var(--klattervaxt-dark);
   --ui-ormbunke: var(--ormbunke-dark);
   --ui-gräs: var(--gräs-dark);
+
+  --ui-primary-bg: var(--primary-green-bg-dark);
+  --ui-secondary-bg: var(--primary-blue-bg-dark);
+  --ui-error-bg: var(--primary-red-bg-dark);
 }
 
 @theme {
@@ -197,6 +211,10 @@
   --color-bg-elevated-hover: var(--ui-bg-elevated-hover);
   --color-bg-accented-hover: var(--ui-bg-accented-hover);
   --color-border-hover: var(--ui-border-hover);
+
+  --color-primary-bg: var(--ui-primary-bg);
+  --color-secondary-bg: var(--ui-secondary-bg);
+  --color-error-bg: var(--ui-error-bg);
 }
 
 /* Primary colors */
@@ -486,8 +504,45 @@ video {
   border-style: none;
 } */
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--ui-border) transparent;
+}
+
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  background-color: var(--ui-border);
+}
+
 html {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   /* background: var(--bg-color); */
   /* color: var(--text-color); */
+
+  scrollbar-width: auto;
+  scrollbar-color: var(--ui-border) var(--ui-bg-elevated);
+}
+html::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html::-webkit-scrollbar-track {
+  background: var(--ui-bg-elevated);
+}
+
+html::-webkit-scrollbar-thumb {
+  background-color: var(--ui-border);
+  border-radius: 4px;
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background-color: var(--ui-border-hover);
+}
+
+html::-webkit-scrollbar-corner {
+  background: var(--ui-bg-elevated);
 }

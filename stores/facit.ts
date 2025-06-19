@@ -8,30 +8,6 @@ export const useFacitStore = defineStore('facit', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
 
-  // Fetch facit from Supabase only if not already loaded
-  const fetchFacit = async (supabase: any) => {
-    if (facit.value) return facit.value;
-    loading.value = true;
-    error.value = null;
-    try {
-      const { data, error: fetchError } = await supabase.from('facit').select('*');
-      if (fetchError) throw fetchError;
-      facit.value = data as Facit[];
-      return facit.value;
-    } catch (e: any) {
-      error.value = e.message || 'Kunde inte hämta facit.';
-      return null;
-    } finally {
-      loading.value = false;
-    }
-  };
-
-  // Force refresh
-  const refreshFacit = async (supabase: any) => {
-    facit.value = null;
-    return await fetchFacit(supabase);
-  };
-
   // Add new facit (plant) to Supabase and local state
   const addFacit = async (supabase: any, newPlant: Partial<Facit>) => {
     loading.value = true;
@@ -90,5 +66,5 @@ export const useFacitStore = defineStore('facit', () => {
     return facit.value?.find(f => f.id === id);
   };
 
-  return { facit, loading, error, fetchFacit, refreshFacit, addFacit, updateFacit, getFacitById };
+  return { facit, loading, error, addFacit, updateFacit, getFacitById };
 });

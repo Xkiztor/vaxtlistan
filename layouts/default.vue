@@ -2,6 +2,8 @@
 const { width, height } = useWindowSize();
 const expandSearchScreenWidth = 550; // Width at which search expands
 
+const user = useSupabaseUser();
+
 const menuOpen = ref(false);
 const mobileSearchActive = ref(false);
 
@@ -40,7 +42,9 @@ function handleMobileSearchBlur() {
             <!-- InlineSearch expands on mobile when focused -->
           </div>
         </transition>
-        <div class="flex items-center gap-4 max-md:hidden flex-1 w-max shrink-0 pr-4">
+        <div
+          class="flex items-center gap-4 lg:gap-8 max-md:hidden flex-1 w-max shrink-0 pr-4 xl:pl-8"
+        >
           <!-- Navigation links -->
           <NuxtLink
             to="/for-plantskolor"
@@ -48,7 +52,8 @@ function handleMobileSearchBlur() {
             class="shrink-0 w-max"
             active-class="text-primary font-bold underline router-link-active"
           >
-            För plantskolor
+            <span class="max-lg:hidden">Information för plantskolor</span>
+            <span class="lg:hidden">Info för plantskolor</span>
           </NuxtLink>
           <NuxtLink
             to="/om-oss"
@@ -56,7 +61,7 @@ function handleMobileSearchBlur() {
             class="shrink-0 w-max"
             active-class="text-primary font-bold underline router-link-active"
           >
-            Om oss
+            Om växtlistan
           </NuxtLink>
         </div>
         <div
@@ -71,8 +76,9 @@ function handleMobileSearchBlur() {
           />
 
           <!-- Login button using Nuxt UI UButton -->
-          <UButton class="max-md:hidden w-max shrink-0" size="xl" to="/plantskola-admin/login"
-            >Plantskola Login</UButton
+          <UButton class="max-md:hidden w-max shrink-0" size="xl" to="/plantskola-admin/login">
+            <span v-if="user">Adminsidan </span>
+            <span v-else>Plantskola - Login</span></UButton
           >
           <div class="max-md:hidden shrink-0"><ColorModeButton /></div>
           <UButton
@@ -134,7 +140,7 @@ function handleMobileSearchBlur() {
               class="block"
               active-class="text-primary font-bold underline router-link-active"
             >
-              För plantskolor
+              Information för plantskolor
             </NuxtLink>
             <NuxtLink
               to="/om-oss"
@@ -142,13 +148,14 @@ function handleMobileSearchBlur() {
               class="block"
               active-class="text-primary font-bold underline router-link-active"
             >
-              Om oss
+              Om växtlistan
             </NuxtLink>
           </div>
           <div class="flex flex-col gap-4 border-t-1 border-border pt-4">
-            <UButton class="w-full" size="xl" @click="closeMenu" to="/plantskola-admin/login"
-              >Plantskola - Login</UButton
-            >
+            <UButton class="w-full" size="xl" @click="closeMenu" to="/plantskola-admin/login">
+              <span v-if="user">Till Adminsidan</span>
+              <span v-else>Plantskola - Login</span>
+            </UButton>
             <ColorModeButton full />
           </div>
         </div>

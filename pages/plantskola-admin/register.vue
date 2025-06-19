@@ -12,6 +12,9 @@ interface RegisterForm {
   adress: string;
   description: string;
   tel: string;
+  url: string;
+  postorder: boolean;
+  on_site: boolean;
   email: string;
   password: string;
 }
@@ -21,6 +24,9 @@ const form = ref<RegisterForm>({
   adress: '',
   description: '',
   tel: '',
+  url: '',
+  postorder: false,
+  on_site: true,
   email: '',
   password: '',
 });
@@ -45,13 +51,15 @@ async function register() {
     });
     if (authError || !authData.user) {
       throw new Error(authError?.message || 'Kunde inte skapa användare.');
-    }
-    // 2. Insert into plantskolor table
-    const { error: dbError } = await supabase.from('plantskolor').insert({
+    } // 2. Insert into plantskolor table
+    const { error: dbError } = await (supabase as any).from('plantskolor').insert({
       name: form.value.name,
       adress: form.value.adress,
       email: form.value.email,
       phone: form.value.tel,
+      url: form.value.url,
+      postorder: form.value.postorder,
+      on_site: form.value.on_site,
       description: form.value.description,
       user_id: authData.user.id,
       verified: false,
@@ -76,22 +84,36 @@ async function register() {
       <h1 class="text-2xl font-bold mb-4">Registrera din plantskola</h1>
       <form @submit.prevent="register" class="flex flex-col gap-4">
         <UFormField label="Namn på plantskola" required>
-          <UInput v-model="form.name" required />
+          <UInput v-model="form.name" required :ui="{ root: 'w-full' }" />
         </UFormField>
-        <UFormField label="Adress" required>
-          <UInput v-model="form.adress" required />
+        <UFormField label="Adress" required description="Gatuadrass, postnummer och stad">
+          <UInput v-model="form.adress" required :ui="{ root: 'w-full' }" />
         </UFormField>
         <UFormField label="Beskrivning av plantskola">
-          <UTextarea v-model="form.description" />
+          <UTextarea v-model="form.description" :ui="{ root: 'w-full' }" />
         </UFormField>
         <UFormField label="Telefonnummer" type="tel">
-          <UInput v-model="form.tel" type="tel" />
+          <UInput v-model="form.tel" type="tel" :ui="{ root: 'w-full' }" />
+        </UFormField>
+        <UFormField label="Webbsida">
+          <UInput
+            v-model="form.url"
+            type="url"
+            placeholder="https://..."
+            :ui="{ root: 'w-full' }"
+          />
+        </UFormField>
+        <UFormField label="Postorder">
+          <UCheckbox v-model="form.postorder" />
+        </UFormField>
+        <UFormField label="Hämtning på plats">
+          <UCheckbox v-model="form.on_site" />
         </UFormField>
         <UFormField label="E-post" type="email" required>
-          <UInput v-model="form.email" type="email" required />
+          <UInput v-model="form.email" type="email" required :ui="{ root: 'w-full' }" />
         </UFormField>
         <UFormField label="Lösenord" type="password" required>
-          <UInput v-model="form.password" type="password" required />
+          <UInput v-model="form.password" type="password" required :ui="{ root: 'w-full' }" />
         </UFormField>
 
         <UButton type="submit" :loading="loading" class="w-full bg-primary text-white"
