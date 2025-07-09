@@ -4,7 +4,7 @@ import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tabl
 const supabase = useSupabaseClient();
 const route = useRoute();
 const router = useRouter();
-const { searchAvailablePlants } = useSearch();
+const { searchPlants } = useSearch();
 
 // Search input, initialized from query param if present
 const search = ref(typeof route.query.q === 'string' ? route.query.q : '');
@@ -43,11 +43,12 @@ async function performSearch(immediate = false) {
     q: search.value || undefined,
     sida: currentPage.value > 1 ? currentPage.value.toString() : undefined,
   };
-
   router.replace({ query });
   try {
-    const offset = (currentPage.value - 1) * itemsPerPage; // Use the new ultra-fast optimized search function for available plants only
-    const result = await searchAvailablePlants(search.value, {
+    const offset = (currentPage.value - 1) * itemsPerPage;
+
+    // Use the new ultra-fast optimized search function
+    const result = await searchPlants(search.value, {
       limit: itemsPerPage,
       offset,
       includeCount: false, // Skip total count for performance

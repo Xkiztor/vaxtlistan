@@ -78,11 +78,14 @@ const types = [
 ];
 
 // Sorting state
-const sortBy = ref<'name' | 'price' | 'stock' | 'height'>('name');
-const sortOrder = ref<'asc' | 'desc'>('desc');
+const sortBy = ref<'name-asc' | 'name-desc' | 'price-asc' | 'price-desc' | 'stock' | 'height'>(
+  'name-asc'
+);
 const sortOptions = [
-  { value: 'name', label: 'Namn' },
-  { value: 'price', label: 'Pris' },
+  { value: 'name-asc', label: 'Namn A-Z' },
+  { value: 'name-desc', label: 'Namn Z-A' },
+  { value: 'price-asc', label: 'Billigast först' },
+  { value: 'price-desc', label: 'Dyrast först' },
   { value: 'stock', label: 'Lager' },
   { value: 'height', label: 'Höjd' },
 ];
@@ -137,7 +140,7 @@ const calculateScrollerHeight = () => {
 
 // Reset scroll position when filters change
 watch(
-  [search, filterType, sortBy, sortOrder, advancedFilters],
+  [search, filterType, sortBy, advancedFilters],
   () => {
     // Reset scroll position when filters change
     if (dynamicScrollerRef.value && 'scrollToTop' in dynamicScrollerRef.value) {
@@ -173,6 +176,8 @@ const { data: plantskola } = await useAsyncData('plantskola', async () => {
 const { data: lagerComplete, refresh: refreshLager } = await useAsyncData(
   'lager-complete',
   async () => {
+    console.log('Fetching lager');
+
     if (!plantskola.value) return [];
 
     // Use the SQL function to get complete lager data with facit information
@@ -215,19 +220,26 @@ const filteredLager = computed(() => {
       return p.facit_rhs_types?.includes(Number(filterType.value));
     });
   }
-
   // Advanced filters
   if (advancedFilters.minPrice !== null) {
-    result = result.filter((p) => p.price !== null && p.price >= advancedFilters.minPrice!);
+    result = result.filter(
+      (p) => p.price !== null && p.price !== undefined && p.price >= advancedFilters.minPrice!
+    );
   }
   if (advancedFilters.maxPrice !== null) {
-    result = result.filter((p) => p.price !== null && p.price <= advancedFilters.maxPrice!);
+    result = result.filter(
+      (p) => p.price !== null && p.price !== undefined && p.price <= advancedFilters.maxPrice!
+    );
   }
   if (advancedFilters.minStock !== null) {
-    result = result.filter((p) => p.stock !== null && p.stock >= advancedFilters.minStock!);
+    result = result.filter(
+      (p) => p.stock !== null && p.stock !== undefined && p.stock >= advancedFilters.minStock!
+    );
   }
   if (advancedFilters.maxStock !== null) {
-    result = result.filter((p) => p.stock !== null && p.stock <= advancedFilters.maxStock!);
+    result = result.filter(
+      (p) => p.stock !== null && p.stock !== undefined && p.stock <= advancedFilters.maxStock!
+    );
   }
   if (advancedFilters.pot) {
     result = result.filter((p) => p.pot?.toLowerCase().includes(advancedFilters.pot.toLowerCase()));
@@ -254,36 +266,33 @@ const filteredLager = computed(() => {
     let aValue: any, bValue: any;
 
     switch (sortBy.value) {
-      case 'name':
+      case 'name-asc':
         aValue = a.facit_name || a.name_by_plantskola || '';
         bValue = b.facit_name || b.name_by_plantskola || '';
-        // Reverse comparison for name sorting
-        [aValue, bValue] = [bValue, aValue];
-        break;
-      case 'price':
+        return aValue.localeCompare(bValue, 'sv');
+      case 'name-desc':
+        aValue = a.facit_name || a.name_by_plantskola || '';
+        bValue = b.facit_name || b.name_by_plantskola || '';
+        return bValue.localeCompare(aValue, 'sv');
+      case 'price-asc':
         aValue = a.price || 0;
         bValue = b.price || 0;
-        break;
+        return aValue - bValue;
+      case 'price-desc':
+        aValue = a.price || 0;
+        bValue = b.price || 0;
+        return bValue - aValue;
       case 'stock':
         aValue = a.stock || 0;
         bValue = b.stock || 0;
-        break;
+        return bValue - aValue;
       case 'height':
-        // Extract numeric value from height string (e.g., "100-120" -> 100)
         aValue = parseFloat((a.height || '0').replace(/[^\d.-]/g, '')) || 0;
         bValue = parseFloat((b.height || '0').replace(/[^\d.-]/g, '')) || 0;
-        break;
+        return bValue - aValue;
       default:
         return 0;
     }
-
-    if (typeof aValue === 'string') {
-      aValue = aValue.toLowerCase();
-      bValue = bValue.toLowerCase();
-    }
-
-    const comparison = aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
-    return sortOrder.value === 'asc' ? comparison : -comparison;
   });
 
   return result;
@@ -828,17 +837,6 @@ const addPlantToLager = async () => {
                 :ui="{ item: 'cursor-pointer' }"
                 value-attribute="value"
               />
-              <UButton
-                variant="outline"
-                color="neutral"
-                @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'"
-                :icon="
-                  sortOrder === 'asc'
-                    ? 'material-symbols:arrow-upward-rounded'
-                    : 'material-symbols:arrow-downward-rounded'
-                "
-                :size="isMobile ? 'md' : 'xl'"
-              />
             </div>
             <UButton
               variant="subtle"
@@ -888,7 +886,7 @@ const addPlantToLager = async () => {
           ref="dynamicScrollerRef"
           class="scroller max-md:pb-24"
           :items="filteredLager"
-          :min-item-size="80"
+          :min-item-size="45"
           :style="{ height: virtualScrollerHeight + 'px' }"
           key-field="id"
           v-slot="{ item: plant, index, active }"
@@ -1324,7 +1322,7 @@ const addPlantToLager = async () => {
 
 @media screen and (min-width: 768px) {
   .vue-recycle-scroller__item-view:last-child li {
-    /* border-color: transparent; */
+    border-color: transparent;
   }
   .vue-recycle-scroller__item-wrapper {
     border-bottom: 1px solid var(--ui-bg);

@@ -36,13 +36,25 @@ const image = computed(() => {
 
 // Compute the cheapest price for this plant
 const cheapestPrice = computed(() => {
+  // Use min_price if available (from new search function)
+  if (props.plant.min_price !== undefined && props.plant.min_price !== null) {
+    return props.plant.min_price;
+  }
+
+  // Fallback to calculating from prices array for backward compatibility
   if (!props.plant.prices || props.plant.prices.length === 0) {
     return null;
   }
-
-  // Find the minimum price from the array
-  const minPrice = Math.min(...props.plant.prices);
-  return minPrice;
+  // Check if prices is array of numbers (old format) or array of objects (new format)
+  if (typeof props.plant.prices[0] === 'number') {
+    return Math.min(...(props.plant.prices as unknown as number[]));
+  } else {
+    // New format: array of PriceInfo objects
+    const priceValues = (props.plant.prices as any[])
+      .map((priceInfo) => priceInfo.price)
+      .filter((price) => price != null);
+    return priceValues.length > 0 ? Math.min(...priceValues) : null;
+  }
 });
 
 // Format price with currency

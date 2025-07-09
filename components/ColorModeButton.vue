@@ -18,12 +18,12 @@ const isDark = computed({
 <template>
   <!-- <ClientOnly> -->
   <UButton
-    :icon="isDark ? 'i-lucide-moon' : 'i-lucide-sun'"
+    :icon="isDark ? 'i-lucide-sun' : 'i-lucide-moon'"
     color="neutral"
     variant="ghost"
     @click="isDark = !isDark"
     class="px-1 py-0"
-    >{{ full ? (isDark ? 'Mörkt läge' : 'Ljust läge') : '' }}</UButton
+    >{{ full ? (isDark ? 'Ljust läge' : 'Mörkt läge') : '' }}</UButton
   >
   <!-- </ClientOnly> -->
 </template>

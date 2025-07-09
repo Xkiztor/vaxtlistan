@@ -12,13 +12,16 @@
 
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import type { Totallager, Facit, PlantSearchResult } from '~/types/supabase-tables';
-import type { SearchOptions } from '~/composables/useSearch';
+import type {
+  Totallager,
+  Facit,
+  PlantSearchResult,
+  PlantSimilaritySearchResult,
+} from '~/types/supabase-tables';
 
 const user = useSupabaseUser();
 const supabase = useSupabaseClient();
 const router = useRouter();
-const { searchPlants } = useSearch();
 const toast = useToast();
 
 definePageMeta({
@@ -44,10 +47,10 @@ const { data: plantskola } = (await useAsyncData('currentPlantskola', async () =
 })) as { data: Ref<any> };
 
 // Import workflow states
-const currentStep = ref(1);
-const totalSteps = 5;
+const currentStep = ref(0);
+const totalSteps = 4; // Reduced from 5
 const stepLoading = ref(false);
-const completedSteps = ref(new Set([1])); // Track which steps have been completed
+const completedSteps = ref(new Set([0])); // Track which steps have been completed
 
 // File handling
 const selectedFile = ref<File | null>(null);
@@ -68,26 +71,45 @@ const requiredFields = [
   { key: 'pot', label: 'Kruka', required: false },
   { key: 'height', label: 'Höjd', required: false },
   { key: 'comment', label: 'Kommentar', required: false },
+  { key: 'private_comment', label: 'Privat kommentar', required: false },
+  { key: 'id_by_plantskola', label: 'Eget ID/Artikelnummer', required: false },
 ];
 
-// Plant validation
+// Custom fields functionality
+const customFields = ref<Array<{ key: string; name: string; column: string }>>([]);
+const showAddCustomField = ref(false);
+const newCustomField = ref({ name: '', column: '' });
+
+// Plant validation - simplified for inline matching
 const validatedPlants = ref<
   {
     original: any;
     facitMatch: Facit | null;
-    suggestions: PlantSearchResult[];
+    suggestions: (PlantSearchResult & { similarity_score?: number; match_details?: string })[];
+    highConfidenceSuggestions: (PlantSearchResult & {
+      similarity_score?: number;
+      match_details?: string;
+    })[];
+    lowConfidenceSuggestions: (PlantSearchResult & {
+      similarity_score?: number;
+      match_details?: string;
+    })[];
+    showAllSuggestions: boolean;
     selectedFacitId: number | null;
+    selectedPlantData: Facit | null; // Store the selected plant data to display name
     status: 'found' | 'notFound' | 'manual' | 'skip';
+    suggestionsLoading?: boolean; // Track if suggestions are being fetched
+    hasBeenSearched?: boolean; // Track if this plant has been processed by the automatic matching
   }[]
 >([]);
 
-// Validation progress tracking
-const validationProgress = ref({
-  currentPlant: '',
-  currentBatch: 0,
-  totalBatches: 0,
-  plantsProcessed: 0,
+// Automatic matching progress tracking
+const autoMatchingProgress = ref({
+  isRunning: false,
+  currentIndex: 0,
   totalPlants: 0,
+  plantsProcessed: 0,
+  currentPlant: '',
 });
 
 // Import progress
@@ -104,6 +126,25 @@ const importResults = ref<{
   skipped: 0,
   errors: [],
 });
+
+// Plant editing functionality
+const editingPlant = ref<{
+  index: number | null;
+  data: {
+    stock: string;
+    price: string;
+    pot: string;
+    height: string;
+    comment: string;
+    private_comment: string;
+    id_by_plantskola: string;
+    [key: string]: string; // For custom fields
+  } | null;
+}>({
+  index: null,
+  data: null,
+});
+const editPlantModal = ref(false);
 
 // File upload handlers
 const handleFileSelect = (event: Event) => {
@@ -154,14 +195,15 @@ const parseFile = async (file: File) => {
     } else {
       throw new Error('Filtyp stöds inte. Välj CSV, Excel eller JSON-fil.');
     }
-
-    // Move to next step after successful parsing
     if (rawData.value.length > 0) {
       setupColumnMapping();
+      // Initialize plants for review (no validation step)
+      initializePlantsForReview();
 
       // Add a small delay for better UX
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
+      completedSteps.value.add(1);
       completedSteps.value.add(2);
       currentStep.value = 2;
     }
@@ -179,24 +221,64 @@ const parseFile = async (file: File) => {
 
 const parseCSV = async (file: File): Promise<void> => {
   return new Promise((resolve, reject) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      encoding: 'UTF-8',
-      complete: (results) => {
-        if (results.errors.length > 0) {
-          console.warn('CSV parsing warnings:', results.errors);
-        }
+    // First, try to detect the delimiter by reading a sample of the file
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const sample = (e.target?.result as string)?.slice(0, 1024) || '';
 
-        rawData.value = results.data as any[];
-        headers.value = results.meta.fields || [];
-        previewData.value = rawData.value.slice(0, 5);
-        resolve();
-      },
-      error: (error) => {
-        reject(new Error(`Fel vid CSV-parsning: ${error.message}`));
-      },
-    });
+      // Count occurrences of common delimiters in the sample
+      const commaCount = (sample.match(/,/g) || []).length;
+      const semicolonCount = (sample.match(/;/g) || []).length;
+
+      // Determine the most likely delimiter
+      // If semicolons are more frequent than commas, use semicolon
+      // Otherwise, let Papa.parse auto-detect (which defaults to comma)
+      const delimiter = semicolonCount > commaCount ? ';' : undefined;
+
+      // Parse the file with the detected delimiter
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        encoding: 'UTF-8',
+        delimiter: delimiter, // Set delimiter if detected as semicolon
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            console.warn('CSV parsing warnings:', results.errors);
+          }
+
+          // Validate that we got meaningful data
+          if (!results.data || results.data.length === 0) {
+            reject(new Error('CSV-filen innehåller ingen data.'));
+            return;
+          }
+
+          // Check if headers were properly detected
+          if (!results.meta.fields || results.meta.fields.length === 0) {
+            reject(new Error('Kunde inte identifiera kolumnrubriker i CSV-filen.'));
+            return;
+          }
+
+          rawData.value = results.data as any[];
+          headers.value = results.meta.fields || [];
+          previewData.value = rawData.value.slice(0, 5);
+
+          // Log detected delimiter for debugging
+          console.log(`CSV parsed with delimiter: ${delimiter || 'auto-detected'}`);
+
+          resolve();
+        },
+        error: (error) => {
+          reject(new Error(`Fel vid CSV-parsning: ${error.message}`));
+        },
+      });
+    };
+
+    reader.onerror = () => {
+      reject(new Error('Kunde inte läsa filen.'));
+    };
+
+    // Read first 1KB as text to detect delimiter
+    reader.readAsText(file.slice(0, 1024), 'UTF-8');
   });
 };
 
@@ -339,9 +421,92 @@ const setupColumnMapping = () => {
       lowerHeader.includes('beskrivning')
     ) {
       mapping['comment'] = header;
+    } else if (
+      lowerHeader.includes('id') ||
+      lowerHeader.includes('artikel') ||
+      lowerHeader.includes('kodnummer') ||
+      lowerHeader.includes('artikelnummer') ||
+      lowerHeader.includes('kod') ||
+      lowerHeader.includes('referens') ||
+      lowerHeader.includes('sku') ||
+      lowerHeader.includes('produktnummer')
+    ) {
+      mapping['id_by_plantskola'] = header;
     }
   });
   columnMapping.value = mapping;
+};
+
+// Custom fields management
+const addCustomField = () => {
+  if (!newCustomField.value.name.trim() || !newCustomField.value.column) {
+    toast.add({
+      title: 'Ofullständig information',
+      description: 'Ange både fältnamn och kolumn för det anpassade fältet.',
+      color: 'error',
+    });
+    return;
+  }
+
+  // Check if field name already exists
+  if (customFields.value.some((field) => field.name === newCustomField.value.name.trim())) {
+    toast.add({
+      title: 'Fältnamn finns redan',
+      description: 'Välj ett annat namn för det anpassade fältet.',
+      color: 'error',
+    });
+    return;
+  }
+
+  // Check if column is already used by another custom field
+  if (customFields.value.some((field) => field.column === newCustomField.value.column)) {
+    toast.add({
+      title: 'Kolumn redan använd',
+      description: 'Denna kolumn är redan mappad till ett annat anpassat fält.',
+      color: 'error',
+    });
+    return;
+  }
+
+  // Generate a unique key for the custom field
+  const fieldKey = `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  customFields.value.push({
+    key: fieldKey,
+    name: newCustomField.value.name.trim(),
+    column: newCustomField.value.column,
+  });
+
+  // Reset form
+  newCustomField.value = { name: '', column: '' };
+  showAddCustomField.value = false;
+
+  // toast.add({
+  //   title: 'Anpassat fält tillagt',
+  //   description: `Fältet "${newCustomField.value.name}" har lagts till.`,
+  //   color: 'success',
+  // });
+};
+
+const removeCustomField = (index: number) => {
+  const field = customFields.value[index];
+  customFields.value.splice(index, 1);
+
+  // toast.add({
+  //   title: 'Anpassat fält borttaget',
+  //   description: `Fältet "${field.name}" har tagits bort.`,
+  //   color: 'success',
+  // });
+};
+
+const getAvailableColumnsForCustomFields = () => {
+  // Get columns that are not used by required fields or other custom fields
+  const usedColumns = new Set([
+    ...Object.values(columnMapping.value),
+    ...customFields.value.map((field) => field.column),
+  ]);
+
+  return headers.value.filter((header) => !usedColumns.has(header));
 };
 
 // Data sanitization functions
@@ -354,24 +519,11 @@ const sanitizePlantName = (name: string): string => {
       .trim()
       // Remove multiple spaces and replace with single space
       .replace(/\s+/g, ' ')
-      // Remove leading/trailing quotes and brackets
-      .replace(/^["'\[\(]+|["'\]\)]+$/g, '')
-      // Normalize common punctuation
       .replace(/[""`´]/g, "'") // Replace various quote types with standard apostrophe
       .replace(/[\u2018\u2019]/g, "'") // Replace smart quotes
-      .replace(/[\u201C\u201D]/g, '"') // Replace smart double quotes
       // Remove unnecessary punctuation but keep apostrophes and hyphens
       .replace(/[^\w\s''\-×.()]/g, '')
-      // Normalize case - capitalize first letter of each word
-      .split(' ')
-      .map((word) => {
-        if (word.length === 0) return word;
-        // Keep cultivar names in single quotes as they are
-        if (word.startsWith("'") && word.endsWith("'")) return word;
-        // Capitalize first letter, lowercase the rest
-        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-      })
-      .join(' ')
+      .replace('×', 'x') // Replace multiplication sign with 'x'
       // Clean up any remaining double spaces
       .replace(/\s+/g, ' ')
       .trim()
@@ -411,553 +563,232 @@ const sanitizeTextValue = (value: any): string => {
   );
 };
 
-// Plant validation with improved error handling and performance
-const validatePlants = async () => {
-  if (!columnMapping.value.name) {
-    toast.add({
-      title: 'Saknad kolumnmappning',
-      description: 'Du måste matcha växtnamn-kolumnen för att fortsätta.',
-      color: 'error',
-    });
-    return;
-  }
-
-  stepLoading.value = true;
-  currentStep.value = 3;
-  validatedPlants.value = [];
-
-  // Initialize progress tracking
-  validationProgress.value = {
-    currentPlant: '',
-    currentBatch: 0,
-    totalBatches: 0,
-    plantsProcessed: 0,
-    totalPlants: rawData.value.length,
-  };
-
-  try {
-    console.log(`Starting validation of ${rawData.value.length} plants...`);
-    const batchSize = 10; // Process in smaller batches for better UX
-    const totalBatches = Math.ceil(rawData.value.length / batchSize);
-    validationProgress.value.totalBatches = totalBatches;
-
-    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-      const startIndex = batchIndex * batchSize;
-      const endIndex = Math.min(startIndex + batchSize, rawData.value.length);
-      const batch = rawData.value.slice(startIndex, endIndex);
-
-      validationProgress.value.currentBatch = batchIndex + 1;
-      console.log(
-        `Processing batch ${batchIndex + 1}/${totalBatches} (rows ${startIndex + 1}-${endIndex})`
-      );
-
-      // Process batch with individual error handling
-      for (const [localIndex, row] of batch.entries()) {
-        const globalIndex = startIndex + localIndex;
-        const rawPlantName = row[columnMapping.value.name]?.toString().trim() || '';
-        validationProgress.value.currentPlant = rawPlantName;
-        validationProgress.value.plantsProcessed = globalIndex + 1;
-
-        try {
-          await validateSinglePlant(row, globalIndex);
-        } catch (error: any) {
-          console.error(`Error validating plant at row ${globalIndex + 1}:`, error);
-
-          // Add as skip on error to prevent blocking the whole process
-          validatedPlants.value.push({
-            original: row,
-            facitMatch: null,
-            suggestions: [],
-            selectedFacitId: null,
-            status: 'skip',
-          });
-        }
-      }
-
-      // Small delay between batches to prevent blocking the UI
-      if (batchIndex < totalBatches - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      }
-    }
-
-    console.log(`Validation completed. ${validatedPlants.value.length} plants processed.`);
-
-    completedSteps.value.add(3);
-    completedSteps.value.add(4);
-    currentStep.value = 4;
-
-    // Show summary
-    const found = validatedPlants.value.filter((p) => p.status === 'found').length;
-    const notFound = validatedPlants.value.filter((p) => p.status === 'notFound').length;
-    const skipped = validatedPlants.value.filter((p) => p.status === 'skip').length;
-
-    toast.add({
-      title: 'Validering klar',
-      description: `${found} hittades, ${notFound} behöver granskas, ${skipped} hoppades över`,
-      color: 'primary',
-    });
-  } catch (error: any) {
-    console.error('Critical error during plant validation:', error);
-    toast.add({
-      title: 'Fel vid validering',
-      description: `Ett kritiskt fel uppstod: ${error.message}`,
-      color: 'error',
-    });
-
-    // Reset to previous step if critical error
-    currentStep.value = 2;
-  } finally {
-    stepLoading.value = false;
-    // Clear progress tracking
-    validationProgress.value.currentPlant = '';
-  }
-};
-
-// Validate a single plant with timeout and error recovery
-const validateSinglePlant = async (row: any, index: number) => {
-  const rawPlantName = row[columnMapping.value.name]?.toString().trim();
-  const sanitizedPlantName = sanitizePlantName(rawPlantName);
-
-  console.log(`Validating plant ${index + 1}: "${rawPlantName}" -> "${sanitizedPlantName}"`);
-
-  if (!sanitizedPlantName || sanitizedPlantName.length < 2) {
-    validatedPlants.value.push({
+// Initialize plants for review without validation step
+const initializePlantsForReview = () => {
+  validatedPlants.value = rawData.value.map((row) => {
+    const rawPlantName = row[columnMapping.value.name]?.toString().trim() || '';
+    const sanitizedPlantName = sanitizePlantName(rawPlantName); // Skip plants with invalid names
+    if (!sanitizedPlantName || sanitizedPlantName.length < 2) {
+      return {
+        original: row,
+        facitMatch: null,
+        suggestions: [],
+        highConfidenceSuggestions: [],
+        lowConfidenceSuggestions: [],
+        showAllSuggestions: false,
+        selectedFacitId: null,
+        selectedPlantData: null, // Initialize selected plant data
+        status: 'skip' as const,
+        suggestionsLoading: false,
+        hasBeenSearched: true, // Skip status means it's been "processed"
+      };
+    } // Initialize all plants as not found - matching will happen inline
+    return {
       original: row,
       facitMatch: null,
       suggestions: [],
+      highConfidenceSuggestions: [],
+      lowConfidenceSuggestions: [],
+      showAllSuggestions: false,
       selectedFacitId: null,
-      status: 'skip',
-    });
-    return;
-  }
-
-  // Add timeout to prevent hanging on slow queries
-  const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Search timeout')), 8000); // Reduced to 8 seconds
+      selectedPlantData: null, // Initialize selected plant data
+      status: 'notFound' as const,
+      suggestionsLoading: false,
+      hasBeenSearched: false,
+    };
   });
+};
+
+// Client-side plant matching using advanced similarity calculation
+const searchPlantMatches = async (
+  plantName: string
+): Promise<(PlantSearchResult & { similarity_score: number; match_details: string })[]> => {
+  if (!plantName || plantName.length < 2) {
+    return [];
+  }
 
   try {
-    // Search for exact match first with timeout
-    const exactMatch = (await Promise.race([
-      searchExactPlant(sanitizedPlantName),
-      timeoutPromise,
-    ])) as Facit | null;
+    console.log(`Searching for plant matches using client-side similarity: "${plantName}"`);
+    const { findBestMatches, convertToPlantSearchResult } = usePlantSimilarity();
 
-    if (exactMatch) {
-      console.log(`✓ Exact match found for "${sanitizedPlantName}": ${exactMatch.name}`);
-      validatedPlants.value.push({
-        original: row,
-        facitMatch: exactMatch,
-        suggestions: [],
-        selectedFacitId: exactMatch.id,
-        status: 'found',
-      });
-      return;
-    }
-
-    // Only search for suggestions if plant name is substantial enough
-    if (sanitizedPlantName.length >= 4) {
-      console.log(`No exact match for "${sanitizedPlantName}", searching suggestions...`);
-
-      const suggestions = (await Promise.race([
-        searchSimilarPlants(sanitizedPlantName),
-        timeoutPromise,
-      ])) as PlantSearchResult[];
-
-      console.log(`Found ${suggestions.length} suggestions for "${sanitizedPlantName}"`);
-
-      validatedPlants.value.push({
-        original: row,
-        facitMatch: null,
-        suggestions: suggestions.slice(0, 5), // Limit suggestions to prevent UI overload
-        selectedFacitId: null,
-        status: 'notFound',
-      });
-    } else {
-      // For very short names, skip suggestions to avoid too many false positives
-      console.log(`Skipping suggestions for short name "${sanitizedPlantName}"`);
-      validatedPlants.value.push({
-        original: row,
-        facitMatch: null,
-        suggestions: [],
-        selectedFacitId: null,
-        status: 'notFound',
-      });
-    }
-  } catch (error: any) {
-    console.warn(`Failed to validate plant "${sanitizedPlantName}":`, error.message);
-
-    // On timeout or error, mark as not found with no suggestions
-    validatedPlants.value.push({
-      original: row,
-      facitMatch: null,
-      suggestions: [],
-      selectedFacitId: null,
-      status: 'notFound',
+    // Find matches using the new similarity algorithm
+    const matchResult = await findBestMatches(plantName, {
+      limit: 10,
+      minimumScore: 0.3,
+      includeStrictMatchesOnly: false,
     });
-  }
-};
 
-const searchExactPlant = async (plantName: string): Promise<Facit | null> => {
-  try {
-    console.log(`Searching exact match for: "${plantName}"`);
+    // Combine strict matches and suggestions
+    const allMatches = [...matchResult.strictMatches, ...matchResult.suggestions];
 
-    // First try exact match (case-insensitive)
-    const { data: exactData, error: exactError } = await supabase
-      .from('facit')
-      .select('id, name, sv_name')
-      .ilike('name', plantName)
-      .limit(1)
-      .returns<Facit[]>();
-
-    if (!exactError && exactData && exactData.length > 0) {
-      console.log(`✓ Found exact match: "${exactData[0].name}" for input: "${plantName}"`);
-      return exactData[0];
-    }
-
-    // Try normalized variations for common formatting differences
-    const quickVariations = [
-      // Remove quotes and parentheses
-      plantName.replace(/['"()]/g, '').trim(),
-      // Normalize spacing
-      plantName.replace(/\s+/g, ' ').trim(),
-      // Remove common punctuation that might interfere
-      plantName.replace(/[.,;:]/g, '').trim(),
-      // Handle common abbreviations (cv., var., subsp., etc.)
-      plantName
-        .replace(/\b(cv|var|subsp|ssp|f|forma)\b\.?/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim(),
-    ].filter((v) => v !== plantName && v.length >= 3);
-
-    for (const variation of quickVariations) {
-      console.log(`Trying variation: "${variation}"`);
-      const { data: varData, error: varError } = await supabase
-        .from('facit')
-        .select('id, name, sv_name')
-        .ilike('name', variation)
-        .limit(1)
-        .returns<Facit[]>();
-
-      if (!varError && varData && varData.length > 0) {
-        console.log(`✓ Found variation match: "${varData[0].name}" for variation: "${variation}"`);
-        return varData[0];
-      }
-    }
-
-    // Try prefix match for genus + species (but only if it's a reasonable length)
-    if (plantName.length >= 6 && plantName.includes(' ')) {
-      console.log(`Trying prefix match for: "${plantName}"`);
-      const { data: prefixData, error: prefixError } = await supabase
-        .from('facit')
-        .select('id, name, sv_name')
-        .ilike('name', `${plantName}%`)
-        .limit(1)
-        .returns<Facit[]>();
-
-      if (!prefixError && prefixData && prefixData.length > 0) {
-        // Only return prefix match if it's very close to the original
-        const foundName = prefixData[0].name.toLowerCase();
-        const searchName = plantName.toLowerCase();
-
-        // Check if the found name starts with our search and is reasonably close
-        if (foundName.startsWith(searchName) && foundName.length - searchName.length <= 15) {
-          // Allow some extra cultivar/variety info
-          console.log(`✓ Found prefix match: "${prefixData[0].name}" for input: "${plantName}"`);
-          return prefixData[0];
-        }
-      }
-    }
-
-    console.log(`No exact match found for: "${plantName}"`);
-    return null;
-  } catch (error) {
-    console.error('Error in searchExactPlant:', error);
-    return null;
-  }
-};
-
-const searchSimilarPlants = async (plantName: string): Promise<PlantSearchResult[]> => {
-  try {
-    console.log(`Searching similar plants for: "${plantName}"`);
-
-    // Use lower threshold for SQL and do more filtering in JavaScript for better performance
-    const sqlThreshold = plantName.length < 8 ? 0.3 : 0.25;
-
-    // Try the optimized similarity RPC function first
-    let { data, error } = (await (supabase as any).rpc('search_plants_similarity_fast', {
-      search_term: plantName,
-      similarity_threshold: sqlThreshold,
-      result_limit: 8, // Reduced limit for better performance
-      result_offset: 0,
-    })) as { data: PlantSearchResult[] | null; error: any };
-
-    // If the advanced function fails, try the basic similarity function
-    if (error) {
-      console.log('Advanced similarity search failed, trying basic version...', error);
-
-      const basicResult = (await (supabase as any).rpc('search_plants_similarity_basic', {
-        search_term: plantName,
-        result_limit: 8,
-        result_offset: 0,
-      })) as { data: PlantSearchResult[] | null; error: any };
-
-      if (basicResult.error) {
-        console.warn('Basic similarity search also failed:', basicResult.error);
-        return await fallbackSimilaritySearch(plantName);
-      }
-
-      data = basicResult.data;
-      error = basicResult.error;
-    }
-
-    let results = (data || []) as PlantSearchResult[];
-    console.log(`Found ${results.length} similar plants using RPC similarity search`);
-
-    // Apply fast client-side filtering with smart logic
-    const filteredResults = applyFastFiltering(results, plantName);
-    console.log(`After fast filtering: ${filteredResults.length} high-quality suggestions`);
-    return filteredResults;
-  } catch (error) {
-    console.error('Error in searchSimilarPlants:', error);
-    // Fallback to basic search on error
-    return await fallbackSimilaritySearch(plantName);
-  }
-};
-
-// Simple fallback similarity calculation for better performance
-const calculateFallbackSimilarity = (str1: string, str2: string): number => {
-  if (!str1 || !str2) return 0;
-  if (str1 === str2) return 1.0;
-
-  // Prefix match bonus
-  if (str2.startsWith(str1) || str1.startsWith(str2)) return 0.9;
-
-  // Substring match bonus
-  if (str2.includes(str1) || str1.includes(str2)) return 0.7;
-
-  // Simple word overlap calculation
-  const words1 = str1.split(/\s+/).filter((w) => w.length > 2);
-  const words2 = str2.split(/\s+/).filter((w) => w.length > 2);
-
-  if (words1.length === 0 || words2.length === 0) return 0;
-
-  let commonWords = 0;
-  for (const word1 of words1) {
-    if (words2.some((word2) => word2.includes(word1) || word1.includes(word2))) {
-      commonWords++;
-    }
-  }
-
-  return commonWords / Math.max(words1.length, words2.length);
-};
-
-// Fallback similarity search if RPC is not available
-const fallbackSimilaritySearch = async (plantName: string): Promise<PlantSearchResult[]> => {
-  try {
-    console.log(`Using fallback similarity search for: "${plantName}"`);
-
-    // Search only scientific names directly (avoid Swedish names)
-    const { data, error } = await supabase
-      .from('facit')
-      .select('id, name, sv_name')
-      .ilike('name', `%${plantName}%`)
-      .limit(6) // Reduced limit for better performance
-      .returns<PlantSearchResult[]>();
-
-    if (error) {
-      console.warn('Fallback similarity search error:', error);
+    if (allMatches.length === 0) {
+      console.log(`No matches found for "${plantName}"`);
       return [];
     }
 
-    const results = data || [];
-    console.log(`Found ${results.length} similar plants using fallback substring search`);
+    console.log(
+      `Found ${allMatches.length} matches for "${plantName}" (${matchResult.strictMatches.length} strict matches)`
+    );
 
-    // Calculate similarity scores manually for fallback results
-    const scoredResults = results.map((result) => ({
-      ...result,
-      similarity_score: calculateFallbackSimilarity(
-        plantName.toLowerCase(),
-        result.name.toLowerCase()
-      ),
-    }));
+    // Convert to PlantSearchResult format with similarity scores
+    const convertedResults = allMatches.map((match) => convertToPlantSearchResult(match));
 
-    // Apply the same fast filtering
-    const filteredResults = applyFastFiltering(scoredResults, plantName);
-
-    console.log(`After fast filtering: ${filteredResults.length} relevant results`);
-    return filteredResults;
+    console.log(`Returning ${convertedResults.length} sorted matches`);
+    return convertedResults;
   } catch (error) {
-    console.error('Error in fallback similarity search:', error);
+    console.error('Error in searchPlantMatches:', error);
     return [];
   }
 };
 
-// Fast filtering function optimized for performance on large datasets
-const applyFastFiltering = (
-  results: PlantSearchResult[],
-  searchTerm: string
-): PlantSearchResult[] => {
-  if (!results || results.length === 0) {
-    console.log('No results to filter');
-    return [];
+// Load suggestions for a specific plant row
+const loadSuggestionsForPlant = async (rowIndex: number) => {
+  const plant = validatedPlants.value[rowIndex];
+  if (!plant || plant.suggestionsLoading) {
+    return;
   }
 
-  // Simple threshold based on search term length
-  const minThreshold = searchTerm.length < 8 ? 0.4 : 0.3;
-  const excellentThreshold = 0.85;
-
-  // Filter and sort results efficiently
-  const filteredResults = results
-    .filter((result) => {
-      const score = (result as any).similarity_score || 0;
-      return score >= minThreshold;
-    })
-    .sort((a, b) => {
-      const scoreA = (a as any).similarity_score || 0;
-      const scoreB = (b as any).similarity_score || 0;
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      // Secondary sort by name length for same scores
-      return a.name.length - b.name.length;
-    });
-
-  if (filteredResults.length === 0) {
-    console.log(`No results above minimum threshold of ${minThreshold}`);
-    return [];
+  const plantName = plant.original[columnMapping.value.name]?.toString().trim() || '';
+  const sanitizedPlantName = sanitizePlantName(plantName);
+  if (!sanitizedPlantName || sanitizedPlantName.length < 2) {
+    plant.status = 'skip';
+    plant.hasBeenSearched = true; // Mark as processed since we determined it should be skipped
+    return;
   }
 
-  const topScore = (filteredResults[0] as any).similarity_score || 0;
-  console.log(`Best similarity score: ${topScore} for "${filteredResults[0].name}"`);
+  plant.suggestionsLoading = true;
 
-  // If we have an excellent match, return only that one
-  if (topScore >= excellentThreshold) {
-    console.log(`Excellent match found (${topScore}), returning only the best result`);
-    return [filteredResults[0]];
-  }
+  try {
+    const matches = await searchPlantMatches(sanitizedPlantName);
 
-  // If the top result is significantly better, limit suggestions
-  if (filteredResults.length > 1) {
-    const secondScore = (filteredResults[1] as any).similarity_score || 0;
-    const gap = topScore - secondScore;
+    console.log('Loaded suggestions for plant:', sanitizedPlantName, matches);
+    if (matches.length > 0) {
+      // Separate high confidence (85%+) and low confidence matches
+      const highConfidence = matches.filter((match: any) => (match.similarity_score || 0) >= 0.85);
+      const lowConfidence = matches.filter((match: any) => (match.similarity_score || 0) < 0.85);
 
-    if (gap >= 0.15 && topScore >= 0.7) {
-      console.log(`Significant gap found (${gap}), returning top 2 results only`);
-      return filteredResults.slice(0, 2);
-    }
-  }
+      // Check if we have a strict match (similarity >= 0.95)
+      const strictMatch = matches.find((match: any) => (match.similarity_score || 0) >= 0.95);
 
-  // Return maximum 4 suggestions for good UX
-  const maxSuggestions = topScore >= 0.8 ? 2 : 4;
-  return filteredResults.slice(0, maxSuggestions);
-};
-
-// Helper function to check if two plant names share meaningful words
-const hasSharedMeaningfulWords = (searchTerm: string, plantName: string): boolean => {
-  const searchWords = searchTerm
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((word) => word.length >= 3); // Only consider words of 3+ characters
-
-  const plantWords = plantName
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((word) => word.length >= 3);
-
-  if (searchWords.length === 0 || plantWords.length === 0) return false;
-
-  // Check if at least one meaningful word is shared (genus, species, etc.)
-  const sharedWords = searchWords.filter((searchWord) =>
-    plantWords.some(
-      (plantWord) =>
-        plantWord.includes(searchWord) ||
-        searchWord.includes(plantWord) ||
-        calculateLevenshteinDistance(searchWord, plantWord) <=
-          Math.max(1, Math.floor(searchWord.length * 0.2))
-    )
-  );
-
-  return sharedWords.length > 0;
-};
-
-// Simple Levenshtein distance for fuzzy word matching
-const calculateLevenshteinDistance = (str1: string, str2: string): number => {
-  const matrix = Array(str2.length + 1)
-    .fill(null)
-    .map(() => Array(str1.length + 1).fill(null));
-
-  for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
-  for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
-
-  for (let j = 1; j <= str2.length; j++) {
-    for (let i = 1; i <= str1.length; i++) {
-      const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
-      matrix[j][i] = Math.min(
-        matrix[j][i - 1] + 1, // deletion
-        matrix[j - 1][i] + 1, // insertion
-        matrix[j - 1][i - 1] + indicator // substitution
-      );
-    }
-  }
-
-  return matrix[str2.length][str1.length];
-};
-
-// Advanced similarity calculation for fallback search
-const calculateAdvancedSimilarity = (str1: string, str2: string): number => {
-  if (!str1 || !str2) return 0;
-  if (str1 === str2) return 1.0;
-
-  // Prefix match bonus
-  if (str2.startsWith(str1) || str1.startsWith(str2)) return 0.9;
-
-  // Substring match bonus
-  if (str2.includes(str1) || str1.includes(str2)) return 0.7;
-
-  // Word-based similarity (for scientific names)
-  const wordSimilarity = calculateWordSimilarity(str1, str2);
-
-  // Character-based similarity (for typos)
-  const charSimilarity = calculateCharacterSimilarity(str1, str2);
-
-  // Return the highest similarity score
-  return Math.max(wordSimilarity, charSimilarity);
-};
-
-// Calculate similarity based on shared words (good for scientific names)
-const calculateWordSimilarity = (str1: string, str2: string): number => {
-  const words1 = str1.split(/\s+/).filter((w) => w.length > 1);
-  const words2 = str2.split(/\s+/).filter((w) => w.length > 1);
-
-  if (words1.length === 0 || words2.length === 0) return 0;
-
-  let matchedWords = 0;
-  let partialMatches = 0;
-
-  for (const word1 of words1) {
-    for (const word2 of words2) {
-      if (word1 === word2) {
-        matchedWords += 1;
-      } else if (word1.includes(word2) || word2.includes(word1)) {
-        partialMatches += 0.5;
-      } else if (
-        calculateLevenshteinDistance(word1, word2) <= Math.max(1, Math.floor(word1.length * 0.2))
-      ) {
-        partialMatches += 0.7; // Fuzzy word match
+      if (strictMatch) {
+        // Auto-select strict matches (0.95 or higher similarity)
+        plant.facitMatch = strictMatch as any;
+        plant.selectedFacitId = strictMatch.id;
+        plant.status = 'found';
+        plant.suggestions = matches; // Keep all suggestions for user review
+        plant.highConfidenceSuggestions = highConfidence;
+        plant.lowConfidenceSuggestions = lowConfidence;
+        plant.showAllSuggestions = false;
+        console.log(
+          `Auto-selected strict match for "${sanitizedPlantName}": ${
+            strictMatch.name
+          } (similarity: ${(strictMatch as any).similarity_score?.toFixed(3) || 'N/A'})`
+        );
+      } else {
+        // Show suggestions for manual selection
+        plant.suggestions = matches;
+        plant.highConfidenceSuggestions = highConfidence;
+        plant.lowConfidenceSuggestions = lowConfidence;
+        plant.showAllSuggestions = highConfidence.length === 0; // Show all if no high confidence matches
+        plant.status = 'notFound';
+        console.log(
+          `Found ${matches.length} suggestions for "${sanitizedPlantName}" (${
+            highConfidence.length
+          } high confidence, ${lowConfidence.length} low confidence) (best similarity: ${
+            (matches[0] as any)?.similarity_score?.toFixed(3) || 'N/A'
+          })`
+        );
       }
+    } else {
+      // No matches found
+      plant.suggestions = [];
+      plant.status = 'notFound';
+      console.log(`No matches found for "${sanitizedPlantName}"`);
     }
+  } catch (error) {
+    console.error(`Error loading suggestions for "${sanitizedPlantName}":`, error);
+    plant.suggestions = [];
+    plant.status = 'notFound';
+  } finally {
+    plant.suggestionsLoading = false;
+    plant.hasBeenSearched = true; // Mark as searched regardless of outcome
   }
-
-  const totalMatches = matchedWords + partialMatches;
-  return totalMatches / Math.max(words1.length, words2.length);
 };
 
-// Calculate character-based similarity using normalized Levenshtein distance
-const calculateCharacterSimilarity = (str1: string, str2: string): number => {
-  const maxLength = Math.max(str1.length, str2.length);
-  if (maxLength === 0) return 1.0;
+// Automatic batch matching for all plants
+const startAutomaticMatching = async () => {
+  if (autoMatchingProgress.value.isRunning) {
+    console.warn('Automatic matching already in progress');
+    return;
+  }
+  // Reset any plants that are in "notFound" status to prepare for re-matching
+  validatedPlants.value.forEach((plant) => {
+    if (plant.status === 'notFound' && plant.suggestions.length === 0) {
+      plant.suggestions = [];
+      plant.suggestionsLoading = false;
+      plant.hasBeenSearched = false; // Reset search status for re-matching
+    }
+  });
 
-  const distance = calculateLevenshteinDistance(str1, str2);
-  return 1 - distance / maxLength;
+  // Initialize progress tracking
+  autoMatchingProgress.value = {
+    isRunning: true,
+    currentIndex: 0,
+    totalPlants: validatedPlants.value.length,
+    plantsProcessed: 0,
+    currentPlant: '',
+  };
+
+  console.log(`Starting automatic matching for ${autoMatchingProgress.value.totalPlants} plants`);
+
+  try {
+    // Process plants sequentially
+    for (let i = 0; i < validatedPlants.value.length; i++) {
+      const plant = validatedPlants.value[i];
+
+      // Update progress
+      autoMatchingProgress.value.currentIndex = i;
+      autoMatchingProgress.value.currentPlant =
+        plant.original[columnMapping.value.name]?.toString().trim() || `Plant ${i + 1}`;
+
+      // Skip already processed plants or plants that should be skipped
+      if (plant.status === 'skip' || plant.status === 'found' || plant.status === 'manual') {
+        autoMatchingProgress.value.plantsProcessed++;
+        continue;
+      }
+
+      // Match this plant
+      await loadSuggestionsForPlant(i);
+
+      // Update progress
+      autoMatchingProgress.value.plantsProcessed++;
+
+      // Add a small delay to prevent overwhelming the database and provide visual feedback
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    console.log('Automatic matching completed');
+
+    // Show completion toast
+    const summary = validationSummary.value;
+    toast.add({
+      title: 'Automatisk matchning slutförd',
+      description: `${summary.found} hittade, ${summary.notFound} behöver granskas`,
+      color: 'primary',
+    });
+  } catch (error) {
+    console.error('Error during automatic matching:', error);
+    toast.add({
+      title: 'Fel vid automatisk matchning',
+      description: 'Ett fel uppstod under den automatiska matchningen.',
+      color: 'error',
+    });
+  } finally {
+    // Reset progress tracking
+    autoMatchingProgress.value.isRunning = false;
+    autoMatchingProgress.value.currentIndex = 0;
+    autoMatchingProgress.value.currentPlant = '';
+  }
 };
 
 // Manual plant selection
@@ -969,34 +800,38 @@ const openPlantPicker = (rowIndex: number) => {
   plantPickerModal.value = true;
 };
 
-const onPlantSelected = async (plantId: number) => {
+const onPlantSelected = (plantId: number, plantData?: any) => {
   if (selectedRowForPicker.value !== null) {
-    selectPlantForRow(selectedRowForPicker.value, plantId);
-
-    // Update the selected plant details cache immediately
-    try {
-      const { data, error } = await supabase
-        .from('facit')
-        .select('id, name, sv_name')
-        .eq('id', plantId)
-        .single();
-
-      if (!error && data) {
-        selectedPlantDetails.value.set(selectedRowForPicker.value, data);
-      }
-    } catch (error) {
-      console.warn('Failed to update selected plant details:', error);
-    }
+    selectPlantForRow(selectedRowForPicker.value, plantId, plantData);
   }
 
   plantPickerModal.value = false;
   selectedRowForPicker.value = null;
 };
 
-const selectPlantForRow = (rowIndex: number, facitId: number) => {
+const selectPlantForRow = (rowIndex: number, facitId: number, selectedPlantData?: any) => {
   if (validatedPlants.value[rowIndex]) {
-    validatedPlants.value[rowIndex].selectedFacitId = facitId;
+    let finalPlantId = facitId;
+    let finalPlantData = selectedPlantData;
+
+    // If we have plant data and it's a synonym, use the synonym_to_id directly
+    if (selectedPlantData?.is_synonym && selectedPlantData?.synonym_to_id) {
+      finalPlantId = selectedPlantData.synonym_to_id;
+      console.log(
+        `Selected plant "${selectedPlantData.name}" is a synonym, using target plant ID: ${finalPlantId}`
+      );
+
+      toast.add({
+        title: 'Synonym ersatt',
+        description: `"${selectedPlantData.name}" är en synonym. Den korrekta växten har valts automatiskt.`,
+        color: 'info',
+      });
+    }
+
+    validatedPlants.value[rowIndex].selectedFacitId = finalPlantId;
+    validatedPlants.value[rowIndex].selectedPlantData = finalPlantData; // Store the plant data
     validatedPlants.value[rowIndex].status = 'manual';
+    validatedPlants.value[rowIndex].hasBeenSearched = true; // Mark as searched since user manually selected
   }
 };
 
@@ -1004,75 +839,120 @@ const skipPlantRow = (rowIndex: number) => {
   if (validatedPlants.value[rowIndex]) {
     validatedPlants.value[rowIndex].status = 'skip';
     validatedPlants.value[rowIndex].selectedFacitId = null;
+    validatedPlants.value[rowIndex].selectedPlantData = null; // Clear the selected plant data
     validatedPlants.value[rowIndex].facitMatch = null;
   }
 };
 
-// Revert plant to not found status so user can select again
 const revertPlantRow = (rowIndex: number) => {
   if (validatedPlants.value[rowIndex]) {
     const plant = validatedPlants.value[rowIndex];
-    const wasManualSelection = plant.status === 'manual';
 
     plant.status = 'notFound';
     plant.selectedFacitId = null;
+    plant.selectedPlantData = null; // Clear the selected plant data
+    plant.hasBeenSearched = false; // Reset search status so it can be searched again
 
-    // Clear from selected plant details cache
-    selectedPlantDetails.value.delete(rowIndex);
-
-    // If this was a manual selection, clear the facitMatch
-    // If it was an automatic find, we want to keep showing it as a suggestion
-    if (wasManualSelection) {
-      // Don't clear facitMatch as it might be useful as a suggestion
-    }
+    // If this was an automatic find, we want to keep showing it as a suggestion
   }
 };
 
-// Get selected plant details for display
-const getSelectedPlantDetails = async (plant: any) => {
-  if (!plant.selectedFacitId) return null;
+// Plant parameters editing functionality
+const openEditPlant = (index: number) => {
+  console.log(`Opening edit modal for plant at index ${index}`);
 
-  try {
-    const { data, error } = await supabase
-      .from('facit')
-      .select('id, name, sv_name')
-      .eq('id', plant.selectedFacitId)
-      .single();
+  const plant = validatedPlants.value[index];
+  if (!plant) return;
 
-    if (error) {
-      console.warn('Error fetching selected plant details:', error);
-      return null;
-    }
+  // Initialize edit data with current values
+  const editData: any = {
+    stock: sanitizeNumericValue(plant.original[columnMapping.value.stock]) || '',
+    price: sanitizeNumericValue(plant.original[columnMapping.value.price]) || '',
+    pot: sanitizeTextValue(plant.original[columnMapping.value.pot]) || '',
+    height: sanitizeTextValue(plant.original[columnMapping.value.height]) || '',
+    // Always initialize comment fields, even if no column is mapped
+    comment: columnMapping.value.comment
+      ? sanitizeTextValue(plant.original[columnMapping.value.comment]) || ''
+      : plant.original._editableComment || '',
+    private_comment: columnMapping.value.private_comment
+      ? sanitizeTextValue(plant.original[columnMapping.value.private_comment]) || ''
+      : plant.original._editablePrivateComment || '',
+    id_by_plantskola: sanitizeTextValue(plant.original[columnMapping.value.id_by_plantskola]) || '',
+  };
 
-    return data;
-  } catch (error) {
-    console.error('Error getting selected plant details:', error);
-    return null;
-  }
+  // Add custom fields to edit data
+  customFields.value.forEach((field) => {
+    editData[field.key] = sanitizeTextValue(plant.original[field.column]) || '';
+  });
+
+  editingPlant.value = {
+    index,
+    data: editData,
+  };
+
+  editPlantModal.value = true;
 };
 
-// Reactive computed for plant details (we'll use this in template)
-const selectedPlantDetails = ref<Map<number, any>>(new Map());
+const saveEditedPlant = () => {
+  if (editingPlant.value.index === null || !editingPlant.value.data) return;
 
-// Update selected plant details when plants change
-watch(
-  validatedPlants,
-  async (newPlants) => {
-    const newDetails = new Map();
+  const plant = validatedPlants.value[editingPlant.value.index];
+  if (!plant) return;
 
-    for (const [index, plant] of newPlants.entries()) {
-      if (plant.status === 'manual' && plant.selectedFacitId) {
-        const details = await getSelectedPlantDetails(plant);
-        if (details) {
-          newDetails.set(index, details);
-        }
-      }
+  // Update the original data with edited values
+  const data = editingPlant.value.data;
+
+  // Update mapped columns
+  if (columnMapping.value.stock) plant.original[columnMapping.value.stock] = data.stock;
+  if (columnMapping.value.price) plant.original[columnMapping.value.price] = data.price;
+  if (columnMapping.value.pot) plant.original[columnMapping.value.pot] = data.pot;
+  if (columnMapping.value.height) plant.original[columnMapping.value.height] = data.height;
+  if (columnMapping.value.id_by_plantskola)
+    plant.original[columnMapping.value.id_by_plantskola] = data.id_by_plantskola;
+
+  // Always save comment fields, either to mapped columns or internal storage
+  if (columnMapping.value.comment) {
+    plant.original[columnMapping.value.comment] = data.comment;
+  } else {
+    // Store in internal field if no column is mapped
+    plant.original._editableComment = data.comment;
+  }
+
+  if (columnMapping.value.private_comment) {
+    plant.original[columnMapping.value.private_comment] = data.private_comment;
+  } else {
+    // Store in internal field if no column is mapped
+    plant.original._editablePrivateComment = data.private_comment;
+  }
+
+  // Update custom fields
+  customFields.value.forEach((field) => {
+    if (field.column && data[field.key] !== undefined) {
+      plant.original[field.column] = data[field.key];
     }
+  });
 
-    selectedPlantDetails.value = newDetails;
-  },
-  { deep: true }
-);
+  // Close modal and reset state
+  editPlantModal.value = false;
+  editingPlant.value = {
+    index: null,
+    data: null,
+  };
+
+  toast.add({
+    title: 'Växtdata uppdaterad',
+    description: 'Växtens parametrar har sparats',
+    color: 'primary',
+  });
+};
+
+const cancelEditPlant = () => {
+  editPlantModal.value = false;
+  editingPlant.value = {
+    index: null,
+    data: null,
+  };
+};
 
 // Final import
 const performImport = async () => {
@@ -1107,12 +987,28 @@ const performImport = async () => {
 
     for (const [index, plant] of plantsToImport.entries()) {
       try {
+        // Build custom fields object
+        const ownColumns: Record<string, any> = {};
+        customFields.value.forEach((field) => {
+          const value = plant.original[field.column];
+          if (value !== undefined && value !== null && value !== '') {
+            ownColumns[field.name] = sanitizeTextValue(value);
+          }
+        });
         const lagerData: Partial<Totallager> = {
           facit_id: plant.selectedFacitId!,
           plantskola_id: plantskola.value.id,
           name_by_plantskola: sanitizePlantName(plant.original[columnMapping.value.name] || ''),
+          // Use comment from mapped column or internal storage
           comment_by_plantskola: columnMapping.value.comment
             ? sanitizeTextValue(plant.original[columnMapping.value.comment] || '')
+            : sanitizeTextValue(plant.original._editableComment || ''),
+          // Use private comment from mapped column or internal storage
+          private_comment_by_plantskola: columnMapping.value.private_comment
+            ? sanitizeTextValue(plant.original[columnMapping.value.private_comment] || '')
+            : sanitizeTextValue(plant.original._editablePrivateComment || ''),
+          id_by_plantskola: columnMapping.value.id_by_plantskola
+            ? sanitizeTextValue(plant.original[columnMapping.value.id_by_plantskola] || '')
             : '',
           pot: columnMapping.value.pot
             ? sanitizeTextValue(plant.original[columnMapping.value.pot] || '')
@@ -1124,6 +1020,7 @@ const performImport = async () => {
             ? sanitizeNumericValue(plant.original[columnMapping.value.price])
             : 0,
           stock: sanitizeNumericValue(plant.original[columnMapping.value.stock]),
+          own_columns: Object.keys(ownColumns).length > 0 ? ownColumns : null,
           hidden: false,
         };
 
@@ -1152,14 +1049,12 @@ const performImport = async () => {
       }
     }
 
-    // Calculate skipped plants
+    // Calculate skipped plants (plants marked as 'skip' OR plants without a selected suggestion)
     importResults.value.skipped = validatedPlants.value.filter(
-      (plant) => plant.status === 'skip'
-    ).length;
-
-    // Move to results step
-    completedSteps.value.add(5);
-    currentStep.value = 5;
+      (plant) => plant.status === 'skip' || !plant.selectedFacitId
+    ).length; // Move to results step
+    completedSteps.value.add(4);
+    currentStep.value = 4;
 
     console.log('Import completed:', importResults.value);
 
@@ -1194,13 +1089,14 @@ const performImport = async () => {
 
 // Navigation
 const goToStep = async (step: number) => {
-  // Allow navigation to completed steps or the next step
-  if (completedSteps.value.has(step) || step <= currentStep.value) {
+  // Allow navigation to completed steps, the current step, or the next step
+  if (completedSteps.value.has(step) || step <= currentStep.value + 1) {
     if (step !== currentStep.value) {
-      stepLoading.value = true;
-
-      // Add a small delay for better UX
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      if (step !== 1 && step !== 0) {
+        stepLoading.value = true;
+        // Add a small delay for better UX
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
 
       currentStep.value = step;
       stepLoading.value = false;
@@ -1208,15 +1104,39 @@ const goToStep = async (step: number) => {
   }
 };
 
+const proceedToReview = async () => {
+  if (!columnMapping.value.name) {
+    toast.add({
+      title: 'Saknad kolumnmappning',
+      description: 'Du måste matcha växtnamn-kolumnen för att fortsätta.',
+      color: 'error',
+    });
+    return;
+  }
+
+  // Initialize plants for review and go directly to step 3
+  initializePlantsForReview();
+  completedSteps.value.add(3);
+  currentStep.value = 3;
+
+  // Start automatic matching after a short delay to ensure the UI has updated
+  await nextTick();
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // Start the automatic matching process
+  startAutomaticMatching();
+};
+
 const resetImport = () => {
-  currentStep.value = 1;
+  currentStep.value = 0;
   stepLoading.value = false;
-  completedSteps.value = new Set([1]); // Reset to only step 1 completed
+  completedSteps.value = new Set([0]); // Reset to only step 0 completed
   selectedFile.value = null;
   rawData.value = [];
   headers.value = [];
   previewData.value = [];
   columnMapping.value = {};
+  customFields.value = []; // Reset custom fields
   validatedPlants.value = [];
   importResults.value = {
     success: 0,
@@ -1254,42 +1174,18 @@ const validationSummary = computed(() => {
 const canProceedToImport = computed(() => {
   return validationSummary.value.found + validationSummary.value.manual > 0;
 });
-
-// Template download
-const downloadTemplate = () => {
-  const csvContent = [
-    'Växtnamn,Lagerantal,Pris,Krukstorlek,Höjd,Kommentar',
-    'Acer palmatum,15,299,C3,40-60 cm,Röda höstfärger',
-    'Rosa rugosa,8,199,C2,30-40 cm,Tålig rynkros',
-    'Betula pendula,5,450,C5,80-100 cm,Vårtbjörk',
-  ].join('\n');
-
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-
-  link.setAttribute('href', url);
-  link.setAttribute('download', 'växtlistan_mall.csv');
-  link.style.visibility = 'hidden';
-
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-
-  toast.add({
-    title: 'Mall nedladdad',
-    description: 'CSV-mallen har laddats ner till din dator.',
-    color: 'success',
-  });
-};
 </script>
 
 <template>
   <div class="container mx-auto px-4 py-8 max-w-6xl">
     <!-- Header -->
     <div class="md:mb-8">
-      <h1 class="text-3xl font-bold mb-2">Importera Lager</h1>
-      <!-- <p class="text-t-toned">Importera ditt lager från CSV, Excel eller JSON-fil</p> -->
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <h1 class="text-3xl font-bold mb-2">Importera</h1>
+          <!-- <p class="text-t-toned">Importera ditt lager från CSV, Excel eller JSON-fil</p> -->
+        </div>
+      </div>
     </div>
     <!-- Progress Steps -->
     <div class="mb-8">
@@ -1337,22 +1233,23 @@ const downloadTemplate = () => {
               }"
             >
               {{
-                step === 1
+                step === 0
+                  ? 'Guide'
+                  : step === 1
                   ? 'Ladda upp'
                   : step === 2
                   ? 'Matcha kolumner'
                   : step === 3
                   ? 'Matcha växtnamn'
                   : step === 4
-                  ? 'Granska'
-                  : 'Importera'
+                  ? 'Importera'
+                  : 'Klar'
               }}
             </span>
           </li>
         </ol>
       </nav>
     </div>
-
     <!-- Loading Overlay -->
     <div
       v-if="stepLoading && currentStep !== 3"
@@ -1369,6 +1266,205 @@ const downloadTemplate = () => {
       </div>
     </div>
 
+    <!-- Step 0: Guide and Information -->
+    <div v-show="currentStep === 0" class="space-y-6">
+      <UCard>
+        <template #header>
+          <h2 class="text-xl font-semibold">Så här funkar det</h2>
+        </template>
+
+        <div class="space-y-6">
+          <!-- How it works -->
+          <div class="space-y-4">
+            <div class="rounded-lg space-y-4">
+              <div class="flex items-start space-x-3">
+                <div
+                  class="text-white flex items-center justify-center w-6 h-6 rounded-full bg-primary text-sm font-medium flex-shrink-0 mt-0.5"
+                >
+                  1
+                </div>
+                <div>
+                  <h4 class="font-medium">Ladda upp din fil</h4>
+                  <p class="text-sm text-t-toned">
+                    Ladda upp en CSV, Excel eller JSON-fil med ditt lager. Filen måste innehålla
+                    växtnamn och kan innehålla ytterligare information som pris, lagerantal,
+                    krukstorlek etc.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start space-x-3">
+                <div
+                  class="text-white flex items-center justify-center w-6 h-6 rounded-full bg-primary text-sm font-medium flex-shrink-0 mt-0.5"
+                >
+                  2
+                </div>
+                <div>
+                  <h4 class="font-medium">Matcha kolumner</h4>
+                  <p class="text-sm text-t-toned">
+                    Välj vilka kolumner i din fil som motsvarar våra standardfält. Du kan också
+                    lägga till anpassade fält för extra information.
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-start space-x-3">
+                <div
+                  class="text-white flex items-center justify-center w-6 h-6 rounded-full bg-primary text-sm font-medium flex-shrink-0 mt-0.5"
+                >
+                  3
+                </div>
+                <div>
+                  <h4 class="font-medium">Växtnamn matchas automatiskt</h4>
+                  <p class="text-sm text-t-toned">
+                    Systemet använder avancerad algoritm som jämför olika delar av växtnamnet
+                    (släkte, art, sortnamn, märkesnamn) med vårt facit. Matchningar med 95%+
+                    säkerhet väljs automatiskt, medan andra föreslås för manuell granskning.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start space-x-3">
+                <div
+                  class="text-white flex items-center justify-center w-6 h-6 rounded-full bg-primary text-sm font-medium flex-shrink-0 mt-0.5"
+                >
+                  4
+                </div>
+                <div>
+                  <h4 class="font-medium">Granska och korrigera</h4>
+                  <p class="text-sm text-t-toned">
+                    För växter som inte hittas automatiskt får du förslag eller kan söka manuellt.
+                    Finns inte växten i vårt facit kan du lägga till den. Du kan också välja att
+                    hoppa över växter som inte ska importeras.
+                  </p>
+                </div>
+              </div>
+
+              <div class="flex items-start space-x-3">
+                <div
+                  class="text-white flex items-center justify-center w-6 h-6 rounded-full bg-primary text-sm font-medium flex-shrink-0 mt-0.5"
+                >
+                  5
+                </div>
+                <div>
+                  <h4 class="font-medium">Importera till ditt lager</h4>
+                  <p class="text-sm text-t-toned">
+                    Alla matchade växter importeras till ditt lager och blir synliga för kunder som
+                    söker efter dem på plattformen.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Database validation info -->
+          <div class="space-y-4">
+            <div class="bg-secondary-bg/30 border border-secondary p-4 rounded-lg">
+              <div class="flex items-start space-x-3">
+                <UIcon
+                  name="i-heroicons-information-circle"
+                  class="w-5 h-5 text-secondary mt-0.5 flex-shrink-0"
+                />
+                <div class="space-y-2">
+                  <p class="font-medium text-secondary">Varför matchar vi växtnamn?</p>
+                  <div class="text-sm text-secondary space-y-1">
+                    <p>
+                      • <strong>Enhetlighet:</strong> Säkerställer att samma växt alltid har samma
+                      namn
+                    </p>
+                    <p>
+                      • <strong>Sökbarhet:</strong> Kunderna hittar det de söker efter med korrekta
+                      växtnamn
+                    </p>
+                    <!-- <p>
+                      • <strong>Kompatibilitet:</strong> Möjliggör jämförelser mellan olika
+                      plantskolor
+                    </p> -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- File requirements and tips -->
+          <div class="space-y-4">
+            <h3 class="text-lg font-medium">Viktigt att tänka på</h3>
+            <div class="space-y-3 text-sm">
+              <div class="flex items-start space-x-2">
+                <UIcon
+                  name="i-heroicons-check-circle"
+                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
+                />
+                <p>
+                  <strong>Växtnamn:</strong> Använd hela vetenskapliga växtnamn (t.ex. "Acer
+                  palmatum 'Osakazuki'"). Undvik förkortningar och specialtecken förutom apostrof '
+                  och parenteser ().
+                </p>
+              </div>
+
+              <div class="flex items-start space-x-2">
+                <UIcon
+                  name="i-heroicons-check-circle"
+                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
+                />
+                <p>
+                  <strong>Numeriska värden:</strong> Lagerantal och priser ska vara rena siffror
+                  utan text. T.ex. "25" istället för "25 st" och "299" istället för "299 kr".
+                </p>
+              </div>
+
+              <div class="flex items-start space-x-2">
+                <UIcon
+                  name="i-heroicons-check-circle"
+                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
+                />
+                <p>
+                  <strong>Krukstorlek:</strong> Använd helst <i>C</i> och <i>P</i> formatet. T.ex.
+                  "C5" eller "P9"
+                </p>
+              </div>
+
+              <div class="flex items-start space-x-2">
+                <UIcon
+                  name="i-heroicons-check-circle"
+                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
+                />
+                <p>
+                  <strong>Höjd:</strong> Ange utan enheter, t.ex. "120-140" istället för "120-140
+                  cm".
+                </p>
+              </div>
+
+              <div class="flex items-start space-x-2">
+                <UIcon
+                  name="i-heroicons-check-circle"
+                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
+                />
+                <p><strong>Filformat:</strong> Excel-filer ska ha rubriker på första raden.</p>
+              </div>
+
+              <div class="flex items-start space-x-2">
+                <UIcon
+                  name="i-heroicons-check-circle"
+                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
+                />
+                <p>
+                  <strong>Anpassade fält:</strong> Du kan lägga till egna fält för information som
+                  ålder, stamomfrång, kön etc. Dessa sparas och visas tillsammans med
+                  växtinformationen.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Action button -->
+          <div class="flex justify-end md:pt-4">
+            <UButton trailing-icon="i-heroicons-arrow-right" @click="goToStep(1)">
+              Börja importera
+            </UButton>
+          </div>
+        </div>
+      </UCard>
+    </div>
     <!-- Step 1: File Upload -->
     <div v-show="currentStep === 1" class="space-y-6">
       <UCard>
@@ -1441,17 +1537,8 @@ const downloadTemplate = () => {
           <!-- Supported Formats -->
           <UCard>
             <template #header>
-              <div class="flex items-center justify-between">
+              <div class="flex items-center">
                 <h3 class="text-lg font-medium">Stödda filformat</h3>
-                <UButton
-                  variant="outline"
-                  size="sm"
-                  icon="i-heroicons-arrow-down-tray"
-                  @click="downloadTemplate"
-                  class="max-md:hidden"
-                >
-                  Ladda ner exempel CSV-mall
-                </UButton>
               </div>
             </template>
 
@@ -1462,7 +1549,7 @@ const downloadTemplate = () => {
                   class="w-8 h-8 mx-auto md:mb-2 text-secondary"
                 />
                 <p class="font-medium">CSV</p>
-                <p class="text-sm text-t-toned">.csv filer</p>
+                <p class="text-sm text-t-toned">.csv filer med UTF-8 kodning</p>
               </div>
 
               <div class="text-center">
@@ -1481,70 +1568,12 @@ const downloadTemplate = () => {
               </div>
             </div>
           </UCard>
-
-          <!-- Import Tips -->
-          <UCard>
-            <template #header>
-              <h3 class="text-lg font-medium">Viktigt att tänka på</h3>
-            </template>
-
-            <div class="space-y-3 text-sm">
-              <div class="flex items-start space-x-2">
-                <UIcon
-                  name="i-heroicons-check-circle"
-                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
-                />
-                <p>
-                  Använd hela vetenskapliga växtnamn (t.ex. "Acer palmatum 'Osakazuki'"), inga
-                  förkortningar eller specialkaraktärer förutom ' och ()
-                </p>
-              </div>
-
-              <div class="flex items-start space-x-2">
-                <UIcon
-                  name="i-heroicons-check-circle"
-                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
-                />
-                <p>Kontrollera att lagerantal är numeriska värden</p>
-              </div>
-
-              <div class="flex items-start space-x-2">
-                <UIcon
-                  name="i-heroicons-check-circle"
-                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
-                />
-                <p>Priser ska anges utan valutasymbol (t.ex. "299" istället för "299 kr")</p>
-              </div>
-
-              <div class="flex items-start space-x-2">
-                <UIcon
-                  name="i-heroicons-check-circle"
-                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
-                />
-                <p>Höjden ska anges utan enhet (t.ex "120-140" istället för "120-140 cm")</p>
-              </div>
-
-              <div class="flex items-start space-x-2">
-                <UIcon
-                  name="i-heroicons-check-circle"
-                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
-                />
-                <p>Krukstorlek ska anges i <i>C</i> eller <i>P</i> format (t.ex "C5" eller "P9")</p>
-              </div>
-
-              <div class="flex items-start space-x-2">
-                <UIcon
-                  name="i-heroicons-check-circle"
-                  class="w-4 h-4 text-primary mt-0.5 flex-shrink-0"
-                />
-                <p>Excel-filer ska ha rubriker på första raden</p>
-              </div>
-            </div>
-          </UCard>
+        </div>
+        <div class="mt-4">
+          <UButton variant="outline" @click="goToStep(0)">Tillbaka</UButton>
         </div>
       </UCard>
     </div>
-
     <!-- Step 2: Column Mapping -->
     <div v-show="currentStep === 2" class="space-y-6">
       <UCard>
@@ -1557,26 +1586,142 @@ const downloadTemplate = () => {
 
         <div class="space-y-6">
           <!-- Column Mapping -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="space-y-4">
-              <h3 class="text-lg font-medium">Välj matchande kolumn</h3>
+          <div class="grid grid-cols-1 lg:grid-cols-[40%_60%] gap-6">
+            <div class="space-y-6">
+              <!-- Standard Fields -->
+              <div class="space-y-4">
+                <h3 class="text-lg font-medium">Välj matchande kolumn</h3>
 
-              <div v-for="field in requiredFields" :key="field.key" class="space-y-2">
-                <label class="block text-sm font-medium">
-                  {{ field.label }}
-                  <span v-if="field.required" class="text-error">*</span>
-                </label>
-                <USelect
-                  v-model="columnMapping[field.key]"
-                  :items="[...headers.map((h) => ({ value: h, label: h }))]"
-                  :placeholder="`Välj kolumn för ${field.label}`"
-                  class="w-56"
-                />
+                <div v-for="field in requiredFields" :key="field.key" class="space-y-2">
+                  <label class="block text-md font-semibold">
+                    {{ field.label }}:
+                    <span v-if="field.required" class="text-error">*</span>
+                    <span class="block text-sm text-t-muted" v-if="field.key === 'private_comment'"
+                      >Endast synligt för er</span
+                    >
+                  </label>
+                  <div class="flex items-center">
+                    <USelect
+                      v-model="columnMapping[field.key]"
+                      :items="[...headers.map((h) => ({ value: h, label: h }))]"
+                      :placeholder="`Välj kolumn för ${field.label}`"
+                      class="w-56"
+                    />
+                    <UButton
+                      v-if="columnMapping[field.key] && field.key !== 'name'"
+                      variant="outline"
+                      class="ml-2"
+                      icon="i-heroicons-x-mark"
+                      @click="columnMapping[field.key] = ''"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <!-- Custom Fields Section -->
+              <div class="space-y-4 lg:border-t lg:border-border lg:pt-4">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-lg font-medium">Egna fält</h3>
+                  <UButton
+                    v-if="getAvailableColumnsForCustomFields().length > 0"
+                    variant="outline"
+                    size="sm"
+                    icon="i-heroicons-plus"
+                    @click="showAddCustomField = true"
+                  >
+                    Lägg till fält
+                  </UButton>
+                </div>
+
+                <!-- Add Custom Field Form -->
+                <div
+                  v-if="showAddCustomField"
+                  class="bg-bg-elevated p-4 rounded-lg border border-border space-y-3"
+                >
+                  <h4 class="font-medium">Nytt anpassat fält</h4>
+
+                  <div class="space-y-2">
+                    <label class="block text-sm font-medium">Fältnamn:</label>
+                    <UInput
+                      v-model="newCustomField.name"
+                      placeholder="t.ex. 'Ålder', 'Stamomfång', 'Ursprung'"
+                      class="w-full"
+                    />
+                  </div>
+
+                  <div class="space-y-2">
+                    <label class="block text-sm font-medium">Välj kolumn:</label>
+                    <USelect
+                      v-model="newCustomField.column"
+                      :items="
+                        getAvailableColumnsForCustomFields().map((h) => ({ value: h, label: h }))
+                      "
+                      placeholder="Välj kolumn från din fil"
+                      class="w-full"
+                    />
+                  </div>
+
+                  <div class="flex space-x-2">
+                    <UButton
+                      size="sm"
+                      :disabled="!newCustomField.name.trim() || !newCustomField.column"
+                      @click="addCustomField"
+                    >
+                      Lägg till
+                    </UButton>
+                    <UButton
+                      variant="outline"
+                      size="sm"
+                      @click="
+                        showAddCustomField = false;
+                        newCustomField = { name: '', column: '' };
+                      "
+                    >
+                      Avbryt
+                    </UButton>
+                  </div>
+                </div>
+
+                <!-- Existing Custom Fields -->
+                <div v-if="customFields.length > 0" class="space-y-2">
+                  <div
+                    v-for="(field, index) in customFields"
+                    :key="field.key"
+                    class="flex items-center justify-between p-3 rounded-lg border border-border"
+                  >
+                    <div>
+                      <span class="font-medium">{{ field.name }}</span>
+                      <span class="text-sm text-t-toned ml-2">→ {{ field.column }}</span>
+                    </div>
+                    <UButton
+                      variant="ghost"
+                      size="sm"
+                      icon="i-heroicons-trash"
+                      class="text-error"
+                      @click="removeCustomField(index)"
+                    />
+                  </div>
+                </div>
+
+                <div
+                  v-if="customFields.length === 0 && !showAddCustomField"
+                  class="text-sm text-t-muted"
+                >
+                  Här kan du lägga till egna fält från din fil som inte finns som standardfält.
+                </div>
+
+                <div
+                  v-if="getAvailableColumnsForCustomFields().length === 0 && !showAddCustomField"
+                  class="text-sm text-t-muted"
+                >
+                  Alla kolumner är redan mappade. Du behöver rensa några mappningar för att lägga
+                  till anpassade fält.
+                </div>
               </div>
             </div>
 
             <!-- Data Preview -->
-            <div class="space-y-4">
+            <div class="space-y-4 max-lg:border-t max-lg:border-border pt-6">
               <h3 class="text-lg font-medium">Förhandsvisning av uppladdad data</h3>
 
               <div class="border border-border rounded-lg overflow-hidden">
@@ -1617,97 +1762,53 @@ const downloadTemplate = () => {
           <!-- Action Buttons -->
           <div class="flex justify-between">
             <UButton variant="outline" @click="goToStep(1)"> Tillbaka </UButton>
-
-            <UButton
-              :disabled="!canProceedToValidation"
-              :loading="stepLoading"
-              loading-icon="ant-design:loading-outlined"
-              @click="validatePlants"
-            >
-              Validera växter
+            <UButton :disabled="!canProceedToValidation" @click="proceedToReview">
+              Matcha växtnamn
             </UButton>
           </div>
         </div>
       </UCard>
     </div>
-    <!-- Step 3: Plant Validation (Loading) -->
-    <div v-show="currentStep === 3" class="space-y-6">
+    <!-- Step 3: Review and Manual Selection -->
+    <div v-show="currentStep === 3 && !stepLoading" class="space-y-6">
       <UCard>
         <template #header>
-          <h2 class="text-xl font-semibold">Steg 3: Validerar växter...</h2>
-        </template>
+          <h2 class="text-xl font-semibold">Steg 3: Granska och välj växter</h2>
+          <p class="text-t-toned">Kontrollera den automatiska matchningen</p>
 
-        <div class="py-8">
-          <!-- Progress indicator -->
-          <div class="text-center mb-6">
-            <UIcon
-              name="ant-design:loading-outlined"
-              class="w-8 h-8 mx-auto mb-4 animate-spin text-primary"
-            />
-            <p class="text-lg font-medium mb-2">Validerar växtnamn mot databasen</p>
-            <p class="text-t-tone mb-4">
-              {{ validationProgress.plantsProcessed }} av
-              {{ validationProgress.totalPlants }} växter validerade
-              <span v-if="validationProgress.totalBatches > 0" class="text-sm">
-                (Batch {{ validationProgress.currentBatch }}/{{ validationProgress.totalBatches }})
-              </span>
-            </p>
-          </div>
-
-          <!-- Progress bar -->
-          <div class="w-full bg-bg-elevated rounded-full h-3 mb-4">
-            <div
-              class="bg-primary h-3 rounded-full transition-all duration-300 ease-out"
-              :style="{
-                width:
-                  validationProgress.totalPlants > 0
-                    ? `${
-                        (validationProgress.plantsProcessed / validationProgress.totalPlants) * 100
-                      }%`
-                    : '0%',
-              }"
-            ></div>
-          </div>
-
-          <!-- Current progress info -->
-          <div class="text-center text-sm text-t-muted space-y-2">
-            <p v-if="validationProgress.currentPlant">
-              🔍 Validerar:
-              <span class="font-medium text-t-main">
-                {{ validationProgress.currentPlant }}
-              </span>
-            </p>
-
-            <!-- Live validation stats -->
-            <div v-if="validatedPlants.length > 0" class="flex justify-center gap-4 text-xs">
-              <span class="text-primary">
-                ✓ {{ validatedPlants.filter((p) => p.status === 'found').length }} hittade
-              </span>
-              <span class="text-error">
-                ⚠ {{ validatedPlants.filter((p) => p.status === 'notFound').length }} behöver
-                granskas
-              </span>
-              <span class="text-t-toned">
-                ⏭ {{ validatedPlants.filter((p) => p.status === 'skip').length }} hoppade över
+          <!-- Automatic Matching Progress -->
+          <div v-if="autoMatchingProgress.isRunning" class="mt-4 p-4 bg-info-bg rounded-lg">
+            <div class="flex items-center gap-2 text-sm text-info mb-3">
+              <UIcon name="i-heroicons-arrow-path" class="animate-spin" />
+              <span>
+                Matchar växter automatiskt... ({{ autoMatchingProgress.plantsProcessed }}/{{
+                  autoMatchingProgress.totalPlants
+                }})
               </span>
             </div>
 
-            <p class="text-t-toned">Processering kan ta ett tag beroende på antalet växter</p>
+            <!-- Progress bar -->
+            <div class="w-full bg-bg-elevated rounded-full h-2 mb-2">
+              <div
+                class="bg-info h-2 rounded-full transition-all duration-300 ease-out"
+                :style="{
+                  width:
+                    autoMatchingProgress.totalPlants > 0
+                      ? `${
+                          (autoMatchingProgress.plantsProcessed /
+                            autoMatchingProgress.totalPlants) *
+                          100
+                        }%`
+                      : '0%',
+                }"
+              ></div>
+            </div>
+
+            <div v-if="autoMatchingProgress.currentPlant" class="text-xs text-info/80">
+              Arbetar på: {{ autoMatchingProgress.currentPlant }}
+            </div>
           </div>
-        </div>
-      </UCard>
-    </div>
-
-    <!-- Step 4: Review and Manual Selection -->
-    <div v-show="currentStep === 4" class="space-y-6">
-      <UCard>
-        <template #header>
-          <h2 class="text-xl font-semibold">Steg 4: Granska och välj växter</h2>
-          <p class="text-t-toned">
-            Kontrollera automatisk matchning och välj växter för importering
-          </p>
         </template>
-
         <!-- Validation Summary -->
         <div class="mb-6">
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1732,25 +1833,52 @@ const downloadTemplate = () => {
             </div>
           </div>
         </div>
-
         <!-- Plant List -->
         <div class="space-y-4 max-h-[80vh] overflow-y-auto">
           <div
             v-for="(plant, index) in validatedPlants"
             :key="index"
-            class="border rounded-lg p-4"
+            class="border border-border rounded-lg p-4 transition-all"
             :class="{
               'border-primary bg-primary-bg': plant.status === 'found',
               'border-secondary bg-secondary-bg': plant.status === 'manual',
-              'border-error bg-error-bg': plant.status === 'notFound',
+              'border-error bg-error-bg':
+                plant.status === 'notFound' && plant.suggestions.length > 0,
+              'border-warning bg-warning-bg':
+                plant.status === 'notFound' &&
+                plant.suggestions.length === 0 &&
+                plant.hasBeenSearched,
               'border-border bg-bg-elevated text-t-toned': plant.status === 'skip',
+              'opacity-75': plant.suggestionsLoading,
             }"
           >
             <div class="flex items-start justify-between max-md:flex-col max-md:gap-4">
               <div class="flex-1 max-md:w-full">
-                <h4 class="font-medium">
+                <h4 class="font-medium" :class="{ 'line-through': plant.status === 'manual' }">
                   {{ plant.original[columnMapping.name] }}
                 </h4>
+
+                <!-- Found Match -->
+                <div v-if="plant.status === 'found' && plant.facitMatch" class="mn-1">
+                  <span class="text-primary font-medium">✓ Hittad: </span>
+                  {{ plant.facitMatch.name }}
+                  <span v-if="plant.facitMatch.sv_name" class="opacity-60 ml-1">
+                    {{ plant.facitMatch.sv_name }}
+                  </span>
+                </div>
+                <!-- Manual Selection -->
+                <div v-if="plant.status === 'manual' && plant.selectedFacitId" class="mn-1">
+                  <span class="text-secondary font-medium">✓ Vald manuellt: </span>
+                  <span v-if="plant.selectedPlantData">
+                    {{ plant.selectedPlantData.name }}
+                    <span v-if="plant.selectedPlantData.sv_name" class="opacity-60 ml-1">
+                      {{ plant.selectedPlantData.sv_name }}
+                    </span>
+                  </span>
+                  <span v-else class="text-secondary/80">
+                    Växt ID: {{ plant.selectedFacitId }}
+                  </span>
+                </div>
 
                 <!-- Show sanitized version if different from original -->
                 <!-- <div
@@ -1762,9 +1890,25 @@ const downloadTemplate = () => {
                 >
                   Söktes som: "{{ sanitizePlantName(plant.original[columnMapping.name]) }}"
                 </div> -->
-
-                <div class="text-sm text-t-toned mt-1">
-                  Lager: {{ sanitizeNumericValue(plant.original[columnMapping.stock]) }}
+                <div class="text-sm opacity-60 mt-1">
+                  <span v-if="plant.selectedPlantData?.serie || plant.facitMatch?.serie">
+                    Serie: {{ plant.selectedPlantData?.serie || plant.facitMatch?.serie }}
+                  </span>
+                  <span v-if="plant.selectedPlantData?.grupp || plant.facitMatch?.grupp">
+                    Grupp: {{ plant.selectedPlantData?.grupp || plant.facitMatch?.grupp }}
+                  </span>
+                  <span v-if="columnMapping.stock && plant.original[columnMapping.stock]">
+                    <span
+                      v-if="
+                        plant.selectedPlantData?.grupp ||
+                        plant.facitMatch?.grupp ||
+                        plant.selectedPlantData?.serie ||
+                        plant.facitMatch?.serie
+                      "
+                    >
+                      | </span
+                    >Lager: {{ sanitizeNumericValue(plant.original[columnMapping.stock]) }}
+                  </span>
                   <span v-if="columnMapping.price && plant.original[columnMapping.price]">
                     | Pris: {{ sanitizeNumericValue(plant.original[columnMapping.price]) }} kr
                   </span>
@@ -1774,61 +1918,289 @@ const downloadTemplate = () => {
                   <span v-if="columnMapping.height && plant.original[columnMapping.height]">
                     | Höjd: {{ sanitizeTextValue(plant.original[columnMapping.height]) }}
                   </span>
-                </div>
-
-                <!-- Found Match -->
-                <div v-if="plant.status === 'found' && plant.facitMatch" class="mt-2 text-sm">
-                  <span class="text-primary font-medium">✓ Hittad:</span>
-                  {{ plant.facitMatch.name }}
-                  <span v-if="plant.facitMatch.sv_name" class="text-t-toned ml-1">
-                    {{ plant.facitMatch.sv_name }}
+                  <span
+                    v-if="
+                      columnMapping.id_by_plantskola &&
+                      plant.original[columnMapping.id_by_plantskola]
+                    "
+                  >
+                    | ID: {{ sanitizeTextValue(plant.original[columnMapping.id_by_plantskola]) }}
                   </span>
                 </div>
-                <!-- Manual Selection -->
-                <div v-if="plant.status === 'manual' && plant.selectedFacitId" class="mt-2 text-sm">
-                  <span class="text-secondary font-medium">✓ Vald manuellt:</span>
-                  <div class="mt-1 p-2 rounded border border-secondary">
-                    <div v-if="selectedPlantDetails.get(index)" class="font-medium">
-                      {{ selectedPlantDetails.get(index).name }}
-                      <span
-                        v-if="selectedPlantDetails.get(index).sv_name"
-                        class="text-t-toned ml-1"
-                      >
-                        ({{ selectedPlantDetails.get(index).sv_name }})
-                      </span>
-                    </div>
-                    <div v-else class="text-t-toned">ID: {{ plant.selectedFacitId }}</div>
-                  </div>
+                <!--  Comment Display -->
+                <div
+                  v-if="
+                    (columnMapping.comment && plant.original[columnMapping.comment]) ||
+                    plant.original._editableComment
+                  "
+                  class="text-sm text-t-toned mt-1 italic"
+                >
+                  Kommentar:
+                  {{
+                    columnMapping.comment && plant.original[columnMapping.comment]
+                      ? sanitizeTextValue(plant.original[columnMapping.comment])
+                      : sanitizeTextValue(plant.original._editableComment)
+                  }}
+                </div>
+
+                <!-- Private Comment Display -->
+                <div
+                  v-if="
+                    (columnMapping.private_comment &&
+                      plant.original[columnMapping.private_comment]) ||
+                    plant.original._editablePrivateComment
+                  "
+                  class="text-sm text-t-toned mt-1 italic"
+                >
+                  Privat kommentar:
+                  {{
+                    columnMapping.private_comment && plant.original[columnMapping.private_comment]
+                      ? sanitizeTextValue(plant.original[columnMapping.private_comment])
+                      : sanitizeTextValue(plant.original._editablePrivateComment)
+                  }}
+                </div>
+
+                <!-- Custom Fields Display -->
+                <div v-if="customFields.length > 0" class="text-sm text-t-toned mt-1">
+                  <span v-for="field in customFields" :key="field.key" class="inline-block mr-3">
+                    <span v-if="plant.original[field.column]">
+                      {{ field.name }}: {{ sanitizeTextValue(plant.original[field.column]) }}
+                    </span>
+                  </span>
                 </div>
 
                 <!-- Skip Status -->
                 <div v-if="plant.status === 'skip'" class="mt-2 text-sm">
                   <span class="text-t-toned font-medium">⏭ Hoppas över</span>
                 </div>
-
-                <!-- Suggestions -->
+                <!-- Not Found - No matches -->
                 <div
-                  v-if="plant.status === 'notFound' && plant.suggestions.length > 0"
+                  v-if="
+                    plant.status === 'notFound' &&
+                    plant.suggestions.length === 0 &&
+                    !plant.suggestionsLoading &&
+                    !autoMatchingProgress.isRunning
+                  "
                   class="mt-2"
                 >
-                  <p class="text-sm font-medium text-error mb-2">Möjliga träffar:</p>
-                  <div class="space-y-1">
-                    <button
-                      v-for="suggestion in plant.suggestions.slice(0, 3)"
-                      :key="suggestion.id"
-                      class="block w-full text-left text-sm p-2 rounded border border-error hover:bg-error/10 transition-colors"
-                      @click="selectPlantForRow(index, suggestion.id)"
-                    >
-                      {{ suggestion.name }}
-                      <span v-if="suggestion.sv_name" class="text-t-toned">
-                        ({{ suggestion.sv_name }})
-                      </span>
-                    </button>
+                  <div class="text-sm text-warning font-medium">⚠ Ingen matchning hittad</div>
+                  <div class="text-xs text-t-toned mt-1">
+                    Använd "Sök"-knappen för manuell sökning
                   </div>
+                </div>
+
+                <!-- Pending processing during automatic matching -->
+                <div
+                  v-if="
+                    plant.status === 'notFound' &&
+                    plant.suggestions.length === 0 &&
+                    !plant.suggestionsLoading &&
+                    !plant.hasBeenSearched &&
+                    autoMatchingProgress.isRunning &&
+                    index >= autoMatchingProgress.currentIndex
+                  "
+                  class="mt-2"
+                >
+                  <div class="text-sm text-t-muted font-medium">Väntar på bearbetning...</div>
+                </div>
+
+                <!-- Suggestions Loading State -->
+                <div v-if="plant.suggestionsLoading" class="mt-2">
+                  <div class="flex items-center gap-2 text-sm text-t-toned">
+                    <UIcon name="i-heroicons-arrow-path" class="animate-spin" />
+                    <span>Söker efter liknande växter...</span>
+                  </div>
+                </div>
+                <!-- Suggestions -->
+                <div
+                  v-if="
+                    plant.status === 'notFound' &&
+                    (plant.highConfidenceSuggestions.length > 0 ||
+                      plant.lowConfidenceSuggestions.length > 0)
+                  "
+                  class="mt-2"
+                >
+                  <!-- High confidence matches (always shown) -->
+                  <div v-if="plant.highConfidenceSuggestions.length > 0">
+                    <p class="text-sm font-medium text-primary mb-2">
+                      Bra träffar ({{ plant.highConfidenceSuggestions.length }}):
+                    </p>
+                    <div class="space-y-1">
+                      <div
+                        v-for="suggestion in plant.highConfidenceSuggestions"
+                        :key="suggestion.id"
+                        class="relative"
+                      >
+                        <!-- High confidence suggestion -->
+                        <button
+                          v-if="!suggestion.is_synonym"
+                          class="block w-full text-left text-sm p-2 rounded border transition-colors border-primary bg-primary/30 hover:bg-primary/40"
+                          @click.stop="selectPlantForRow(index, suggestion.id, suggestion)"
+                        >
+                          <div class="flex justify-between items-center gap-2">
+                            <div class="flex-1 min-w-0">
+                              <div class="font-medium flex items-center gap-2">
+                                {{ suggestion.name }}
+                                <!-- High confidence indicator -->
+                                <span
+                                  v-if="(suggestion as any).similarity_score >= 0.95"
+                                  class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary text-white"
+                                >
+                                  <UIcon name="i-heroicons-check" class="w-3 h-3 mr-1" />
+                                  Exakt
+                                </span>
+                                <span
+                                  v-else
+                                  class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-success text-white"
+                                >
+                                  Bra match
+                                </span>
+                              </div>
+                              <div v-if="suggestion.sv_name" class="text-xs text-t-toned mt-1">
+                                {{ suggestion.sv_name }}
+                              </div>
+                              <!-- Show if matched synonym -->
+                              <div
+                                v-if="(suggestion as any).matched_synonym_name"
+                                class="text-xs mt-1"
+                              >
+                                Matchade synonym: "{{ (suggestion as any).matched_synonym_name }}"
+                              </div>
+                            </div>
+                            <!-- Show similarity score -->
+                            <div
+                              v-if="(suggestion as any).similarity_score !== undefined"
+                              class="text-xs flex items-center gap-1 px-2 py-1 rounded bg-primary/30"
+                            >
+                              {{ Math.round(((suggestion as any).similarity_score || 0) * 100) }}%
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Show "visa fler matchningar" button if we have both high and low confidence matches -->
+                  <div
+                    v-if="
+                      plant.highConfidenceSuggestions.length > 0 &&
+                      plant.lowConfidenceSuggestions.length > 0 &&
+                      !plant.showAllSuggestions
+                    "
+                    class="mt-3"
+                  >
+                    <UButton
+                      variant="ghost"
+                      size="sm"
+                      @click="plant.showAllSuggestions = true"
+                      class="w-full"
+                    >
+                      <UIcon name="i-heroicons-chevron-down" class="w-4 h-4 mr-2" />
+                      Visa fler matchningar ({{ plant.lowConfidenceSuggestions.length }})
+                    </UButton>
+                  </div>
+
+                  <!-- Low confidence matches (shown when expanded or when no high confidence matches) -->
+                  <div
+                    v-if="
+                      (plant.showAllSuggestions || plant.highConfidenceSuggestions.length === 0) &&
+                      plant.lowConfidenceSuggestions.length > 0
+                    "
+                    class="mt-3"
+                  >
+                    <p
+                      v-if="plant.highConfidenceSuggestions.length > 0"
+                      class="text-sm font-medium text-warning mb-2"
+                    >
+                      Övriga förslag ({{ plant.lowConfidenceSuggestions.length }}):
+                    </p>
+                    <p v-else class="text-sm font-medium text-error mb-2">
+                      Möjliga träffar ({{ plant.lowConfidenceSuggestions.length }}):
+                    </p>
+                    <div class="space-y-1">
+                      <div
+                        v-for="suggestion in plant.lowConfidenceSuggestions"
+                        :key="suggestion.id"
+                        class="relative"
+                      >
+                        <!-- Low confidence suggestion -->
+                        <button
+                          v-if="!suggestion.is_synonym"
+                          class="block w-full text-left text-sm p-2 rounded border transition-colors border-error hover:bg-error/10"
+                          @click.stop="selectPlantForRow(index, suggestion.id, suggestion)"
+                        >
+                          <div class="flex justify-between items-center gap-2">
+                            <div class="flex-1 min-w-0">
+                              <div class="font-medium">
+                                {{ suggestion.name }}
+                              </div>
+                              <div v-if="suggestion.sv_name" class="text-xs text-t-toned mt-1">
+                                {{ suggestion.sv_name }}
+                              </div>
+                              <!-- Show if matched synonym -->
+                              <div
+                                v-if="(suggestion as any).matched_synonym_name"
+                                class="text-xs mt-1"
+                              >
+                                Matchade synonym: "{{ (suggestion as any).matched_synonym_name }}"
+                              </div>
+                            </div>
+                            <!-- Show similarity score -->
+                            <div
+                              v-if="(suggestion as any).similarity_score !== undefined"
+                              class="text-xs flex items-center gap-1 px-2 py-1 rounded bg-error/10"
+                            >
+                              {{ Math.round(((suggestion as any).similarity_score || 0) * 100) }}%
+                            </div>
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    <!-- Collapse button -->
+                    <div v-if="plant.highConfidenceSuggestions.length > 0" class="mt-2">
+                      <UButton
+                        variant="ghost"
+                        size="sm"
+                        @click="plant.showAllSuggestions = false"
+                        class="w-full"
+                      >
+                        <UIcon name="i-heroicons-chevron-up" class="w-4 h-4 mr-2" />
+                        Dölj övriga förslag
+                      </UButton>
+                    </div>
+                  </div>
+                </div>
+                <!-- No suggestions after search -->
+                <div
+                  v-if="
+                    plant.status === 'notFound' &&
+                    !plant.suggestionsLoading &&
+                    plant.suggestions.length === 0 &&
+                    plant.hasBeenSearched
+                  "
+                  class="mt-2"
+                >
+                  <p class="text-sm text-t-toned">
+                    Inga liknande växter hittades. Klicka på "Sök manuellt" för att välja.
+                  </p>
                 </div>
               </div>
               <!-- Actions -->
               <div class="flex space-x-2 ml-4 max-md:ml-auto">
+                <!-- Edit button - available for all plant statuses -->
+                <UButton
+                  size="sm"
+                  variant="solid"
+                  color="primary"
+                  icon="i-heroicons-pencil-square"
+                  @click="openEditPlant(index)"
+                  class="flex-shrink-0"
+                  v-if="plant.status !== 'skip'"
+                >
+                  Redigera
+                </UButton>
+
                 <!-- For plants not found - show search and skip -->
                 <template v-if="plant.status === 'notFound'">
                   <UButton
@@ -1856,19 +2228,19 @@ const downloadTemplate = () => {
                     size="sm"
                     variant="solid"
                     color="info"
-                    icon="i-heroicons-pencil"
+                    icon="stash:arrows-switch-solid"
                     @click="openPlantPicker(index)"
                   >
-                    Ändra
+                    Byt växt
                   </UButton>
                   <UButton
                     size="sm"
-                    variant="solid"
-                    color="warning"
+                    variant="subtle"
+                    color="neutral"
                     icon="i-heroicons-arrow-uturn-left"
                     @click="revertPlantRow(index)"
                   >
-                    Ångra
+                    Visa matchningar
                   </UButton>
                 </template>
 
@@ -1891,10 +2263,10 @@ const downloadTemplate = () => {
                     size="sm"
                     variant="solid"
                     color="info"
-                    icon="i-heroicons-pencil"
+                    icon="stash:arrows-switch-solid"
                     @click="openPlantPicker(index)"
                   >
-                    Ändra
+                    Byt växt
                   </UButton>
                   <UButton
                     size="sm"
@@ -1912,7 +2284,21 @@ const downloadTemplate = () => {
         </div>
         <!-- Action Buttons -->
         <div class="flex justify-between mt-6">
-          <UButton variant="outline" :disabled="importing" @click="goToStep(2)"> Tillbaka </UButton>
+          <div class="flex gap-2">
+            <UButton variant="outline" :disabled="importing" @click="goToStep(2)">
+              Tillbaka
+            </UButton>
+
+            <UButton
+              v-if="!autoMatchingProgress.isRunning"
+              variant="outline"
+              icon="i-heroicons-arrow-path"
+              :disabled="importing"
+              @click="startAutomaticMatching"
+            >
+              Starta om matchning
+            </UButton>
+          </div>
 
           <UButton
             :disabled="!canProceedToImport || importing"
@@ -1928,9 +2314,8 @@ const downloadTemplate = () => {
         </div>
       </UCard>
     </div>
-
-    <!-- Step 5: Import Results -->
-    <div v-show="currentStep === 5" class="space-y-6">
+    <!-- Step 4: Import Results -->
+    <div v-show="currentStep === 4" class="space-y-6">
       <UCard>
         <template #header>
           <h2 class="text-xl font-semibold">Import slutförd 🎉🎉</h2>
@@ -1981,7 +2366,7 @@ const downloadTemplate = () => {
 
             <!-- Actions -->
             <div class="flex space-x-4">
-              <UButton @click="router.push('/plantskola-admin/lager')"> Visa lager </UButton>
+              <UButton to="/plantskola-admin/lager"> Visa lager </UButton>
 
               <UButton variant="outline" @click="resetImport"> Importera mer </UButton>
             </div>
@@ -2021,28 +2406,136 @@ const downloadTemplate = () => {
             <p class="font-medium">
               {{ validatedPlants[selectedRowForPicker]?.original[columnMapping.name] }}
             </p>
+          </div>
+          <PlantPicker
+            :edit-value="0"
+            :current-plant-i-d="0"
+            @select="onPlantSelected"
+            @add-select="onPlantSelected"
+          />
+        </div>
+      </template>
+    </UModal>
 
-            <!-- Show current selection if changing -->
-            <div
-              v-if="
-                validatedPlants[selectedRowForPicker]?.status === 'manual' &&
-                selectedPlantDetails.get(selectedRowForPicker)
-              "
-              class="mt-2 p-2 bg-secondary-bg rounded border-l-4 border-secondary"
-            >
-              <p class="text-sm text-secondary font-medium">Nuvarande val:</p>
-              <p class="text-sm">
-                {{ selectedPlantDetails.get(selectedRowForPicker).name }}
-                <span
-                  v-if="selectedPlantDetails.get(selectedRowForPicker).sv_name"
-                  class="text-t-toned"
+    <!-- Plant Edit Modal -->
+    <UModal v-model:open="editPlantModal" class="p-8">
+      <template #content>
+        <div class="flex items-center justify-between w-full mb-4">
+          <h3 class="text-lg font-semibold">Redigera växt</h3>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            icon="i-heroicons-x-mark-20-solid"
+            @click="cancelEditPlant"
+          />
+        </div>
+
+        <div v-if="editingPlant.index !== null && editingPlant.data" class="space-y-4">
+          <!-- Show which plant is being edited -->
+          <div class="border-2 border-secondary p-3 rounded-lg">
+            <p class="font-medium" v-if="validatedPlants[editingPlant.index]?.selectedPlantData">
+              {{ validatedPlants[editingPlant.index]?.selectedPlantData?.name }}
+            </p>
+            <p class="font-medium" v-else>
+              {{ validatedPlants[editingPlant.index]?.original[columnMapping.name] }}
+            </p>
+          </div>
+
+          <!-- Edit form -->
+          <div class="space-y-4 max-h-[60vh] overflow-y-auto">
+            <!-- Basic fields in a grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Stock -->
+              <div v-if="columnMapping.stock">
+                <label class="block text-sm font-medium mb-1">Lager</label>
+                <UInput
+                  v-model="editingPlant.data.stock"
+                  type="number"
+                  placeholder="Antal i lager"
+                  min="0"
+                />
+              </div>
+
+              <!-- Price -->
+              <div v-if="columnMapping.price">
+                <label class="block text-sm font-medium mb-1">Pris (kr)</label>
+                <UInput
+                  v-model="editingPlant.data.price"
+                  type="number"
+                  placeholder="Pris i kronor"
+                  min="0"
+                  step="1"
+                />
+              </div>
+
+              <!-- Pot -->
+              <div v-if="columnMapping.pot">
+                <label class="block text-sm font-medium mb-1">Kruka</label>
+                <UInput v-model="editingPlant.data.pot" placeholder="T.ex. C5, P9" />
+              </div>
+
+              <!-- Height -->
+              <div v-if="columnMapping.height">
+                <label class="block text-sm font-medium mb-1">Höjd</label>
+                <UInput v-model="editingPlant.data.height" placeholder="T.ex. 120-140" />
+              </div>
+
+              <!-- ID by plantskola -->
+              <div v-if="columnMapping.id_by_plantskola" class="md:col-span-2">
+                <label class="block text-sm font-medium mb-1">Eget ID/Artikelnummer</label>
+                <UInput
+                  v-model="editingPlant.data.id_by_plantskola"
+                  placeholder="Ditt interna ID eller artikelnummer"
+                />
+              </div>
+            </div>
+            <!-- Comments - Always shown, even if no column is mapped -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- Public comment -->
+              <div>
+                <label class="block text-sm font-medium mb-1">Kommentar (visas för kunder)</label>
+                <UTextarea
+                  v-model="editingPlant.data.comment"
+                  placeholder="Beskrivning som visas för kunder"
+                  :rows="2"
+                />
+              </div>
+
+              <!-- Private comment -->
+              <div>
+                <label class="block text-sm font-medium mb-1"
+                  >Privat kommentar (endast för dig)</label
                 >
-                  ({{ selectedPlantDetails.get(selectedRowForPicker).sv_name }})
-                </span>
-              </p>
+                <UTextarea
+                  v-model="editingPlant.data.private_comment"
+                  placeholder="Intern anteckning som bara du ser"
+                  :rows="2"
+                />
+              </div>
+            </div>
+
+            <!-- Custom fields -->
+            <div v-if="customFields.length > 0" class="space-y-4">
+              <div class="pt-4">
+                <h4 class="font-medium mb-3">Anpassade fält</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div v-for="field in customFields" :key="field.key">
+                    <label class="block text-sm font-medium mb-1">{{ field.name }}</label>
+                    <UInput
+                      v-model="editingPlant.data[field.key]"
+                      :placeholder="`Värde för ${field.name}`"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <PlantPicker :edit-value="0" :current-plant-i-d="0" @select="onPlantSelected" />
+
+          <!-- Actions -->
+          <div class="flex justify-end space-x-3 pt-4 border-t border-border">
+            <UButton variant="outline" @click="cancelEditPlant"> Avbryt </UButton>
+            <UButton @click="saveEditedPlant" icon="i-heroicons-check"> Spara ändringar </UButton>
+          </div>
         </div>
       </template>
     </UModal>

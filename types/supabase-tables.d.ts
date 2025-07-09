@@ -192,9 +192,13 @@ export interface Facit {
   is_original?: boolean | null; // boolean. Whether this is the original name.
   is_synonym?: boolean | null; // boolean. Whether this is a synonym.
   synonym_to?: string | null; // text. If synonym, the accepted name it refers to.
+  synonym_to_id?: number | null; // bigint. FK to facit.id - the ID of the accepted plant name.
+  has_synonyms?: string | null; // text. Seperated by " | ". The plant names that refer to this plant.  
+  has_synonyms_id?: string | null; // text. Seperated by " | ". The plant ids that refer to this plant.
   taxonomy_type?: string | null; // text. Type of taxonomy (e.g. "species", "cultivar").
   plant_type?: string | null; // text. Plant type/category (e.g. "T" for trees).
-  rhs_hardiness?: number | null; // bigint. RHS hardiness level.
+  grupp?: string | null; // text. The grupp of the plant (e.g. "Therian-Gruppen").
+  serie?: string | null; // text. The serie of the plant.
   spread?: string | null; // text. Typical spread (e.g. "2.5-4 meter").
   height?: string | null; // text. Typical height (e.g. "8-12 meter").
   rhs_id?: number | null; // bigint. RHS database ID.
@@ -238,11 +242,13 @@ export interface Totallager {
   name_by_plantskola: string; // Text
   comment_by_plantskola: string; // Text
   private_comment_by_plantskola: string; // Text
+  id_by_plantskola: string; // Text - Custom ID/code assigned by plantskola
   pot: string; // Text
   height: string; // Text
   price: number; // Numeric
   hidden: boolean; // Bool
   stock: number; // Int8
+  own_columns: Record<string, any> | null; // JSONB - Custom fields added by plantskola
   created_at: string; // Timestampz (ISO string)
   last_edited: string; // Timestampz (ISO string)
 }
@@ -259,43 +265,39 @@ export interface LagerComplete {
   id: number;
   facit_id: number;
   plantskola_id: number;
-  name_by_plantskola: string;
-  comment_by_plantskola: string;
-  private_comment_by_plantskola: string;
-  pot: string;
-  height: string;
-  price: number;
-  hidden: boolean;
-  stock: number;
-  created_at: string;
-  last_edited: string;
+  name_by_plantskola?: string | null;
+  comment_by_plantskola?: string | null;
+  private_comment_by_plantskola?: string | null;
+  id_by_plantskola?: string | null;
+  pot?: string | null;
+  height?: string | null;
+  price?: number | null;
+  stock?: number | null;
+  hidden?: boolean | null;
+  own_columns?: Record<string, any> | null;
+  created_at?: string | null;
+  last_edited?: string | null;
   
-  // Facit fields (enriched data)
-  facit_name: string;
+  // Facit fields (enriched data with facit_ prefix) - must match SQL function exactly
+  facit_name?: string | null;
   facit_sv_name?: string | null;
-  facit_is_recommended?: boolean | null;
-  facit_is_original?: boolean | null;
+  facit_plant_type?: string | null;
+  facit_grupp?: string | null;
+  facit_serie?: string | null;
+  facit_rhs_types?: number[] | null;
+  facit_taxonomy_type?: string | null;
   facit_is_synonym?: boolean | null;
   facit_synonym_to?: string | null;
-  facit_taxonomy_type?: string | null;
-  facit_plant_type?: string | null;
-  facit_rhs_types?: number[] | null;
-  facit_rhs_hardiness?: number | null;
-  facit_spread?: string | null;
-  facit_height?: string | null;
-  facit_rhs_id?: number | null;
+  facit_synonym_to_id?: number | null;
+  facit_has_synonyms?: string | null;
+  facit_has_synonyms_id?: string | null;
+  facit_spread?: number[] | null; // SMALLINT[]
+  facit_height?: number[] | null; // SMALLINT[]
   facit_sunlight?: number[] | null;
-  facit_soil_type?: number[] | null;
-  facit_full_height_time?: number[] | null;
-  facit_moisture?: number[] | null;
-  facit_ph?: number[] | null;
-  facit_exposure?: number[] | null;
-  facit_season_of_interest?: number[] | null;
   facit_colors?: string[] | null;
+  facit_season_of_interest?: number[] | null;
   facit_user_submitted?: boolean | null;
-  facit_created_by?: number | null;
-  facit_created_at?: string | null;
-  facit_last_edited?: string | null;
+  facit_created_by?: number | null;  facit_created_at?: string | null;
 }
 
 // Search function return types for ALL plants (used by PlantPicker)
@@ -304,10 +306,12 @@ export interface PlantSearchResult {
   name: string;
   sv_name?: string | null;
   plant_type?: string | null;
+  grupp?: string | null;
+  serie?: string | null;
   rhs_types?: number[] | null;
   is_synonym?: boolean | null;
   synonym_to?: string | null;
-  rhs_hardiness?: number | null;
+  synonym_to_id?: number | null;
   spread?: string | null;
   height?: string | null;
   colors?: string[] | null;
@@ -325,18 +329,130 @@ export interface AvailablePlantSearchResult {
   sv_name?: string | null;
   plant_type?: string | null;
   rhs_types?: number[] | null;
+  taxonomy_type?: string | null;
   is_synonym?: boolean | null;
   synonym_to?: string | null;
-  rhs_hardiness?: number | null;
+  synonym_to_id?: number | null;
   spread?: string | null;
   height?: string | null;
   colors?: string[] | null;
   last_edited?: string | null;
   available_count: number; // Total stock across all plantskolor
   plantskolor_count: number; // Number of plantskolor that have this plant
-  prices: number[]; // Array of all prices for this plant across plantskolor
+  prices: PriceInfo[]; // Detailed price information with nursery details
+  min_price?: number; // Cheapest available price
+  max_price?: number; // Most expensive available price
+  avg_price?: number; // Average price across nurseries
+  nursery_info?: NurseryInfo; // Aggregated nursery information
+  plant_attributes?: PlantAttributes; // Detailed plant characteristics
+  total_results?: number; // Total matching results (for pagination)
+}
+
+export interface PriceInfo {
+  price: number;
+  stock?: number | null;
+  pot?: string | null;
+  height?: string | null;
+  nursery_id: number;
+  nursery_name: string;
+  postorder: boolean;
+  on_site: boolean;
+  nursery_address?: string | null;
+}
+
+export interface NurseryInfo {
+  postorder_available: boolean;
+  on_site_available: boolean;
+  verified_nurseries: number;
+  total_nurseries: number;
+  nursery_names: string[];
+}
+
+export interface PlantAttributes {
+  height?: string | null;
+  spread?: string | null;
+  sunlight?: number[] | null;
+  colors?: string[] | null;
+  season_interest?: number[] | null;
 }
 
 export interface AvailablePlantSimilaritySearchResult extends AvailablePlantSearchResult {
   similarity_score: number;
+}
+
+// Import workflow types for strict and fuzzy search
+export interface StrictMatchResult {
+  id: number;
+  name: string;
+  sv_name: string | null;
+  similarity_score: number;
+  is_exact_match: boolean;
+  match_type: string; // 'name' or 'sv_name'
+}
+
+export interface FuzzyMatchResult {
+  id: number;
+  name: string;
+  sv_name: string | null;
+  similarity_score: number;
+  match_details: string; // JSON string with match information
+  suggested_reason: string; // Why this plant is suggested
+}
+
+// RPC function types for fuzzy search
+export interface Database {
+  public: {
+    Tables: {
+      // Existing table types...
+    }
+    Functions: {
+      search_plants_fuzzy_match: {
+        Args: {
+          p_search_term: string
+          p_result_limit?: number
+          p_minimum_similarity?: number
+        }
+        Returns: {
+          id: number
+          name: string
+          sv_name?: string
+          plant_type?: string
+          has_synonyms?: string
+          has_synonyms_id?: string
+          user_submitted?: boolean
+          created_by?: number
+          similarity_score: number
+          match_details?: string
+          suggested_reason?: string
+        }[]
+      }
+      search_plants_fuzzy_match_batch: {
+        Args: {
+          p_search_terms: string[]
+          p_result_limit?: number
+          p_minimum_similarity?: number
+        }
+        Returns: {
+          search_term: string
+          id: number
+          name: string
+          sv_name?: string
+          plant_type?: string
+          has_synonyms?: string
+          has_synonyms_id?: string
+          user_submitted?: boolean
+          created_by?: number
+          similarity_score: number
+          match_details?: string
+          suggested_reason?: string
+        }[]
+      }
+    }
+  }
+}
+
+// Enhanced search result interface for the new search_all_plants function
+export interface EnhancedPlantSearchResult extends Facit {
+  similarity_score: number; // Float (0.0-1.0). Similarity score from trigram matching
+  matched_synonym: string | null; // Text. Which synonym was matched (if any)
 }

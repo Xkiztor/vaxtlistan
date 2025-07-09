@@ -44,7 +44,6 @@ export const useLagerStore = defineStore('lager', () => {
       loading.value = false;
     }
   };
-
   // Update a field for a plant in lager
   const updateLagerField = async (
     supabase: any,

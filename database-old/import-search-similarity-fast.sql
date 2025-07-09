@@ -18,6 +18,9 @@ RETURNS TABLE (
   id BIGINT,
   name TEXT,
   sv_name TEXT,
+  is_synonym BOOLEAN,
+  synonym_to TEXT,
+  synonym_to_id BIGINT,
   similarity_score REAL
 )
 LANGUAGE plpgsql
@@ -35,7 +38,6 @@ BEGIN
   IF LENGTH(search_term) < 8 THEN
     similarity_threshold := GREATEST(similarity_threshold, 0.4);
   END IF;
-
   -- Single-pass query optimized for performance
   -- Uses simple pattern matching first (fast with indexes) then trigram similarity
   RETURN QUERY
@@ -43,6 +45,9 @@ BEGIN
     f.id,
     f.name,
     f.sv_name,
+    f.is_synonym,
+    f.synonym_to,
+    f.synonym_to_id,
     -- Simplified scoring for better performance
     CASE 
       -- Exact match (highest priority)
@@ -102,6 +107,9 @@ RETURNS TABLE (
   id BIGINT,
   name TEXT,
   sv_name TEXT,
+  is_synonym BOOLEAN,
+  synonym_to TEXT,
+  synonym_to_id BIGINT,
   similarity_score REAL
 )
 LANGUAGE plpgsql
@@ -121,13 +129,15 @@ BEGIN
   IF LENGTH(search_term) < 8 THEN
     min_threshold := 0.4;
   END IF;
-
   -- Simple and fast pattern-based search
   RETURN QUERY
   SELECT 
     f.id,
     f.name,
     f.sv_name,
+    f.is_synonym,
+    f.synonym_to,
+    f.synonym_to_id,
     CASE 
       -- Exact match
       WHEN LOWER(f.name) = search_term THEN 1.0

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // PlantPicker.vue - reusable plant selection component for edit/create
-// Uses optimized search without fetching entire facit table
-import type { Facit } from '~/types/supabase-tables';
+// Uses enhanced search with fuzzy matching, similarity scoring, and synonym detection
+import type { EnhancedPlantSearchResult } from '~/types/supabase-tables';
 import { useVirtualList } from '@vueuse/core';
 
 // Supabase client
@@ -16,10 +16,14 @@ const props = defineProps<{
 // Search input and state
 const search = ref('');
 const minSearchLength = 2; // Minimum length for search to trigger
-const searchResults = ref<Facit[]>([]);
+const searchResults = ref<EnhancedPlantSearchResult[]>([]);
 const loading = ref(false);
 const hasSearched = ref(false);
 const canSearch = computed(() => search.value.length >= minSearchLength);
+const searchTime = ref(0); // Track search performance
+
+// Enhanced search options - using fixed threshold
+const minimumSimilarity = 0.25; // Fixed similarity threshold
 
 // Get current plant data if available
 const { data: currentPlant } = await useAsyncData(
@@ -41,6 +45,7 @@ const { data: currentPlant } = await useAsyncData(
   { server: false }
 );
 
+const limit = 100;
 // Perform search using optimized search function
 const performSearch = async () => {
   if (!search.value || search.value.length < minSearchLength) {
@@ -51,15 +56,14 @@ const performSearch = async () => {
 
   loading.value = true;
   hasSearched.value = true;
-
   try {
     const result = await searchAllPlants(search.value, {
-      limit: 50, // Limit results for picker
-      offset: 0,
-      includeCount: false, // Don't need count for picker
+      limit: limit, // Limit results for picker
+      minimumSimilarity: minimumSimilarity, // Use fixed similarity threshold
     });
 
     searchResults.value = result.results;
+    searchTime.value = result.searchTime;
   } catch (error) {
     console.error('Search error:', error);
     searchResults.value = [];
@@ -118,11 +122,6 @@ const plantsToDisplay = computed(() => {
   }
 
   return [];
-});
-
-// Virtual list setup for plantsToDisplay
-const { list, containerProps, wrapperProps } = useVirtualList(plantsToDisplay, {
-  itemHeight: 73,
 });
 
 // Add plant
@@ -230,13 +229,17 @@ const addPlant = async () => {
   }
 };
 
-// Emit selected plant id
+// Emit selected plant id and data
 const emit = defineEmits(['select', 'addSelect']);
 const selectPlant = (id: number) => {
-  emit('select', id);
+  // Find the plant data to include with the selection
+  const selectedPlant = plantsToDisplay.value.find((plant) => plant.id === id);
+  emit('select', id, selectedPlant);
 };
 const addSelectPlant = (id: number) => {
-  emit('addSelect', id);
+  // For newly added plants, we could fetch the data, but for now just emit the ID
+  // The parent component will handle this case appropriately
+  emit('addSelect', id, null);
 };
 </script>
 
@@ -259,6 +262,7 @@ const addSelectPlant = (id: number) => {
         icon="i-heroicons-magnifying-glass"
         :disabled="!canSearch || loading"
         :loading="loading"
+        loading-icon="ant-design:loading-outlined"
         @click="triggerSearch"
       >
         Sök
@@ -281,32 +285,55 @@ const addSelectPlant = (id: number) => {
       </div>
     </div>
 
-    <!-- Virtual plant list -->
     <div v-else class="border border-border rounded-lg bg-bg-elevated h-72 md:h-96">
-      <div v-bind="containerProps" class="overflow-scroll h-full" v-if="plantsToDisplay.length > 0">
-        <div v-bind="wrapperProps">
-          <div
-            v-for="item in list"
-            :key="item.data.id"
-            class="cursor-pointer hover:bg-bg-accented transition px-4 py-3 flex gap-1 border-b border-border last:border-b-0 items-center"
-            @click="selectPlant(item.data.id)"
-          >
-            <span
-              class="grow"
+      <div class="overflow-auto h-full" v-if="plantsToDisplay.length > 0">
+        <div
+          v-for="item in plantsToDisplay"
+          :key="item.id"
+          class="cursor-pointer hover:bg-bg-accented transition px-4 py-3 flex gap-3 border-b border-border last:border-b-0"
+          @click="selectPlant(item.id)"
+        >
+          <div class="grow flex flex-col justify-center">
+            <!-- Main plant name and swedish name -->
+            <div
+              class="grow block leading-tight"
               :class="{
-                'text-t-muted': item.data.id === currentPlantID,
-                'text-primary': item.data.id === editValue,
+                'text-t-muted': item.id === currentPlantID,
+                'text-primary': item.id === editValue,
               }"
             >
-              <span class="font-semibold max-md:block mr-1">{{ item.data.name }}</span>
-              <span v-if="item.data.sv_name" class="text-t-muted text-sm">{{
-                item.data.sv_name
-              }}</span>
-            </span>
-            <UButton size="sm" class="shrink-0 h-min" :disabled="item.data.id === currentPlantID">
-              Välj</UButton
-            >
+              <span class="font-semibold max-md:block mr-2">{{ item.name }}</span>
+              <span v-if="item.sv_name" class="text-t-muted text-sm">{{ item.sv_name }}</span>
+            </div>
+            <!-- Enhanced search information -->
+            <div class="mt-1 text-xs text-t-muted" v-if="item.matched_synonym">
+              <!-- Matched synonym indicator - only show if synonym was actually matched -->
+              Matchad via synonym: <span class="font-medium">{{ item.matched_synonym }}</span>
+            </div>
           </div>
+
+          <!-- Selection button with improved positioning -->
+          <UButton
+            size="sm"
+            class="shrink-0 max-h-max my-auto"
+            :disabled="item.id === currentPlantID"
+          >
+            Välj
+          </UButton>
+        </div>
+        <div class="py-6" v-if="plantsToDisplay.length >= limit">
+          <p class="text-t-muted text-sm text-center">
+            Visar endast de första {{ limit }} resultaten. Försök med mer specifik sökning.
+          </p>
+        </div>
+        <!-- Search performance info -->
+        <div
+          v-if="hasSearched && searchTime > 0 && searchResults.length < 100"
+          class="py-2 px-4 bg-bg-elevated"
+        >
+          <p class="text-t-muted text-xs text-center">
+            {{ searchResults.length }} resultat hittades
+          </p>
         </div>
       </div>
       <div

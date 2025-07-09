@@ -61,6 +61,7 @@ RETURNS TABLE(
   rhs_types smallint[],
   is_synonym boolean,
   synonym_to text,
+  synonym_to_id bigint,
   rhs_hardiness bigint,
   spread text,
   height text,
@@ -69,7 +70,7 @@ RETURNS TABLE(
   available_count bigint,
   plantskolor_count bigint,
   prices numeric[]
-) 
+)
 LANGUAGE plpgsql
 STABLE
 AS $$

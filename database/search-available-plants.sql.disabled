@@ -1,0 +1,86 @@
+-- =====================================================================================
+-- Function: search_available_plants(search_term, include_hidden, similarity_threshold, result_limit)
+-- =====================================================================================
+-- 
+-- PURPOSE:
+-- Advanced search function for plants currently available in nurseries.
+-- Used ONLY on the main search page. Provides rich information about plant 
+-- availability, pricing, and nursery locations. For inline search, use 
+-- search_inline() function instead.
+--
+-- PARAMETERS:
+-- - search_term: TEXT - The plant name to search for
+-- - include_hidden: BOOLEAN - Whether to include hidden plants (default FALSE)
+-- - similarity_threshold: FLOAT - Minimum similarity score for fuzzy search (default 0.3)
+-- - result_limit: INTEGER - Maximum number of results (default 50)
+--
+-- RETURNS:
+-- Table with enriched plant and availability data:
+-- - id: BIGINT - Plant ID from facit table
+-- - name: TEXT - Scientific plant name
+-- - sv_name: TEXT - Swedish/common name
+-- - plant_type: TEXT - Type classification
+-- - has_synonyms: TEXT - Pipe-separated list of synonym names  
+-- - has_synonyms_id: TEXT - Pipe-separated list of synonym IDs
+-- - user_submitted: BOOLEAN - Whether plant was user-submitted
+-- - created_by: BIGINT - ID of user/nursery who created entry
+-- - similarity_score: FLOAT - Search relevance score
+-- - available_count: INTEGER - Total plants available across all nurseries
+-- - plantskolor_count: INTEGER - Number of nurseries with this plant in stock
+-- - prices: JSONB - Array of price objects with nursery info
+-- - min_price: NUMERIC - Cheapest available price
+-- - max_price: NUMERIC - Most expensive available price
+--
+-- ADVANCED FEATURES:
+-- - JOIN with totallager to only show avilable plants
+-- - Aggregates stock counts across all nurseries
+-- - Collects all prices with nursery context
+-- - Fuzzy search with similarity scoring
+-- - Filters hidden plants and nurseries
+-- - Advanced result ranking by relevance and availability
+--
+-- PRICE AGGREGATION FORMAT:
+-- prices: [
+--   {"price": 149.50, "plantskola_id": 5, "plantskola_name": "Green Gardens", "stock": 15},
+--   {"price": 159.00, "plantskola_id": 8, "plantskola_name": "Plant Paradise", "stock": 23}
+-- ]
+--
+-- SEARCH BEHAVIOR:
+-- - Defaults to fuzzy search for better user experience
+-- - Uses sanitize_plant_name() for normalization
+-- - Searches name, sv_name, and has_synonyms columns
+-- - Excludes synonym plants (synonym_to IS NULL)
+-- - Orders by relevance score and availability
+--
+-- PERFORMANCE CONSIDERATIONS:
+-- - Complex JOIN between facit, totallager, and plantskolor
+-- - Aggregation functions for counts and price arrays
+-- - Consider materialized views for heavy usage
+-- - Proper indexing on facit_id, plantskola_id
+-- - JSONB aggregation can be expensive
+--
+-- FILTERING LOGIC:
+-- - totallager.hidden = FALSE (unless include_hidden = TRUE)
+-- - plantskolor.hidden = FALSE (unless include_hidden = TRUE)
+-- - plantskolor.verified = TRUE (only verified nurseries)
+--
+-- EXAMPLE USAGE:
+-- SELECT * FROM search_available_plants('rose red', FALSE, 0.3, 20);
+-- SELECT * FROM search_available_plants('pinus', TRUE, 0.4, 10);
+--
+-- TODO FOR AI IMPLEMENTATION:
+-- 1. Create complex JOIN between facit, totallager, and plantskolor tables
+-- 2. Implement fuzzy search with pg_trgm similarity
+-- 3. Use sanitize_plant_name() for search normalization
+-- 4. Aggregate stock counts with SUM(totallager.stock)
+-- 5. Count distinct nurseries with COUNT(DISTINCT plantskola_id)
+-- 6. Build prices JSONB array with json_agg()
+-- 7. Calculate min/max prices with MIN()/MAX()
+-- 8. Apply proper filtering for hidden and verified status
+-- 9. Order results by similarity_score and availability metrics
+-- 10. Add proper error handling and edge cases
+-- 11. Optimize performance with appropriate indexes
+-- 12. Consider partitioning strategies for large datasets
+-- =====================================================================================
+
+-- Function implementation will be added here by AI

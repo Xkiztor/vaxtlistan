@@ -1,0 +1,473 @@
+-- =====================================================================================
+-- ULTRA-FAST Fuzzy Search Function (Optimized for 170k+ rows without timeouts)
+-- =====================================================================================
+-- 
+-- CENTRALIZED SANITIZATION:
+-- All search operations now use the sanitize_plant_name() function for consistent
+-- normalization of special characters, quotes, dashes, accents, and case conversion.
+-- Swedish characters, various quotation styles, and special characters consistently.
+--
+-- ENHANCED SYNONYM SEARCH:
+-- Comprehensive searching in has_synonyms field with prefix, contains, and partial
+-- matching. All synonym comparisons use centralized sanitization.
+--
+-- EXCLUDED sv_name SEARCH:
+-- Swedish names (sv_name) are completely excluded from search operations as requested.
+--
+-- GIBBERISH HANDLING:
+-- Includes reverse matching patterns to handle cases where valid plant names
+-- appear at the beginning of search terms with trailing gibberish.
+--
+-- PERFORMANCE OPTIMIZED:
+-- SQL returns candidates quickly without similarity calculations. Client-side
+-- scoring handles final filtering and ranking for optimal performance.
+-- =====================================================================================
+
+-- Drop existing function and create optimized version
+DROP FUNCTION IF EXISTS search_plants_fuzzy_match(TEXT, INTEGER, FLOAT);
+
+-- Ultra-fast candidate retrieval function with intelligent fallback
+CREATE OR REPLACE FUNCTION search_plants_fuzzy_match(
+    p_search_term TEXT,
+    p_result_limit INTEGER DEFAULT 50,
+    p_minimum_similarity FLOAT DEFAULT 0.3 -- Kept for compatibility but not used
+)
+RETURNS TABLE(
+    id BIGINT,
+    name TEXT,
+    sv_name TEXT,
+    plant_type TEXT,
+    has_synonyms TEXT,
+    has_synonyms_id TEXT,
+    user_submitted BOOLEAN,
+    created_by BIGINT
+) AS $$
+DECLARE
+    v_clean_search TEXT;
+    v_clean_search_no_quotes TEXT;
+    v_limit INTEGER;
+    v_prefix_pattern TEXT;
+    v_contains_pattern TEXT;
+    v_result_count INTEGER := 0;
+    v_search_words TEXT[];
+    v_first_word TEXT;
+    v_fallback_limit INTEGER;
+BEGIN
+    -- Input validation
+    IF p_search_term IS NULL OR TRIM(p_search_term) = '' THEN
+        RETURN;
+    END IF;    -- Clean search term using centralized sanitization function
+    v_clean_search := sanitize_plant_name(p_search_term);
+    v_clean_search_no_quotes := REGEXP_REPLACE(v_clean_search, '''', '', 'g');
+    
+    IF v_clean_search IS NULL OR LENGTH(v_clean_search) = 0 THEN
+        RETURN;
+    END IF;
+    
+    -- Set limit
+    v_limit := GREATEST(10, LEAST(100, COALESCE(p_result_limit, 50)));
+    v_fallback_limit := GREATEST(20, v_limit); -- Increase fallback limit for better results    -- Prepare patterns using sanitized search term
+    v_prefix_pattern := v_clean_search || '%';
+    v_contains_pattern := '%' || v_clean_search || '%';
+    
+    -- STEP 1: Try ultra-fast exact and prefix matching first
+    RETURN QUERY    SELECT 
+        f.id,
+        f.name,
+        f.sv_name,
+        f.plant_type,
+        f.has_synonyms,
+        f.has_synonyms_id,
+        f.user_submitted,
+        f.created_by
+    FROM facit fWHERE f.synonym_to IS NULL
+    AND (
+        -- Primary name matches using centralized sanitization
+        sanitize_plant_name(f.name) ILIKE v_prefix_pattern
+        OR (LENGTH(v_clean_search) >= 3 AND sanitize_plant_name(f.name) ILIKE v_contains_pattern)
+          -- Enhanced synonym matches - properly handle pipe-separated format with typo tolerance
+        OR (LENGTH(v_clean_search) >= 3 AND f.has_synonyms IS NOT NULL AND (
+            -- Search each individual synonym in the pipe-separated list
+            EXISTS (
+                SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                WHERE sanitize_plant_name(synonym) ILIKE v_prefix_pattern
+                   OR sanitize_plant_name(synonym) ILIKE v_contains_pattern
+                   -- Add typo tolerance: partial character matching for scientific names
+                   OR (LENGTH(v_clean_search) >= 5 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_clean_search, 4) || '%')
+                   OR (LENGTH(v_clean_search) >= 6 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_clean_search, 5) || '%')
+            )
+        ))
+    )
+    ORDER BY 
+        -- Prioritize matches by type for better relevance        
+        CASE 
+            WHEN sanitize_plant_name(f.name) ILIKE v_prefix_pattern THEN 1  -- Exact name prefix (best)
+            WHEN sanitize_plant_name(f.name) ILIKE v_contains_pattern THEN 2  -- Name contains            
+            WHEN f.has_synonyms IS NOT NULL AND EXISTS (
+                SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                WHERE sanitize_plant_name(synonym) ILIKE v_prefix_pattern
+                   OR (LENGTH(v_clean_search) >= 5 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_clean_search, 4) || '%')
+            ) THEN 3  -- Synonym prefix
+            WHEN f.has_synonyms IS NOT NULL AND EXISTS (
+                SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                WHERE sanitize_plant_name(synonym) ILIKE v_contains_pattern
+                   OR (LENGTH(v_clean_search) >= 6 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_clean_search, 5) || '%')
+            ) THEN 4  -- Synonym contains
+            ELSE 5
+        END,
+        LENGTH(f.name),
+        f.id
+    LIMIT v_limit;
+    
+    -- Check if we got any results from the fast search
+    GET DIAGNOSTICS v_result_count = ROW_COUNT;
+    
+    -- STEP 2: If no results from fast search, try multi-word matching
+    IF v_result_count = 0 AND LENGTH(v_clean_search) >= 2 THEN
+        -- Prepare for word-based search
+        v_search_words := string_to_array(REGEXP_REPLACE(v_clean_search, '[^a-zA-Z0-9\s]', ' ', 'g'), ' ');
+        v_search_words := array_remove(v_search_words, ''); -- Remove empty elements
+        v_first_word := CASE WHEN array_length(v_search_words, 1) > 0 THEN v_search_words[1] ELSE v_clean_search END;
+        
+        -- STEP 2A: Multi-word search for complex queries
+        IF array_length(v_search_words, 1) > 1 THEN
+            RETURN QUERY
+            WITH word_matches AS (
+                SELECT DISTINCT
+                    f.id,
+                    f.name,
+                    f.sv_name,
+                    f.plant_type,
+                    f.has_synonyms,
+                    f.has_synonyms_id,
+                    f.user_submitted,
+                    f.created_by,
+                    -- Enhanced word match count with bonus for quotes and caps                    
+                    (
+                        -- Standard word matches
+                        CASE WHEN v_search_words[1] IS NOT NULL AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[1] || '%' THEN 1 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 2 AND v_search_words[2] IS NOT NULL AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[2] || '%' THEN 1 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 3 AND v_search_words[3] IS NOT NULL AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[3] || '%' THEN 1 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 4 AND v_search_words[4] IS NOT NULL AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[4] || '%' THEN 1 ELSE 0 END +
+                          -- Bonus points for cultivar name matches (in quotes) - worth 2 points each
+                        CASE WHEN v_search_words[1] IS NOT NULL AND f.name ILIKE '%''' || v_search_words[1] || '''%' THEN 2 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 2 AND v_search_words[2] IS NOT NULL AND f.name ILIKE '%''' || v_search_words[2] || '''%' THEN 2 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 3 AND v_search_words[3] IS NOT NULL AND f.name ILIKE '%''' || v_search_words[3] || '''%' THEN 2 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 4 AND v_search_words[4] IS NOT NULL AND f.name ILIKE '%''' || v_search_words[4] || '''%' THEN 2 ELSE 0 END +                        -- Check synonyms too (standard scoring) - properly handle pipe-separated format with typo tolerance
+                        CASE WHEN v_search_words[1] IS NOT NULL AND f.has_synonyms IS NOT NULL AND EXISTS (
+                            SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                            WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[1] || '%'
+                               OR (LENGTH(v_search_words[1]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[1], 3) || '%')
+                        ) THEN 1 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 2 AND v_search_words[2] IS NOT NULL AND f.has_synonyms IS NOT NULL AND EXISTS (
+                            SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                            WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[2] || '%'
+                               OR (LENGTH(v_search_words[2]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[2], 3) || '%')
+                        ) THEN 1 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 3 AND v_search_words[3] IS NOT NULL AND f.has_synonyms IS NOT NULL AND EXISTS (
+                            SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                            WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[3] || '%'
+                               OR (LENGTH(v_search_words[3]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[3], 3) || '%')
+                        ) THEN 1 ELSE 0 END +
+                        CASE WHEN array_length(v_search_words, 1) >= 4 AND v_search_words[4] IS NOT NULL AND f.has_synonyms IS NOT NULL AND EXISTS (
+                            SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                            WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[4] || '%'
+                               OR (LENGTH(v_search_words[4]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[4], 3) || '%')
+                        ) THEN 1 ELSE 0 END
+                    ) as word_match_count,
+                    -- Enhanced priority system with cultivar and caps prioritization
+                    (                        CASE                            -- HIGHEST PRIORITY: Matches in quoted cultivar names (most specific)
+                            WHEN v_search_words[1] IS NOT NULL AND f.name ILIKE '%''' || v_search_words[1] || '''%' THEN 1
+                            WHEN array_length(v_search_words, 1) >= 2 AND v_search_words[2] IS NOT NULL AND f.name ILIKE '%''' || v_search_words[2] || '''%' THEN 1
+                            WHEN array_length(v_search_words, 1) >= 3 AND v_search_words[3] IS NOT NULL AND f.name ILIKE '%''' || v_search_words[3] || '''%' THEN 1
+                            
+                            -- MEDIUM PRIORITY: Sequential word matches (scientific names)
+                            WHEN v_search_words[1] IS NOT NULL AND v_search_words[2] IS NOT NULL AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[1] || '%' || v_search_words[2] || '%' THEN 2
+                            
+                            -- NORMAL PRIORITY: Prefix matches
+                            WHEN v_search_words[1] IS NOT NULL AND sanitize_plant_name(f.name) ILIKE v_search_words[1] || '%' THEN 3                            -- SYNONYM PRIORITY: Matches in synonyms with cultivar priority - properly handle pipe-separated format
+                            WHEN v_search_words[1] IS NOT NULL AND f.has_synonyms IS NOT NULL AND EXISTS (
+                                SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                                WHERE synonym ILIKE '%''' || v_search_words[1] || '''%'
+                            ) THEN 4
+                            WHEN array_length(v_search_words, 1) >= 2 AND v_search_words[2] IS NOT NULL AND f.has_synonyms IS NOT NULL AND EXISTS (
+                                SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                                WHERE synonym ILIKE '%''' || v_search_words[2] || '''%'
+                            ) THEN 4
+                            WHEN v_search_words[1] IS NOT NULL AND v_search_words[2] IS NOT NULL AND f.has_synonyms IS NOT NULL AND EXISTS (
+                                SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                                WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[1] || '%' || v_search_words[2] || '%'
+                            ) THEN 5
+                            
+                            ELSE 6
+                        END
+                    ) as match_priority
+                FROM facit f
+                WHERE f.synonym_to IS NULL                AND (
+                    -- Match at least one significant word (3+ characters)
+                    (v_search_words[1] IS NOT NULL AND LENGTH(v_search_words[1]) >= 3 AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[1] || '%')
+                    OR (array_length(v_search_words, 1) >= 2 AND v_search_words[2] IS NOT NULL AND LENGTH(v_search_words[2]) >= 3 AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[2] || '%')
+                    OR (array_length(v_search_words, 1) >= 3 AND v_search_words[3] IS NOT NULL AND LENGTH(v_search_words[3]) >= 2 AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[3] || '%')
+                    OR (array_length(v_search_words, 1) >= 4 AND v_search_words[4] IS NOT NULL AND LENGTH(v_search_words[4]) >= 2 AND sanitize_plant_name(f.name) ILIKE '%' || v_search_words[4] || '%')                    -- Also check synonyms - properly handle pipe-separated format with typo tolerance
+                    OR (v_search_words[1] IS NOT NULL AND LENGTH(v_search_words[1]) >= 3 AND f.has_synonyms IS NOT NULL AND EXISTS (
+                        SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                        WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[1] || '%'
+                           OR (LENGTH(v_search_words[1]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[1], 3) || '%')
+                    ))
+                    OR (array_length(v_search_words, 1) >= 2 AND v_search_words[2] IS NOT NULL AND LENGTH(v_search_words[2]) >= 3 AND f.has_synonyms IS NOT NULL AND EXISTS (
+                        SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                        WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[2] || '%'
+                           OR (LENGTH(v_search_words[2]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[2], 3) || '%')
+                    ))
+                    OR (array_length(v_search_words, 1) >= 3 AND v_search_words[3] IS NOT NULL AND LENGTH(v_search_words[3]) >= 2 AND f.has_synonyms IS NOT NULL AND EXISTS (
+                        SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                        WHERE sanitize_plant_name(synonym) ILIKE '%' || v_search_words[3] || '%'
+                           OR (LENGTH(v_search_words[3]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[3], 3) || '%')
+                    ))
+                    OR (array_length(v_search_words, 1) >= 4 AND v_search_words[4] IS NOT NULL AND LENGTH(v_search_words[4]) >= 2 AND sanitize_plant_name(COALESCE(f.has_synonyms, '')) ILIKE '%' || v_search_words[4] || '%')
+                )            
+                )              SELECT
+                wm.id,
+                wm.name,
+                wm.sv_name,
+                wm.plant_type,
+                wm.has_synonyms,
+                wm.has_synonyms_id,
+                wm.user_submitted,
+                wm.created_by
+            FROM word_matches wm
+            WHERE wm.word_match_count >= 1 -- Require at least one word match
+            ORDER BY 
+                wm.word_match_count DESC, -- More word matches first
+                wm.match_priority ASC,    -- Better match types first
+                LENGTH(wm.name) ASC,      -- Shorter names first
+                wm.name ASC            LIMIT v_fallback_limit;
+            
+            -- Check if multi-word search found results
+            GET DIAGNOSTICS v_result_count = ROW_COUNT;
+        END IF;
+          -- STEP 3: If still no results, try general fallback similarity search
+        IF v_result_count = 0 THEN
+            RETURN QUERY
+            WITH fallback_candidates AS (
+            SELECT DISTINCT
+                f.id,
+                f.name,
+                f.sv_name,
+                f.plant_type,
+                f.has_synonyms,
+                f.has_synonyms_id,
+                f.user_submitted,
+                f.created_by,                -- Enhanced ordering expressions for better similarity matching                
+                CASE 
+                    -- Exact substring matches (highest priority)
+                    WHEN sanitize_plant_name(f.name) ILIKE '%' || v_clean_search || '%' THEN 1
+                    -- Prefix matches with original term
+                    WHEN sanitize_plant_name(f.name) ILIKE v_clean_search || '%' THEN 2
+                    -- Word start matches 
+                    WHEN sanitize_plant_name(f.name) ILIKE '% ' || v_clean_search || '%' THEN 3
+                    -- Partial matches (3+ characters)
+                    WHEN LENGTH(v_clean_search) >= 3 AND sanitize_plant_name(f.name) ILIKE '%' || LEFT(v_clean_search, 3) || '%' THEN 4
+                    -- Character start matches (2+ characters)
+                    WHEN LENGTH(v_clean_search) >= 2 AND sanitize_plant_name(f.name) ILIKE LEFT(v_clean_search, 2) || '%' THEN 5
+                    -- Synonym matches
+                    WHEN sanitize_plant_name(COALESCE(f.has_synonyms, '')) ILIKE '%' || v_clean_search || '%' THEN 6
+                    WHEN LENGTH(v_clean_search) >= 3 AND sanitize_plant_name(COALESCE(f.has_synonyms, '')) ILIKE '%' || LEFT(v_clean_search, 3) || '%' THEN 7
+                    -- NEW: Reverse matching - plant name at start of search term (for gibberish handling)
+                    WHEN LENGTH(f.name) >= 4 AND v_clean_search ILIKE sanitize_plant_name(f.name) || '%' THEN 8
+                    -- NEW: Reverse word matching - plant name words found at start of search
+                    WHEN LENGTH(f.name) >= 6 AND v_clean_search ILIKE LEFT(sanitize_plant_name(f.name), 6) || '%' THEN 9
+                    ELSE 10
+                END as match_priority,
+                LENGTH(f.name) as name_length
+            FROM facit f
+            WHERE f.synonym_to IS NULL
+            AND (                -- Enhanced fallback matching using centralized sanitization
+                
+                -- Direct substring matches (most important)
+                sanitize_plant_name(f.name) ILIKE '%' || v_clean_search || '%'
+                
+                -- Prefix matching (good for partial typing)
+                OR sanitize_plant_name(f.name) ILIKE v_clean_search || '%'
+                
+                -- Word boundary matches (good for scientific names)
+                OR sanitize_plant_name(f.name) ILIKE '% ' || v_clean_search || '%'
+                  -- Partial character matching (for typos)
+                OR (
+                    LENGTH(v_clean_search) >= 3 AND (
+                        sanitize_plant_name(f.name) ILIKE '%' || LEFT(v_clean_search, 3) || '%'
+                        OR sanitize_plant_name(f.name) ILIKE '%' || RIGHT(v_clean_search, 3) || '%'
+                    )
+                )
+                
+                -- Character start matching (for very short or partial terms)
+                OR (
+                    LENGTH(v_clean_search) >= 2 AND 
+                    sanitize_plant_name(f.name) ILIKE LEFT(v_clean_search, 2) || '%'
+                )
+                
+                -- Enhanced word-based matching for multi-word searches
+                OR (
+                    array_length(v_search_words, 1) > 1 AND (
+                        sanitize_plant_name(f.name) ILIKE '%' || v_first_word || '%'
+                        OR sanitize_plant_name(f.name) ILIKE v_first_word || '%'
+                    )
+                )                -- Enhanced synonym matching - properly handle pipe-separated format with better typo tolerance
+                OR (f.has_synonyms IS NOT NULL AND (
+                    -- Direct synonym matches using proper splitting
+                    EXISTS (
+                        SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                        WHERE sanitize_plant_name(synonym) ILIKE '%' || v_clean_search || '%'
+                           OR sanitize_plant_name(synonym) ILIKE v_clean_search || '%'
+                           OR sanitize_plant_name(synonym) ILIKE '%' || v_clean_search_no_quotes || '%'
+                    )
+                    -- Partial matching in synonyms with typo tolerance
+                    OR (LENGTH(v_clean_search) >= 3 AND EXISTS (
+                        SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                        WHERE sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_clean_search, 3) || '%'
+                           OR sanitize_plant_name(synonym) ILIKE '%' || RIGHT(v_clean_search, 3) || '%'
+                           -- Add more aggressive partial matching for typos
+                           OR (LENGTH(v_clean_search) >= 5 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_clean_search, 4) || '%')
+                           OR (LENGTH(v_clean_search) >= 6 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_clean_search, 5) || '%')
+                    ))
+                    -- Prefix matching in synonyms
+                    OR (LENGTH(v_clean_search) >= 2 AND EXISTS (
+                        SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                        WHERE sanitize_plant_name(synonym) ILIKE LEFT(v_clean_search, 2) || '%'
+                    ))
+                    -- Word-level partial matching for scientific names (handles "Acer ginalla" vs "Acer ginnala")
+                    OR (array_length(v_search_words, 1) >= 2 AND EXISTS (
+                        SELECT 1 FROM unnest(string_to_array(f.has_synonyms, ' | ')) AS synonym
+                        WHERE (v_search_words[1] IS NOT NULL AND sanitize_plant_name(synonym) ILIKE '%' || v_search_words[1] || '%')
+                           AND (v_search_words[2] IS NOT NULL AND (
+                               sanitize_plant_name(synonym) ILIKE '%' || v_search_words[2] || '%'
+                               OR (LENGTH(v_search_words[2]) >= 4 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[2], 3) || '%')
+                               OR (LENGTH(v_search_words[2]) >= 5 AND sanitize_plant_name(synonym) ILIKE '%' || LEFT(v_search_words[2], 4) || '%')
+                           ))
+                    ))
+                ))
+                
+                -- Very lenient matching for single character or very short terms
+                OR (
+                    LENGTH(v_clean_search) = 1 AND 
+                    sanitize_plant_name(f.name) ILIKE v_clean_search || '%'
+                )
+                
+                -- NEW: Reverse matching for gibberish handling
+                -- Plant name appears at the beginning of search term (handles "Rosa rugosa gibberish")
+                OR (
+                    LENGTH(f.name) >= 4 AND 
+                    v_clean_search ILIKE sanitize_plant_name(f.name) || '%'
+                )
+                
+                -- NEW: Partial reverse matching for shorter plant names
+                OR (
+                    LENGTH(f.name) >= 6 AND 
+                    v_clean_search ILIKE LEFT(sanitize_plant_name(f.name), 6) || '%'
+                )
+                
+                -- NEW: Word-level reverse matching for multi-word plant names
+                OR (
+                    array_length(string_to_array(f.name, ' '), 1) >= 2 AND
+                    v_clean_search ILIKE sanitize_plant_name(split_part(f.name, ' ', 1)) || ' ' || sanitize_plant_name(split_part(f.name, ' ', 2)) || '%'
+                )
+            )
+        )        SELECT 
+            fc.id,
+            fc.name,
+            fc.sv_name,
+            fc.plant_type,
+            fc.has_synonyms,
+            fc.has_synonyms_id,
+            fc.user_submitted,
+            fc.created_by
+        FROM fallback_candidates fcORDER BY 
+            fc.match_priority,
+            fc.name_length,
+            fc.name
+        LIMIT v_fallback_limit;
+        END IF; -- Close Step 3
+    END IF; -- Close Step 2
+    
+END;
+$$ LANGUAGE plpgsql
+SET client_encoding = 'UTF8'
+SET statement_timeout = '30s';  -- Hard timeout to prevent hangs
+
+-- =====================================================================================
+-- Batch version with timeout protection
+-- =====================================================================================
+
+DROP FUNCTION IF EXISTS search_plants_fuzzy_match_batch(TEXT[], INTEGER, FLOAT);
+
+CREATE OR REPLACE FUNCTION search_plants_fuzzy_match_batch(
+    p_search_terms TEXT[],
+    p_result_limit INTEGER DEFAULT 25,
+    p_minimum_similarity FLOAT DEFAULT 0.3
+)
+RETURNS TABLE(
+    search_term TEXT,
+    id BIGINT,
+    name TEXT,
+    sv_name TEXT,
+    plant_type TEXT,
+    has_synonyms TEXT,
+    has_synonyms_id TEXT,
+    user_submitted BOOLEAN,
+    created_by BIGINT
+) AS $$
+DECLARE
+    v_limit INTEGER;
+    term TEXT;
+BEGIN
+    -- Input validation
+    IF p_search_terms IS NULL OR array_length(p_search_terms, 1) = 0 THEN
+        RETURN;
+    END IF;
+    
+    v_limit := GREATEST(5, LEAST(50, COALESCE(p_result_limit, 25)));
+    
+    -- Process each term individually to prevent timeout
+    FOREACH term IN ARRAY p_search_terms
+    LOOP
+        IF term IS NOT NULL AND TRIM(term) != '' THEN
+            RETURN QUERY            SELECT 
+                term,
+                candidates.id,
+                candidates.name,
+                candidates.sv_name,
+                candidates.plant_type,
+                candidates.has_synonyms,
+                candidates.has_synonyms_id,
+                candidates.user_submitted,
+                candidates.created_by
+            FROM search_plants_fuzzy_match(term, v_limit, p_minimum_similarity) AS candidates;
+        END IF;
+    END LOOP;
+    
+END;
+$$ LANGUAGE plpgsql
+SET client_encoding = 'UTF8'
+SET statement_timeout = '60s';
+
+-- =====================================================================================
+-- Simplified indexes for ultra-fast text search
+-- =====================================================================================
+
+
+-- Create minimal, fast indexes (only for fields we actually search)
+CREATE INDEX IF NOT EXISTS idx_facit_fast_search_name 
+ON facit (LOWER(name) text_pattern_ops) 
+WHERE synonym_to IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_facit_fast_search_synonyms 
+ON facit (LOWER(has_synonyms) text_pattern_ops) 
+WHERE synonym_to IS NULL AND has_synonyms IS NOT NULL;
+
+-- Core lookup index (keeping sv_name for SELECT, just not searching on it)
+CREATE INDEX IF NOT EXISTS idx_facit_core_lookup
+ON facit (id, name, sv_name, plant_type)
+WHERE synonym_to IS NULL;
+
+-- Update statistics
+ANALYZE facit;

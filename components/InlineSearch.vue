@@ -1,7 +1,5 @@
 <script setup lang="ts">
-// InlineSearch component for navbar/hero
-// Updated to use high-performance server-side search instead of loading all data into memory
-import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
+import type { InlineSearchResult } from '~/composables/useSearch';
 import { usePlantType } from '~/composables/usePlantType';
 
 // Props: mode controls size/layout
@@ -15,11 +13,11 @@ const isFocused = ref(false);
 
 const supabase = useSupabaseClient();
 const router = useRouter();
-const { searchAvailablePlants } = useSearch();
+const { searchInline } = useSearch();
 const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
 const search = ref('');
-const results = ref<AvailablePlantSimilaritySearchResult[]>([]);
+const results = ref<InlineSearchResult[]>([]);
 const loading = ref(false);
 const showDropdown = ref(false);
 const minChars = 2; // Reduced from 3 for better UX
@@ -33,14 +31,12 @@ const debouncedSearch = useDebounceFn(async () => {
     showDropdown.value = false;
     return;
   }
-
   loading.value = true;
   try {
-    const searchResult = await searchAvailablePlants(search.value, {
-      limit: maxResults,
-    });
+    const searchResult = await searchInline(search.value, maxResults);
 
-    results.value = searchResult.results;
+    // Filter for plants only since this is a plant search component
+    results.value = searchResult.filter((item) => item.type === 'plant');
     showDropdown.value = results.value.length > 0;
   } catch (error) {
     console.error('Search error:', error);
@@ -76,6 +72,7 @@ function onEnter(e: KeyboardEvent) {
     deSelect();
     e.preventDefault();
     goToAllResults();
+    search.value = '';
   }
 }
 
