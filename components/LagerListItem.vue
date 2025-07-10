@@ -7,6 +7,7 @@ import { usePlantType } from '~/composables/usePlantType';
 
 const supabase = useSupabaseClient();
 const user = useSupabaseUser();
+const toast = useToast();
 const { width, height } = useWindowSize();
 const props = defineProps<{ plant: LagerComplete }>();
 const emit = defineEmits(['update']);
@@ -39,6 +40,12 @@ const menuOpen = ref(false);
 const duplicateLoading = ref(false);
 const duplicateError = ref<string | null>(null);
 
+// State for custom field name editing
+const editingFieldName = ref(false);
+const newFieldName = ref('');
+const fieldNameLoading = ref(false);
+const fieldNameError = ref<string | null>(null);
+
 // Icon for expand/collapse
 const expandIcon = computed(() =>
   isExpanded.value ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'
@@ -63,6 +70,18 @@ const openEdit = (field: string, value: any) => {
   editField.value = field;
   editValue.value = value;
   error.value = null;
+  editingFieldName.value = false;
+  fieldNameError.value = null;
+};
+
+// Open field name editor
+const openEditFieldName = (fieldKey: string) => {
+  editField.value = `custom_field_${fieldKey}`;
+  newFieldName.value = fieldKey;
+  editingFieldName.value = true;
+  modalOpen.value = true;
+  error.value = null;
+  fieldNameError.value = null;
 };
 
 // PlantPicker select handler
@@ -84,6 +103,99 @@ const closeEdit = () => {
   editField.value = null;
   editValue.value = null;
   error.value = null;
+  editingFieldName.value = false;
+  fieldNameError.value = null;
+  newFieldName.value = '';
+};
+
+// Update custom field name across all lager items for this plantskola
+const updateCustomFieldName = async () => {
+  if (!editField.value || !editField.value.startsWith('custom_field_')) return;
+  if (!newFieldName.value.trim()) {
+    fieldNameError.value = 'Fältnamnet får inte vara tomt';
+    return;
+  }
+
+  const oldFieldKey = editField.value.replace('custom_field_', '');
+  const newFieldKey = newFieldName.value.trim();
+
+  // Don't update if name hasn't changed
+  if (oldFieldKey === newFieldKey) {
+    editingFieldName.value = false;
+    return;
+  }
+
+  fieldNameLoading.value = true;
+  fieldNameError.value = null;
+
+  try {
+    // Get all lager items for this plantskola that have the old field name
+    const { data: lagerItems, error: fetchError } = await supabase
+      .from('totallager')
+      .select('id, own_columns')
+      .eq('plantskola_id', props.plant.plantskola_id)
+      .not('own_columns', 'is', null);
+
+    if (fetchError) throw new Error(fetchError.message);
+
+    // Filter items that have the old field key
+    const itemsToUpdate =
+      (lagerItems as any)?.filter(
+        (item: any) =>
+          item.own_columns &&
+          typeof item.own_columns === 'object' &&
+          oldFieldKey in item.own_columns
+      ) || [];
+
+    if (itemsToUpdate.length === 0) {
+      fieldNameError.value = 'Inga poster hittades med detta fältnamn';
+      return;
+    }
+
+    // Update each item by renaming the field
+    const updatePromises = itemsToUpdate.map(async (item: any) => {
+      const ownColumns = item.own_columns as Record<string, any>;
+      const updatedColumns = { ...ownColumns };
+
+      // Move value from old key to new key
+      if (oldFieldKey in updatedColumns) {
+        updatedColumns[newFieldKey] = updatedColumns[oldFieldKey];
+        delete updatedColumns[oldFieldKey];
+      }
+
+      // Update the database
+      return (supabase.from('totallager') as any)
+        .update({ own_columns: updatedColumns })
+        .eq('id', item.id);
+    });
+
+    // Execute all updates
+    const results = await Promise.all(updatePromises);
+
+    // Check for errors
+    const hasErrors = results.some((result) => result.error);
+    if (hasErrors) {
+      throw new Error('Kunde inte uppdatera alla poster');
+    }
+
+    // Emit update event to refresh data
+    emit('update');
+
+    // Close the editing mode
+    editingFieldName.value = false;
+    modalOpen.value = false;
+
+    // Show success message
+    toast.add({
+      title: 'Fältnamn uppdaterat',
+      description: `${itemsToUpdate.length} poster uppdaterade med det nya fältnamnet "${newFieldKey}"`,
+      color: 'primary',
+    });
+  } catch (e: any) {
+    fieldNameError.value = e.message || 'Kunde inte uppdatera fältnamnet';
+  } finally {
+    fieldNameLoading.value = false;
+  }
 };
 
 // Update field in Lager Store
@@ -218,7 +330,7 @@ const duplicatePlant = async () => {
     newPlant.created_at = new Date().toISOString();
     newPlant.last_edited = newPlant.created_at;
     // Insert new plant
-    const { error } = await supabase.from('totallager').insert([newPlant]);
+    const { error } = await (supabase.from('totallager') as any).insert([newPlant]);
     if (error) throw new Error(error.message);
     emit('update');
     menuOpen.value = false;
@@ -392,7 +504,7 @@ const hasPrivateData = computed(() => {
     <Transition name="expand-fade">
       <div
         v-show="isExpanded"
-        class="mt-2 pt-2 pr-2 border-t border-border/40 dark:border-border/70 space-y-3"
+        class="mt-2 pt-2 pr-2 border-t border-border/40 dark:border-border/70"
       >
         <!-- Plant Type Badges -->
         <div class="flex flex-wrap gap-2 xl:hidden">
@@ -489,15 +601,7 @@ const hasPrivateData = computed(() => {
             />
           </div>
 
-          <!-- Plant Database ID -->
-          <div class="flex items-center gap-2">
-            <span class="text-sm">
-              <span class="text-t-toned">Växt-ID:</span>
-              {{ plant.facit_id }}
-            </span>
-          </div>
-
-          <!-- Grupp (if available in future) -->
+          <!-- Grupp -->
           <div v-if="plant.facit_grupp" class="flex items-center gap-2">
             <span class="text-sm">
               <span class="text-t-toned">Grupp:</span>
@@ -537,10 +641,22 @@ const hasPrivateData = computed(() => {
           <!-- Custom Fields (JSONB data) -->
           <div v-if="customFields.length > 0" class="">
             <h4 class="text-sm font-semibold text-t-toned">Anpassade fält:</h4>
-            <div class="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              <div v-for="field in customFields" :key="field.key" class="flex items-center gap-2">
+            <div class="flex flex-wrap gap-x-2">
+              <div v-for="field in customFields" :key="field.key" class="flex items-center gap-1">
                 <span class="text-sm">
-                  <span class="text-t-toned">{{ field.displayKey }}:</span>
+                  <span class="text-t-toned cursor-pointer group relative">
+                    {{ field.displayKey }}:
+                    <UButton
+                      v-if="canEdit"
+                      icon="i-heroicons-pencil-square"
+                      size="xs"
+                      color="neutral"
+                      variant="ghost"
+                      class="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity ml-1"
+                      @click="openEditFieldName(field.key)"
+                      :ui="{ leadingIcon: 'scale-75' }"
+                    />
+                  </span>
                   {{ field.value }}
                 </span>
                 <UButton
@@ -554,37 +670,54 @@ const hasPrivateData = computed(() => {
               </div>
             </div>
           </div>
-          <div class="flex flex-col justify-center">
-            <span v-if="plant.created_at" class="text-t-muted text-xs">
-              <span>Tillagd: </span>
-              <span>
-                {{
-                  new Date(plant.created_at).toLocaleDateString('sv-SE', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                  })
-                }}
-              </span>
-            </span>
-            <span
-              v-if="plant.last_edited && plant.last_edited !== plant.created_at"
-              class="text-t-muted text-xs"
-            >
-              <span>Senast ändrad: </span>
-              <span>
-                {{
-                  new Date(plant.last_edited).toLocaleDateString('sv-SE', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                  })
-                }}
-              </span>
-            </span>
-          </div>
         </div>
 
+        <div class="flex items-center justify-end gap-x-2 mb-2">
+          <span v-if="plant.created_at" class="text-t-muted text-xs">
+            <span>Tillagd: </span>
+            <span>
+              {{
+                new Date(plant.created_at).toLocaleDateString('sv-SE', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                })
+              }}
+            </span>
+          </span>
+          <span
+            v-if="plant.last_edited && plant.last_edited !== plant.created_at"
+            class="text-t-muted text-xs"
+          >
+            <span>Senast ändrad: </span>
+            <span>
+              {{
+                new Date(plant.last_edited).toLocaleDateString('sv-SE', {
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                })
+              }}
+            </span>
+          </span>
+          <!-- Plant Database ID -->
+          <span class="text-t-muted text-xs">
+            <UTooltip text="ID för den valda växten i vårt facit" :delay-duration="0">
+              <span class="w-fit">
+                <span>Växt-ID: </span>
+                <span>{{ plant.facit_id }}</span>
+              </span>
+            </UTooltip>
+          </span>
+          <span class="text-t-muted text-xs">
+            <UTooltip text="ID för växten i ert lager" :delay-duration="0">
+              <span class="w-fit">
+                <span>Varu-ID: </span>
+                <span>{{ plant.id }}</span>
+              </span>
+            </UTooltip>
+          </span>
+        </div>
         <!-- Actions -->
         <div
           class="flex items-center justify-end gap-2 pt-3 border-t border-border/40 dark:border-border/70"
@@ -690,7 +823,41 @@ const hasPrivateData = computed(() => {
       :ui="{ content: 'p-4' }"
     >
       <template #content>
-        <div v-if="editField === 'facit_id'">
+        <div v-if="editingFieldName">
+          <h2 class="text-lg font-semibold">Redigera fältnamn</h2>
+          <p class="text-sm text-t-muted mb-4">
+            Detta kommer att uppdatera fältnamnet för alla växter i ert lager som använder detta
+            fält.
+          </p>
+
+          <UInput
+            v-model="newFieldName"
+            placeholder="Nytt fältnamn"
+            autofocus
+            size="xl"
+            class="mb-4"
+          />
+
+          <div class="flex gap-2 justify-end">
+            <UButton type="button" color="neutral" variant="ghost" @click="closeEdit">
+              Avbryt
+            </UButton>
+            <UButton
+              type="button"
+              color="primary"
+              :loading="fieldNameLoading"
+              :disabled="
+                !newFieldName.trim() ||
+                newFieldName.trim() === (editField?.replace('custom_field_', '') || '')
+              "
+              @click="updateCustomFieldName"
+            >
+              Uppdatera fältnamn
+            </UButton>
+          </div>
+          <div v-if="fieldNameError" class="text-error mt-2">{{ fieldNameError }}</div>
+        </div>
+        <div v-else-if="editField === 'facit_id'">
           <PlantPicker
             @select="onPlantSelect"
             @addSelect="onAddPlantSelect"
@@ -718,7 +885,7 @@ const hasPrivateData = computed(() => {
             {{
               editField
                 ? editField.startsWith('custom_field_')
-                  ? customFields.find((f) => f.key === editField.replace('custom_field_', ''))
+                  ? customFields.find((f) => f.key === editField?.replace('custom_field_', ''))
                       ?.displayKey || 'Anpassat fält'
                   : {
                       comment_by_plantskola: 'Kommentar',
@@ -776,7 +943,7 @@ const hasPrivateData = computed(() => {
             :placeholder="
               editField && editField.startsWith('custom_field_')
                 ? `Värde för ${
-                    customFields.find((f) => f.key === editField.replace('custom_field_', ''))
+                    customFields.find((f) => f.key === editField?.replace('custom_field_', ''))
                       ?.displayKey || 'anpassat fält'
                   }`
                 : editField === 'id_by_plantskola'

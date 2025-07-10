@@ -80,6 +80,24 @@ const customFields = ref<Array<{ key: string; name: string; column: string }>>([
 const showAddCustomField = ref(false);
 const newCustomField = ref({ name: '', column: '' });
 
+// Plant edit modal custom fields
+const showAddCustomFieldInEdit = ref(false);
+const newCustomFieldInEdit = ref({ name: '', column: '', value: '', forAll: false });
+const deleteCustomFieldModal = ref({
+  open: false,
+  field: null as any,
+  editIndex: null as number | null,
+});
+
+// State for editing field names
+const editingFieldName = ref({
+  isEditing: false,
+  fieldKey: '',
+  newName: '',
+  isGlobal: false,
+  editIndex: null as number | null,
+});
+
 // Plant validation - simplified for inline matching
 const validatedPlants = ref<
   {
@@ -138,7 +156,8 @@ const editingPlant = ref<{
     comment: string;
     private_comment: string;
     id_by_plantskola: string;
-    [key: string]: string; // For custom fields
+    plantSpecificFields?: Array<{ key: string; name: string; column: string }>;
+    [key: string]: any; // For custom fields
   } | null;
 }>({
   index: null,
@@ -258,7 +277,10 @@ const parseCSV = async (file: File): Promise<void> => {
             return;
           }
 
-          rawData.value = results.data as any[];
+          // Filter out completely empty rows before assigning to rawData
+          const filteredData = filterEmptyRows(results.data as any[]);
+
+          rawData.value = filteredData;
           headers.value = results.meta.fields || [];
           previewData.value = rawData.value.slice(0, 5);
 
@@ -311,7 +333,7 @@ const parseExcel = async (file: File): Promise<void> => {
         const dataRows = jsonData.slice(1);
 
         // Convert rows to objects
-        rawData.value = dataRows.map((row) => {
+        const dataObjects = dataRows.map((row) => {
           const obj: any = {};
           headers.value.forEach((header, index) => {
             obj[header] = row[index] || '';
@@ -319,6 +341,8 @@ const parseExcel = async (file: File): Promise<void> => {
           return obj;
         });
 
+        // Filter out completely empty rows before assigning to rawData
+        rawData.value = filterEmptyRows(dataObjects);
         previewData.value = rawData.value.slice(0, 5);
         resolve();
       } catch (error: any) {
@@ -352,7 +376,8 @@ const parseJSON = async (file: File): Promise<void> => {
           return;
         }
 
-        rawData.value = jsonData;
+        // Filter out completely empty rows before assigning to rawData
+        rawData.value = filterEmptyRows(jsonData);
         headers.value = Object.keys(jsonData[0] || {});
         previewData.value = rawData.value.slice(0, 5);
         resolve();
@@ -439,64 +464,181 @@ const setupColumnMapping = () => {
 
 // Custom fields management
 const addCustomField = () => {
-  if (!newCustomField.value.name.trim() || !newCustomField.value.column) {
-    toast.add({
-      title: 'Ofullständig information',
-      description: 'Ange både fältnamn och kolumn för det anpassade fältet.',
-      color: 'error',
-    });
-    return;
-  }
-
-  // Check if field name already exists
-  if (customFields.value.some((field) => field.name === newCustomField.value.name.trim())) {
-    toast.add({
-      title: 'Fältnamn finns redan',
-      description: 'Välj ett annat namn för det anpassade fältet.',
-      color: 'error',
-    });
-    return;
-  }
-
-  // Check if column is already used by another custom field
-  if (customFields.value.some((field) => field.column === newCustomField.value.column)) {
-    toast.add({
-      title: 'Kolumn redan använd',
-      description: 'Denna kolumn är redan mappad till ett annat anpassat fält.',
-      color: 'error',
-    });
-    return;
-  }
-
-  // Generate a unique key for the custom field
-  const fieldKey = `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  if (!newCustomField.value.name.trim() || !newCustomField.value.column) return;
 
   customFields.value.push({
-    key: fieldKey,
-    name: newCustomField.value.name.trim(),
+    key: `${newCustomField.value.name}-${Date.now()}`,
+    name: newCustomField.value.name,
     column: newCustomField.value.column,
   });
 
-  // Reset form
-  newCustomField.value = { name: '', column: '' };
   showAddCustomField.value = false;
-
-  // toast.add({
-  //   title: 'Anpassat fält tillagt',
-  //   description: `Fältet "${newCustomField.value.name}" har lagts till.`,
-  //   color: 'success',
-  // });
+  newCustomField.value = { name: '', column: '' };
 };
 
 const removeCustomField = (index: number) => {
   const field = customFields.value[index];
   customFields.value.splice(index, 1);
 
-  // toast.add({
-  //   title: 'Anpassat fält borttaget',
-  //   description: `Fältet "${field.name}" har tagits bort.`,
-  //   color: 'success',
-  // });
+  // Remove this field from all plants' data as well
+  validatedPlants.value.forEach((plant) => {
+    if (plant.original[field.column]) {
+      delete plant.original[field.column];
+    }
+  });
+};
+
+// Custom field management in edit modal
+// Handle column change in edit modal custom field
+const onColumnChangeInEdit = () => {
+  // Auto-populate value with data from selected column for current plant
+  if (newCustomFieldInEdit.value.column && editingPlant.value?.index !== null) {
+    const plant = validatedPlants.value[editingPlant.value.index];
+    if (plant?.original) {
+      const columnValue = plant.original[newCustomFieldInEdit.value.column];
+      newCustomFieldInEdit.value.value = columnValue || '';
+    }
+  } else {
+    // Clear value and reset forAll flag if no column selected
+    newCustomFieldInEdit.value.value = '';
+    newCustomFieldInEdit.value.forAll = false;
+  }
+};
+
+const addCustomFieldToEditPlant = () => {
+  if (!newCustomFieldInEdit.value.name.trim()) return;
+
+  const fieldKey = `custom_${newCustomFieldInEdit.value.name
+    .replace(/\s+/g, '_')
+    .toLowerCase()}_${Date.now()}`;
+  const newField = {
+    key: fieldKey,
+    name: newCustomFieldInEdit.value.name,
+    column: newCustomFieldInEdit.value.column || '',
+  };
+
+  if (newCustomFieldInEdit.value.forAll && newCustomFieldInEdit.value.column) {
+    // Add to global custom fields (only if column is specified)
+    customFields.value.push({
+      key: fieldKey,
+      name: newCustomFieldInEdit.value.name,
+      column: newCustomFieldInEdit.value.column,
+    });
+
+    // Add to all plants' edit data if currently editing
+    if (editingPlant.value.data) {
+      editingPlant.value.data[fieldKey] = newCustomFieldInEdit.value.value || '';
+    }
+  } else {
+    // Add only to current plant's edit data
+    if (editingPlant.value.data) {
+      if (!Array.isArray(editingPlant.value.data.plantSpecificFields)) {
+        editingPlant.value.data.plantSpecificFields = [];
+      }
+      editingPlant.value.data.plantSpecificFields.push(newField);
+      editingPlant.value.data[fieldKey] = newCustomFieldInEdit.value.value || '';
+    }
+  }
+
+  showAddCustomFieldInEdit.value = false;
+  newCustomFieldInEdit.value = { name: '', column: '', value: '', forAll: false };
+};
+
+const openDeleteCustomFieldModal = (editIndex: number, field: any) => {
+  deleteCustomFieldModal.value = {
+    open: true,
+    field,
+    editIndex,
+  };
+};
+
+const deleteCustomFieldForAll = () => {
+  const field = deleteCustomFieldModal.value.field;
+  if (!field) return;
+
+  // Remove from global custom fields
+  const globalIndex = customFields.value.findIndex((f) => f.key === field.key);
+  if (globalIndex !== -1) {
+    customFields.value.splice(globalIndex, 1);
+  }
+
+  // Remove from all plants' data
+  validatedPlants.value.forEach((plant) => {
+    if (plant.original[field.column]) {
+      delete plant.original[field.column];
+    }
+  });
+
+  // Remove from current edit data
+  if (editingPlant.value.data && editingPlant.value.data[field.key] !== undefined) {
+    delete editingPlant.value.data[field.key];
+  }
+
+  deleteCustomFieldModal.value = { open: false, field: null, editIndex: null };
+};
+
+const deleteCustomFieldForThisPlant = () => {
+  const field = deleteCustomFieldModal.value.field;
+  const editIndex = deleteCustomFieldModal.value.editIndex;
+
+  if (!field || editIndex === null) return;
+
+  // Remove from current plant's plant-specific fields
+  if (Array.isArray(editingPlant.value.data?.plantSpecificFields)) {
+    editingPlant.value.data.plantSpecificFields.splice(editIndex, 1);
+  }
+
+  // Remove from current edit data
+  if (editingPlant.value.data && editingPlant.value.data[field.key] !== undefined) {
+    delete editingPlant.value.data[field.key];
+  }
+
+  deleteCustomFieldModal.value = { open: false, field: null, editIndex: null };
+};
+
+// Functions for editing field names
+const startEditingFieldName = (field: any, isGlobal: boolean, editIndex: number | null = null) => {
+  editingFieldName.value = {
+    isEditing: true,
+    fieldKey: field.key,
+    newName: field.name,
+    isGlobal,
+    editIndex,
+  };
+};
+
+const cancelEditingFieldName = () => {
+  editingFieldName.value = {
+    isEditing: false,
+    fieldKey: '',
+    newName: '',
+    isGlobal: false,
+    editIndex: null,
+  };
+};
+
+const saveFieldNameEdit = () => {
+  const { fieldKey, newName, isGlobal, editIndex } = editingFieldName.value;
+
+  if (!fieldKey || !newName.trim()) return;
+
+  if (isGlobal) {
+    // Update global custom field name
+    const globalField = customFields.value.find((f) => f.key === fieldKey);
+    if (globalField) {
+      globalField.name = newName.trim();
+    }
+  } else {
+    // Update plant-specific field name
+    if (Array.isArray(editingPlant.value.data?.plantSpecificFields) && editIndex !== null) {
+      const plantField = editingPlant.value.data.plantSpecificFields[editIndex];
+      if (plantField) {
+        plantField.name = newName.trim();
+      }
+    }
+  }
+
+  cancelEditingFieldName();
 };
 
 const getAvailableColumnsForCustomFields = () => {
@@ -528,6 +670,35 @@ const sanitizePlantName = (name: string): string => {
       .replace(/\s+/g, ' ')
       .trim()
   );
+};
+
+// Function to check if a row is completely empty
+const isRowEmpty = (row: any): boolean => {
+  if (!row || typeof row !== 'object') return true;
+
+  // Check if all values in the row are empty, null, undefined, or only whitespace
+  return Object.values(row).every((value) => {
+    if (value === null || value === undefined) return true;
+    if (typeof value === 'string') return value.trim() === '';
+    if (typeof value === 'number') return false; // Numbers (even 0) are not considered empty
+    if (typeof value === 'boolean') return false; // Booleans are not considered empty
+    return !value; // For other types, use truthiness
+  });
+};
+
+// Function to filter out empty rows from parsed data
+const filterEmptyRows = (data: any[]): any[] => {
+  const filteredData = data.filter((row) => !isRowEmpty(row));
+
+  // Log the filtering result for debugging
+  const removedCount = data.length - filteredData.length;
+  if (removedCount > 0) {
+    console.log(
+      `Filtered out ${removedCount} empty rows from imported data. Remaining: ${filteredData.length} rows`
+    );
+  }
+
+  return filteredData;
 };
 
 const sanitizeNumericValue = (value: any): number => {
@@ -885,6 +1056,16 @@ const openEditPlant = (index: number) => {
     editData[field.key] = sanitizeTextValue(plant.original[field.column]) || '';
   });
 
+  // Add plant-specific custom fields (stored in the plant's original data)
+  editData.plantSpecificFields = plant.original._plantSpecificFields || [];
+
+  // Add values for plant-specific custom fields
+  if (Array.isArray(editData.plantSpecificFields)) {
+    editData.plantSpecificFields.forEach((field: any) => {
+      editData[field.key] = plant.original[`_${field.key}`] || '';
+    });
+  }
+
   editingPlant.value = {
     index,
     data: editData,
@@ -931,6 +1112,17 @@ const saveEditedPlant = () => {
       plant.original[field.column] = data[field.key];
     }
   });
+
+  // Save plant-specific custom fields
+  if (Array.isArray(data.plantSpecificFields)) {
+    plant.original._plantSpecificFields = data.plantSpecificFields;
+    // Also save the values for plant-specific fields
+    data.plantSpecificFields.forEach((field: any) => {
+      if (data[field.key] !== undefined) {
+        plant.original[`_${field.key}`] = data[field.key];
+      }
+    });
+  }
 
   // Close modal and reset state
   editPlantModal.value = false;
@@ -989,12 +1181,24 @@ const performImport = async () => {
       try {
         // Build custom fields object
         const ownColumns: Record<string, any> = {};
+
+        // Add global custom fields
         customFields.value.forEach((field) => {
           const value = plant.original[field.column];
           if (value !== undefined && value !== null && value !== '') {
             ownColumns[field.name] = sanitizeTextValue(value);
           }
         });
+
+        // Add plant-specific custom fields
+        if (Array.isArray(plant.original._plantSpecificFields)) {
+          plant.original._plantSpecificFields.forEach((field: any) => {
+            const value = plant.original[`_${field.key}`];
+            if (value !== undefined && value !== null && value !== '') {
+              ownColumns[field.name] = sanitizeTextValue(value);
+            }
+          });
+        }
         const lagerData: Partial<Totallager> = {
           facit_id: plant.selectedFacitId!,
           plantskola_id: plantskola.value.id,
@@ -1302,7 +1506,7 @@ const canProceedToImport = computed(() => {
                 <div>
                   <h4 class="font-medium">Matcha kolumner</h4>
                   <p class="text-sm text-t-toned">
-                    Välj vilka kolumner i din fil som motsvarar våra standardfält. Du kan också
+                    Välj vilka kolumner i din fil som motsvarar våra standardfält. Du får gärna även
                     lägga till anpassade fält för extra information.
                   </p>
                 </div>
@@ -1583,9 +1787,7 @@ const canProceedToImport = computed(() => {
             Välj vilka kolumner i din fil som motsvarar databasens kolumner
           </p>
         </template>
-
         <div class="space-y-6">
-          <!-- Column Mapping -->
           <div class="grid grid-cols-1 lg:grid-cols-[40%_60%] gap-6">
             <div class="space-y-6">
               <!-- Standard Fields -->
@@ -1623,7 +1825,7 @@ const canProceedToImport = computed(() => {
                 <div class="flex items-center justify-between">
                   <h3 class="text-lg font-medium">Egna fält</h3>
                   <UButton
-                    v-if="getAvailableColumnsForCustomFields().length > 0"
+                    v-if="getAvailableColumnsForCustomFields().length > 0 || true"
                     variant="outline"
                     size="sm"
                     icon="i-heroicons-plus"
@@ -1632,14 +1834,12 @@ const canProceedToImport = computed(() => {
                     Lägg till fält
                   </UButton>
                 </div>
-
                 <!-- Add Custom Field Form -->
                 <div
                   v-if="showAddCustomField"
                   class="bg-bg-elevated p-4 rounded-lg border border-border space-y-3"
                 >
                   <h4 class="font-medium">Nytt anpassat fält</h4>
-
                   <div class="space-y-2">
                     <label class="block text-sm font-medium">Fältnamn:</label>
                     <UInput
@@ -1648,7 +1848,6 @@ const canProceedToImport = computed(() => {
                       class="w-full"
                     />
                   </div>
-
                   <div class="space-y-2">
                     <label class="block text-sm font-medium">Välj kolumn:</label>
                     <USelect
@@ -1660,7 +1859,6 @@ const canProceedToImport = computed(() => {
                       class="w-full"
                     />
                   </div>
-
                   <div class="flex space-x-2">
                     <UButton
                       size="sm"
@@ -1707,7 +1905,8 @@ const canProceedToImport = computed(() => {
                   v-if="customFields.length === 0 && !showAddCustomField"
                   class="text-sm text-t-muted"
                 >
-                  Här kan du lägga till egna fält från din fil som inte finns som standardfält.
+                  Här kan du lägga till egna fält från din fil eller skapa egna fält utan
+                  kolumnkoppling.
                 </div>
 
                 <div
@@ -1719,7 +1918,6 @@ const canProceedToImport = computed(() => {
                 </div>
               </div>
             </div>
-
             <!-- Data Preview -->
             <div class="space-y-4 max-lg:border-t max-lg:border-border pt-6">
               <h3 class="text-lg font-medium">Förhandsvisning av uppladdad data</h3>
@@ -1857,14 +2055,31 @@ const canProceedToImport = computed(() => {
                 <h4 class="font-medium" :class="{ 'line-through': plant.status === 'manual' }">
                   {{ plant.original[columnMapping.name] }}
                 </h4>
-
                 <!-- Found Match -->
                 <div v-if="plant.status === 'found' && plant.facitMatch" class="mn-1">
-                  <span class="text-primary font-medium">✓ Hittad: </span>
-                  {{ plant.facitMatch.name }}
-                  <span v-if="plant.facitMatch.sv_name" class="opacity-60 ml-1">
-                    {{ plant.facitMatch.sv_name }}
-                  </span>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-primary font-medium">✓ Hittad: </span>
+                    <span>{{ plant.facitMatch.name }}</span>
+                    <span v-if="plant.facitMatch.sv_name" class="opacity-60">
+                      {{ plant.facitMatch.sv_name }}
+                    </span>
+                    <!-- Perfect match badge (99.9%+ - truly exact) -->
+                    <span
+                      v-if="(plant.facitMatch as any).similarity_score >= 0.999"
+                      class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary text-white"
+                    >
+                      <UIcon name="i-heroicons-check" class="w-3 h-3 mr-1" />
+                      Exakt
+                    </span>
+                    <!-- Near-exact match badge (95-99.8%) -->
+                    <span
+                      v-else-if="(plant.facitMatch as any).similarity_score >= 0.95"
+                      class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-secondary/70 text-white"
+                    >
+                      <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
+                      Nästan exakt match
+                    </span>
+                  </div>
                 </div>
                 <!-- Manual Selection -->
                 <div v-if="plant.status === 'manual' && plant.selectedFacitId" class="mn-1">
@@ -1961,10 +2176,24 @@ const canProceedToImport = computed(() => {
                 </div>
 
                 <!-- Custom Fields Display -->
-                <div v-if="customFields.length > 0" class="text-sm text-t-toned mt-1">
+                <div
+                  v-if="customFields.length > 0 || plant.original._plantSpecificFields"
+                  class="text-sm text-t-toned mt-1"
+                >
+                  <!-- Global custom fields -->
                   <span v-for="field in customFields" :key="field.key" class="inline-block mr-3">
                     <span v-if="plant.original[field.column]">
                       {{ field.name }}: {{ sanitizeTextValue(plant.original[field.column]) }}
+                    </span>
+                  </span>
+                  <!-- Plant-specific custom fields -->
+                  <span
+                    v-for="field in plant.original._plantSpecificFields || []"
+                    :key="field.key"
+                    class="inline-block mr-3"
+                  >
+                    <span v-if="plant.original[`_${field.key}`]">
+                      {{ field.name }}: {{ sanitizeTextValue(plant.original[`_${field.key}`]) }}
                     </span>
                   </span>
                 </div>
@@ -2041,16 +2270,8 @@ const canProceedToImport = computed(() => {
                             <div class="flex-1 min-w-0">
                               <div class="font-medium flex items-center gap-2">
                                 {{ suggestion.name }}
-                                <!-- High confidence indicator -->
+                                <!-- Good match indicator (suggestions are < 95% since auto-selection happens at 95%+) -->
                                 <span
-                                  v-if="(suggestion as any).similarity_score >= 0.95"
-                                  class="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary text-white"
-                                >
-                                  <UIcon name="i-heroicons-check" class="w-3 h-3 mr-1" />
-                                  Exakt
-                                </span>
-                                <span
-                                  v-else
                                   class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-success text-white"
                                 >
                                   Bra match
@@ -2514,19 +2735,216 @@ const canProceedToImport = computed(() => {
               </div>
             </div>
 
-            <!-- Custom fields -->
-            <div v-if="customFields.length > 0" class="space-y-4">
-              <div class="pt-4">
-                <h4 class="font-medium mb-3">Anpassade fält</h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div v-for="field in customFields" :key="field.key">
-                    <label class="block text-sm font-medium mb-1">{{ field.name }}</label>
+            <!-- Custom fields from global configuration -->
+            <div class="pt-4">
+              <h4 class="font-semibold mb-2 flex items-center gap-2">
+                Anpassade fält
+                <UButton
+                  size="xs"
+                  variant="outline"
+                  icon="i-heroicons-plus"
+                  @click="showAddCustomFieldInEdit = true"
+                >
+                  Lägg till
+                </UButton>
+              </h4>
+
+              <!-- Add custom field form in edit modal -->
+              <div
+                v-if="showAddCustomFieldInEdit"
+                class="mb-4 p-3 rounded-lg bg-bg-elevated border border-border space-y-3"
+              >
+                <h5 class="font-medium">Nytt anpassat fält</h5>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Fältnamn:</label>
                     <UInput
-                      v-model="editingPlant.data[field.key]"
-                      :placeholder="`Värde för ${field.name}`"
+                      v-model="newCustomFieldInEdit.name"
+                      placeholder="t.ex. 'Ålder', 'Ursprung'"
+                      class="w-full"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-sm font-medium mb-1">Kolumn (valfritt):</label>
+                    <USelect
+                      v-model="newCustomFieldInEdit.column"
+                      :items="
+                        getAvailableColumnsForCustomFields().map((h) => ({ value: h, label: h }))
+                      "
+                      placeholder="Välj kolumn eller lämna tom"
+                      class="w-full"
+                      @change="onColumnChangeInEdit"
                     />
                   </div>
                 </div>
+                <div>
+                  <label class="block text-sm font-medium mb-1">Värde:</label>
+                  <UInput
+                    v-model="newCustomFieldInEdit.value"
+                    placeholder="Värde för detta fält"
+                    class="w-full"
+                  />
+                </div>
+                <!-- "For all plants" checkbox - only show when column is selected -->
+                <div v-if="newCustomFieldInEdit.column" class="flex items-center gap-2">
+                  <UCheckbox v-model="newCustomFieldInEdit.forAll" />
+                  <span class="text-sm">Lägg till för alla växter</span>
+                </div>
+                <div class="flex gap-2">
+                  <UButton
+                    size="sm"
+                    :disabled="
+                      !newCustomFieldInEdit.name.trim() ||
+                      (newCustomFieldInEdit.forAll && !newCustomFieldInEdit.column)
+                    "
+                    @click="addCustomFieldToEditPlant"
+                  >
+                    Lägg till
+                  </UButton>
+                  <UButton
+                    variant="outline"
+                    size="sm"
+                    @click="
+                      showAddCustomFieldInEdit = false;
+                      newCustomFieldInEdit = { name: '', column: '', value: '', forAll: false };
+                    "
+                  >
+                    Avbryt
+                  </UButton>
+                </div>
+              </div>
+
+              <!-- Custom fields display section -->
+              <div
+                v-if="
+                  customFields.length > 0 ||
+                  (editingPlant.data?.plantSpecificFields &&
+                    editingPlant.data.plantSpecificFields.length > 0)
+                "
+                class=""
+              >
+                <!-- Global custom fields -->
+                <div v-for="field in customFields" :key="field.key" class="flex flex-col mb-3">
+                  <div class="flex items-center gap-2 text-sm font-medium mb-1">
+                    <!-- Edit field name inline -->
+                    <div
+                      v-if="editingFieldName.isEditing && editingFieldName.fieldKey === field.key"
+                      class="flex items-center gap-1 flex-1"
+                    >
+                      <UInput
+                        v-model="editingFieldName.newName"
+                        class="text-sm"
+                        size="sm"
+                        autofocus
+                        @keyup.enter="saveFieldNameEdit"
+                        @keyup.escape="cancelEditingFieldName"
+                      />
+                      <UButton size="xs" icon="i-heroicons-check" @click="saveFieldNameEdit" />
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-heroicons-x-mark"
+                        @click="cancelEditingFieldName"
+                      />
+                    </div>
+                    <!-- Normal field name display -->
+                    <template v-else>
+                      <span class="flex-1">{{ field.name }}</span>
+                      <span class="text-xs text-t-toned px-1 py-0.5 rounded bg-bg-elevated"
+                        >Alla växter</span
+                      >
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-heroicons-pencil"
+                        class="text-primary"
+                        @click="startEditingFieldName(field, true)"
+                      />
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-heroicons-trash"
+                        class="text-error"
+                        @click="openDeleteCustomFieldModal(-1, field)"
+                      />
+                    </template>
+                  </div>
+                  <UInput
+                    v-model="editingPlant.data[field.key]"
+                    :placeholder="`Värde för ${field.name}`"
+                  />
+                </div>
+
+                <!-- Plant-specific custom fields -->
+                <div
+                  v-for="(field, idx) in editingPlant.data?.plantSpecificFields"
+                  :key="field.key"
+                  class="relative"
+                >
+                  <div class="flex items-center gap-2 text-sm font-medium mb-1">
+                    <!-- Edit field name inline -->
+                    <div
+                      v-if="editingFieldName.isEditing && editingFieldName.fieldKey === field.key"
+                      class="flex items-center gap-1 flex-1"
+                    >
+                      <UInput
+                        v-model="editingFieldName.newName"
+                        class="text-sm"
+                        size="sm"
+                        autofocus
+                        @keyup.enter="saveFieldNameEdit"
+                        @keyup.escape="cancelEditingFieldName"
+                      />
+                      <UButton size="xs" icon="i-heroicons-check" @click="saveFieldNameEdit" />
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-heroicons-x-mark"
+                        @click="cancelEditingFieldName"
+                      />
+                    </div>
+                    <!-- Normal field name display -->
+                    <template v-else>
+                      <span class="flex-1">{{ field.name }}</span>
+                      <span class="text-xs text-t-toned px-1 py-0.5 rounded bg-bg-elevated"
+                        >Endast denna växt</span
+                      >
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-heroicons-pencil"
+                        class="text-primary"
+                        @click="startEditingFieldName(field, false, idx)"
+                      />
+                      <UButton
+                        size="xs"
+                        variant="ghost"
+                        icon="i-heroicons-trash"
+                        class="text-error"
+                        @click="openDeleteCustomFieldModal(idx, field)"
+                      />
+                    </template>
+                  </div>
+                  <UInput
+                    class="w-full"
+                    :ui="{ root: 'w-full', base: 'w-full' }"
+                    v-model="editingPlant.data[field.key]"
+                    :placeholder="`Värde för ${field.name}`"
+                  />
+                </div>
+              </div>
+
+              <!-- Show message when no custom fields exist -->
+              <div
+                v-if="
+                  customFields.length === 0 &&
+                  (!editingPlant.data?.plantSpecificFields ||
+                    editingPlant.data.plantSpecificFields.length === 0) &&
+                  !showAddCustomFieldInEdit
+                "
+                class="text-sm text-t-muted mt-2"
+              >
+                Inga anpassade fält har lagts till än.
               </div>
             </div>
           </div>
@@ -2535,6 +2953,49 @@ const canProceedToImport = computed(() => {
           <div class="flex justify-end space-x-3 pt-4 border-t border-border">
             <UButton variant="outline" @click="cancelEditPlant"> Avbryt </UButton>
             <UButton @click="saveEditedPlant" icon="i-heroicons-check"> Spara ändringar </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Delete Custom Field Confirmation Modal -->
+    <UModal v-model:open="deleteCustomFieldModal.open" class="p-8">
+      <template #content>
+        <div class="">
+          <h3 class="text-lg font-semibold">Ta bort anpassat fält</h3>
+          <p class="text-t-muted">
+            Vill du ta bort fältet "{{ deleteCustomFieldModal.field?.name }}"?
+          </p>
+          <p v-if="deleteCustomFieldModal.editIndex === -1" class="text-t-muted">
+            Om du vill ta bort från endast denna växt, lämna fältet blankt.
+          </p>
+          <div class="flex gap-2 justify-end mt-4">
+            <UButton variant="outline" @click="deleteCustomFieldModal.open = false">Avbryt</UButton>
+
+            <!-- For global fields (editIndex === -1) -->
+            <UButton
+              v-if="deleteCustomFieldModal.editIndex === -1"
+              color="error"
+              @click="deleteCustomFieldForAll"
+            >
+              Ta bort från alla växter
+            </UButton>
+
+            <!-- For plant-specific fields (editIndex >= 0) -->
+            <template v-else>
+              <!-- Show option to delete from all plants if this is also a global field -->
+              <UButton
+                v-if="customFields.some((f) => f.key === deleteCustomFieldModal.field?.key)"
+                color="error"
+                @click="deleteCustomFieldForAll"
+              >
+                Ta bort från alla växter
+              </UButton>
+              <!-- Always show option to delete just from this plant -->
+              <UButton color="warning" @click="deleteCustomFieldForThisPlant">
+                Ta bort endast för denna växt
+              </UButton>
+            </template>
           </div>
         </div>
       </template>

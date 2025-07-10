@@ -66,6 +66,7 @@ interface SimilarityResult {
   serie?: string | null;
   totalScore: number;
   isStrictMatch: boolean; // True if totalScore >= 0.95
+  isPerfectMatch: boolean; // True if totalScore >= 0.99 (complete direct match)
   componentScores: {
     genus: ComponentMatchResult;
     species: ComponentMatchResult;
@@ -92,8 +93,8 @@ interface SimilarityWeights {
 const DEFAULT_WEIGHTS: SimilarityWeights = {
   genus: 0.35,
   species: 0.10, 
-  sortBrandName: 0.40, 
-  fullName: 0.15,
+  sortBrandName: 0.35, 
+  fullName: 0.20,
 };
 
 /**
@@ -109,10 +110,9 @@ export const usePlantSimilarity = () => {  /**
     }
     
     console.log(`\n=== PLANT MATCHES FOR: "${searchQuery}" ===`);
-    
-    results.forEach((result, index) => {
+      results.forEach((result, index) => {
       const score = (result.totalScore * 100).toFixed(1);
-      const type = result.isStrictMatch ? 'EXACT' : 'SIMILAR';
+      const type = result.isPerfectMatch ? 'PERFECT' : result.isStrictMatch ? 'NEAR-EXACT' : 'SIMILAR';
       
       console.log(`${index + 1}. ${result.name} - ${score}% (${type})`);
       
@@ -467,10 +467,9 @@ export const usePlantSimilarity = () => {  /**
         if (rpcMatch.match_details && typeof rpcMatch.match_details === 'string') {
           // Small boost for SQL matches
           totalScore = Math.min(1.0, totalScore + 0.05);
-        }
-
-        // Determine if this is a strict match
+        }        // Determine if this is a strict match or perfect match
         const isStrictMatch = totalScore >= 0.95 && bestComponentScores.sortBrandName.score >= 0.7;
+        const isPerfectMatch = totalScore >= 0.999; // Perfect match threshold - truly exact (99.9%+)
 
         const matchDetails = JSON.stringify({
           searchQuery,
@@ -496,6 +495,7 @@ export const usePlantSimilarity = () => {  /**
           serie: plant.serie,
           totalScore,
           isStrictMatch,
+          isPerfectMatch,
           componentScores: {
             genus: bestComponentScores.genus,
             species: bestComponentScores.species,
@@ -505,9 +505,13 @@ export const usePlantSimilarity = () => {  /**
           bestMatchSource: bestMatchSource,
           matchDetails,
         });
-      }      // Sort by total score and strict match status
+      }      // Sort by match quality: Perfect matches first, then strict matches, then by score
       results.sort((a, b) => {
-        // Strict matches first
+        // Perfect matches first
+        if (a.isPerfectMatch && !b.isPerfectMatch) return -1;
+        if (b.isPerfectMatch && !a.isPerfectMatch) return 1;
+        
+        // Then strict matches
         if (a.isStrictMatch && !b.isStrictMatch) return -1;
         if (b.isStrictMatch && !a.isStrictMatch) return 1;
         
