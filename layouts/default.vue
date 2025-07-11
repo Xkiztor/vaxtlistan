@@ -80,7 +80,7 @@ function handleMobileSearchBlur() {
             <span v-if="user">Adminsidan </span>
             <span v-else>Plantskola - Login</span></UButton
           >
-          <div class="max-md:hidden shrink-0"><ColorModeButton /></div>
+          <div class="max-md:hidden shrink-0 h-full flex flex-col justify-center"><ColorModeButton /></div>
           <UButton
             v-if="menuOpen"
             icon="i-material-symbols-close-rounded"

@@ -124,7 +124,7 @@ const deSelect = () => {
   <div
     class="relative grow"
     :class="
-      props.mode === 'hero'
+      mode === 'hero'
         ? 'max-w-2xl mx-auto'
         : width < expandSearchScreenWidth
         ? 'w-full'
@@ -135,7 +135,7 @@ const deSelect = () => {
       ref="inputRef"
       v-model="search"
       :placeholder="
-        props.mode === 'hero'
+        mode === 'hero'
           ? 'Sök växtnamn'
           : width <= expandSearchScreenWidth
           ? 'Sök'
