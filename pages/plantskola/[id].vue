@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import type { Plantskola, Facit } from '~/types/supabase-tables';
-import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
-import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
-import Fuse from 'fuse.js';
+import type { Plantskola, Facit } from "~/types/supabase-tables";
+import { DynamicScroller, DynamicScrollerItem } from "vue-virtual-scroller";
+import "vue-virtual-scroller/dist/vue-virtual-scroller.css";
+import Fuse from "fuse.js";
 
 // Page metadata for SEO
 definePageMeta({
-  title: 'Plantskola',
-  description: 'Upptäck plantskolor och deras växtutbud på Växtlistan',
+  title: "Plantskola",
+  description: "Upptäck plantskolor och deras växtutbud på Växtlistan",
 });
 
 // Get route parameters
@@ -45,6 +45,7 @@ interface PlantWithFacit {
   facit_colors?: string[];
   facit_season_of_interest?: number[];
   facit_sunlight?: number[];
+  facit_images?: any[];
 }
 
 interface PlantRow {
@@ -59,22 +60,22 @@ const { data: plantskola, error: plantskolaError } = await useAsyncData(
   async () => {
     // First fetch basic plantskola information
     const { data: basicData, error: basicError } = await supabase
-      .from('plantskolor')
-      .select('*')
-      .eq('id', plantskolaId.value)
-      .eq('hidden', false)
+      .from("plantskolor")
+      .select("*")
+      .eq("id", plantskolaId.value)
+      .eq("hidden", false)
       .single();
 
     if (basicError || !basicData) {
       throw createError({
         statusCode: 404,
-        statusMessage: 'Plantskola not found',
+        statusMessage: "Plantskola not found",
       });
     }
 
     // Fetch statistics about plants
     const { data: statsData } = await supabase
-      .from('totallager')
+      .from("totallager")
       .select(
         `
         id,
@@ -83,7 +84,7 @@ const { data: plantskola, error: plantskolaError } = await useAsyncData(
         facit!inner(plant_type, rhs_types)
       `
       )
-      .eq('plantskola_id', plantskolaId.value);
+      .eq("plantskola_id", plantskolaId.value);
 
     // Calculate statistics
     const totalPlants = statsData?.length || 0;
@@ -92,7 +93,7 @@ const { data: plantskola, error: plantskolaError } = await useAsyncData(
     // Group by plant types for categories
     const typeGroups =
       statsData?.reduce((acc: Record<string, number>, plant: any) => {
-        const plantType = plant.facit?.plant_type || 'Okänd';
+        const plantType = plant.facit?.plant_type || "Okänd";
         acc[plantType] = (acc[plantType] || 0) + 1;
         return acc;
       }, {} as Record<string, number>) || {};
@@ -117,21 +118,21 @@ const { data: plantskola, error: plantskolaError } = await useAsyncData(
 if (plantskolaError.value) {
   throw createError({
     statusCode: 404,
-    statusMessage: 'Plantskola kunde inte hittas',
+    statusMessage: "Plantskola kunde inte hittas",
   });
 }
 
 // Reactive search - client-side with Fuse.js
-const searchQuery = ref('');
+const searchQuery = ref("");
 
 // View mode toggle - list or grid with localStorage persistence
-const viewMode = ref<'list' | 'grid'>('grid');
+const viewMode = ref<"list" | "grid">("grid");
 
 // Load saved view mode from localStorage on client
 onMounted(() => {
   if (process.client) {
-    const savedViewMode = localStorage.getItem('plantskola-view-mode');
-    if (savedViewMode === 'grid' || savedViewMode === 'list') {
+    const savedViewMode = localStorage.getItem("plantskola-view-mode");
+    if (savedViewMode === "grid" || savedViewMode === "list") {
       viewMode.value = savedViewMode;
     }
   }
@@ -140,7 +141,61 @@ onMounted(() => {
 // Save view mode to localStorage when it changes
 watch(viewMode, (newMode) => {
   if (process.client) {
-    localStorage.setItem('plantskola-view-mode', newMode);
+    localStorage.setItem("plantskola-view-mode", newMode);
+  }
+});
+
+// Sorting options and state
+const sortOptions = [
+  { value: "name-asc", label: "Namn (A-Ö)", key: "facit_name", order: "asc" },
+  { value: "name-desc", label: "Namn (Ö-A)", key: "facit_name", order: "desc" },
+  {
+    value: "price-asc",
+    label: "Billigast först",
+    key: "price",
+    order: "asc",
+  },
+  {
+    value: "price-desc",
+    label: "Dyrast först",
+    key: "price",
+    order: "desc",
+  },
+  {
+    value: "stock-desc",
+    label: "Lagersaldo (Högst först)",
+    key: "stock",
+    order: "desc",
+  },
+  {
+    value: "stock-asc",
+    label: "Lagersaldo (Lägst först)",
+    key: "stock",
+    order: "asc",
+  },
+];
+
+const selectedSort = ref("name-asc");
+
+// Load saved sort option from localStorage on client
+onMounted(() => {
+  if (process.client) {
+    const savedViewMode = localStorage.getItem("plantskola-view-mode");
+    if (savedViewMode === "grid" || savedViewMode === "list") {
+      viewMode.value = savedViewMode;
+    }
+
+    const savedSort = localStorage.getItem("plantskola-sort-option");
+    if (savedSort && sortOptions.some((opt) => opt.value === savedSort)) {
+      selectedSort.value = savedSort;
+    }
+  }
+});
+
+// Save sort option to localStorage when it changes
+watch(selectedSort, (newSort) => {
+  if (process.client) {
+    localStorage.setItem("plantskola-sort-option", newSort);
   }
 });
 
@@ -149,7 +204,7 @@ const { data: allPlants, pending: plantsLoading } = await useAsyncData(
   `plantskola-plants-${plantskolaId.value}`,
   async () => {
     const query = supabase
-      .from('totallager')
+      .from("totallager")
       .select(
         `
         id,
@@ -171,18 +226,19 @@ const { data: allPlants, pending: plantsLoading } = await useAsyncData(
           spread,
           colors,
           season_of_interest,
-          sunlight
+          sunlight,
+          images
         )
       `
       )
-      .eq('plantskola_id', plantskolaId.value)
-      .eq('hidden', false)
-      .order('name_by_plantskola', { ascending: true });
+      .eq("plantskola_id", plantskolaId.value)
+      .eq("hidden", false)
+      .order("name_by_plantskola", { ascending: true });
 
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching plants:', error);
+      console.error("Error fetching plants:", error);
       return [];
     }
 
@@ -198,6 +254,7 @@ const { data: allPlants, pending: plantsLoading } = await useAsyncData(
         facit_colors: item.facit?.colors,
         facit_season_of_interest: item.facit?.season_of_interest,
         facit_sunlight: item.facit?.sunlight,
+        facit_images: item.facit?.images,
       })) || []
     );
   },
@@ -210,23 +267,23 @@ const { data: allPlants, pending: plantsLoading } = await useAsyncData(
 const fuseOptions = {
   keys: [
     {
-      name: 'name_by_plantskola',
+      name: "name_by_plantskola",
       weight: 1.0,
     },
     {
-      name: 'facit_name',
+      name: "facit_name",
       weight: 0.8,
     },
     {
-      name: 'facit_sv_name',
+      name: "facit_sv_name",
       weight: 0.9,
     },
     {
-      name: 'facit_plant_type',
+      name: "facit_plant_type",
       weight: 0.6,
     },
     {
-      name: 'comment_by_plantskola',
+      name: "comment_by_plantskola",
       weight: 0.4,
     },
   ],
@@ -243,26 +300,61 @@ const fuse = computed(() => {
   return new Fuse(allPlants.value, fuseOptions);
 });
 
-// Filtered plants based on search
+// Helper function to sort plants
+const sortPlants = (plantsToSort: PlantWithFacit[]) => {
+  if (!plantsToSort.length) return plantsToSort;
+
+  const currentSort = sortOptions.find(
+    (opt) => opt.value === selectedSort.value
+  );
+  if (!currentSort) return plantsToSort;
+
+  return [...plantsToSort].sort((a, b) => {
+    let aValue = a[currentSort.key as keyof PlantWithFacit];
+    let bValue = b[currentSort.key as keyof PlantWithFacit];
+
+    // Handle null/undefined values - put them at the end
+    if (aValue == null && bValue == null) return 0;
+    if (aValue == null) return 1;
+    if (bValue == null) return -1;
+
+    // Convert to strings for consistent comparison
+    aValue = String(aValue).toLowerCase();
+    bValue = String(bValue).toLowerCase();
+
+    if (currentSort.order === "asc") {
+      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+    } else {
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+    }
+  });
+};
+
+// Filtered and sorted plants based on search and sort selection
 const plants = computed(() => {
   if (!allPlants.value?.length) return [];
 
-  // If no search query, return all plants
+  let filteredPlants;
+
+  // If no search query, use all plants
   if (!searchQuery.value.trim()) {
-    return allPlants.value;
+    filteredPlants = allPlants.value;
+  } else {
+    // Use Fuse.js for fuzzy search
+    if (!fuse.value) return [];
+    const results = fuse.value.search(searchQuery.value.trim());
+    filteredPlants = results.map((result) => result.item);
   }
 
-  // Use Fuse.js for fuzzy search
-  if (!fuse.value) return [];
-
-  const results = fuse.value.search(searchQuery.value.trim());
-  return results.map((result) => result.item);
+  // Apply sorting
+  return sortPlants(filteredPlants);
 });
 
 // Client-side search is instant, no debouncing needed
 
 // Screen detection for responsive behavior
-const { isMobile, isTablet, isDesktop, clientReady } = useScreen();
+const { isMobile, isTablet, isDesktop, isLargeDesktop, clientReady } =
+  useScreen();
 const { width, height } = useWindowSize();
 
 // Virtual scroller configuration
@@ -286,7 +378,8 @@ const calculateScrollerHeight = () => {
       bottomPadding = 32;
     }
 
-    const totalUsedHeight = navbarHeight + topPadding + searchHeight + bottomPadding;
+    const totalUsedHeight =
+      navbarHeight + topPadding + searchHeight + bottomPadding;
     virtualScrollerHeight.value = Math.max(400, viewport - totalUsedHeight);
   }
 };
@@ -294,6 +387,7 @@ const calculateScrollerHeight = () => {
 // Grid layout configuration
 const gridColumns = computed(() => {
   if (!clientReady.value) return 1; // Default during SSR
+  if (isLargeDesktop.value) return 4; // xl: 4 columns
   if (isDesktop.value) return 3; // lg: 3 columns
   if (isTablet.value) return 2; // md: 2 columns
   return 1; // sm: 1 column
@@ -301,13 +395,13 @@ const gridColumns = computed(() => {
 
 // Group plants into rows for grid display
 const plantsInRows = computed(() => {
-  if (viewMode.value !== 'grid' || !plants.value?.length) return [];
+  if (viewMode.value !== "grid" || !plants.value?.length) return [];
 
   const cols = gridColumns.value;
-  const rows = [];
+  const rows: PlantRow[] = [];
 
   for (let i = 0; i < plants.value.length; i += cols) {
-    const row = plants.value.slice(i, i + cols);
+    const row: (PlantWithFacit | null)[] = plants.value.slice(i, i + cols);
     // Pad the last row with null values if needed to maintain consistent structure
     while (row.length < cols) {
       row.push(null);
@@ -324,38 +418,38 @@ const plantsInRows = computed(() => {
 
 // Get the items for virtual scroller based on view mode
 const virtualScrollerItems = computed(() => {
-  return viewMode.value === 'grid' ? plantsInRows.value : plants.value;
+  return viewMode.value === "grid" ? plantsInRows.value : plants.value;
 });
 
 // Get minimum item size based on view mode
 const minItemSize = computed(() => {
-  return viewMode.value === 'grid' ? 280 : 100;
+  return viewMode.value === "grid" ? 280 : 100;
 });
 
 // Update scroller height on mount and resize
 onMounted(() => {
   calculateScrollerHeight();
-  window.addEventListener('resize', calculateScrollerHeight);
+  window.addEventListener("resize", calculateScrollerHeight);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', calculateScrollerHeight);
+  window.removeEventListener("resize", calculateScrollerHeight);
 });
 
-// Reset scroll position when search or view mode changes
-watch([searchQuery, viewMode], () => {
-  // Reset scroll position when search or view mode changes
-  if (dynamicScrollerRef.value && 'scrollToTop' in dynamicScrollerRef.value) {
+// Reset scroll position when search, view mode, or sort changes
+watch([searchQuery, viewMode, selectedSort], () => {
+  // Reset scroll position when search, view mode, or sort changes
+  if (dynamicScrollerRef.value && "scrollToTop" in dynamicScrollerRef.value) {
     (dynamicScrollerRef.value as any).scrollToTop();
   }
 });
 
 // Format price function
 const formatPrice = (price: number | null | undefined): string => {
-  if (!price) return 'Pris på förfrågan';
-  return new Intl.NumberFormat('sv-SE', {
-    style: 'currency',
-    currency: 'SEK',
+  if (!price) return "Pris på förfrågan";
+  return new Intl.NumberFormat("sv-SE", {
+    style: "currency",
+    currency: "SEK",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(price);
@@ -363,20 +457,38 @@ const formatPrice = (price: number | null | undefined): string => {
 
 // Format contact info
 const formatPhone = (phone: string): string => {
-  return phone.replace(/(\d{3})(\d{3})(\d{2})(\d{2})/, '$1-$2 $3 $4');
+  return phone.replace(/(\d{3})(\d{3})(\d{2})(\d{2})/, "$1-$2 $3 $4");
 };
 
 // Helper function to format custom fields from own_columns
-const formatCustomFields = (ownColumns: Record<string, any> | null | undefined) => {
-  if (!ownColumns || typeof ownColumns !== 'object') return [];
+const formatCustomFields = (
+  ownColumns: Record<string, any> | null | undefined
+) => {
+  if (!ownColumns || typeof ownColumns !== "object") return [];
 
   return Object.entries(ownColumns)
-    .filter(([_, value]) => value != null && value !== '')
+    .filter(([_, value]) => value != null && value !== "")
     .map(([key, value]) => ({
       key,
       value: String(value).trim(),
-      displayKey: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' '),
+      displayKey: key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " "),
     }));
+};
+
+// Helper function to get the first image URL from facit images
+const getFirstImageUrl = (
+  facitImages: any[] | null | undefined
+): string | null => {
+  if (!facitImages || !Array.isArray(facitImages) || facitImages.length === 0) {
+    return null;
+  }
+
+  const firstImage = facitImages[0];
+  if (firstImage && typeof firstImage === "object" && firstImage.url) {
+    return firstImage.url;
+  }
+
+  return null;
 };
 
 // SEO meta tags
@@ -384,24 +496,24 @@ useHead({
   title: `${plantskola.value?.name} - Plantskola | Växtlistan`,
   meta: [
     {
-      name: 'description',
+      name: "description",
       content: `Upptäck ${plantskola.value?.name} och deras växtutbud med ${
         plantskola.value?.total_plants
-      } växter. ${plantskola.value?.description || ''}`,
+      } växter. ${plantskola.value?.description || ""}`,
     },
     {
-      property: 'og:title',
+      property: "og:title",
       content: `${plantskola.value?.name} - Plantskola | Växtlistan`,
     },
     {
-      property: 'og:description',
+      property: "og:description",
       content: `Plantskola med ${plantskola.value?.total_plants} växter. ${
-        plantskola.value?.description || ''
+        plantskola.value?.description || ""
       }`,
     },
     {
-      property: 'og:type',
-      content: 'website',
+      property: "og:type",
+      content: "website",
     },
   ],
 });
@@ -410,7 +522,10 @@ useHead({
 <template>
   <div class="min-h-screen">
     <!-- Error state -->
-    <div v-if="plantskolaError" class="flex items-center justify-center min-h-[400px]">
+    <div
+      v-if="plantskolaError"
+      class="flex items-center justify-center min-h-[400px]"
+    >
       <UCard class="max-w-md">
         <div class="text-center">
           <UIcon
@@ -427,7 +542,10 @@ useHead({
     </div>
 
     <!-- Main content -->
-    <div v-else-if="plantskola" class="container mx-auto px-4 py-8 md:px-6 lg:px-8 max-w-7xl">
+    <div
+      v-else-if="plantskola"
+      class="container mx-auto px-4 py-8 md:px-6 lg:px-8 max-w-7xl"
+    >
       <!-- Header section -->
       <section class="mb-8">
         <div class="">
@@ -439,17 +557,28 @@ useHead({
               </h1>
 
               <!-- Description -->
-              <p v-if="plantskola.description" class="text-lg text-regular leading-relaxed">
+              <p
+                v-if="plantskola.description"
+                class="text-lg text-regular leading-relaxed"
+              >
                 {{ plantskola.description }}
               </p>
 
               <!-- Services -->
               <div class="flex flex-wrap gap-2 mt-4">
-                <UBadge v-if="plantskola.postorder" color="info" variant="subtle">
+                <UBadge
+                  v-if="plantskola.postorder"
+                  color="info"
+                  variant="subtle"
+                >
                   <UIcon name="i-heroicons-truck" class="w-4 h-4 mr-1" />
                   Postorder
                 </UBadge>
-                <UBadge v-if="plantskola.on_site" color="success" variant="subtle">
+                <UBadge
+                  v-if="plantskola.on_site"
+                  color="success"
+                  variant="subtle"
+                >
                   <UIcon name="i-heroicons-map-pin" class="w-4 h-4 mr-1" />
                   Hämta på plats
                 </UBadge>
@@ -462,16 +591,24 @@ useHead({
                 <div class="space-y-4">
                   <!-- Address -->
                   <div v-if="plantskola.adress" class="flex items-center gap-4">
-                    <UIcon name="i-heroicons-map-pin" class="w-5 h-5 text-muted mt-0.5" />
+                    <UIcon
+                      name="i-heroicons-map-pin"
+                      class="w-5 h-5 text-muted mt-0.5"
+                    />
                     <div class="flex-1 leading-tight">
                       <div class="font-medium text-sm">Adress</div>
-                      <div class="text-regular text-sm">{{ plantskola.adress }}</div>
+                      <div class="text-regular text-sm">
+                        {{ plantskola.adress }}
+                      </div>
                     </div>
                   </div>
 
                   <!-- Phone -->
                   <div v-if="plantskola.phone" class="flex items-center gap-4">
-                    <UIcon name="i-heroicons-phone" class="w-5 h-5 text-muted mt-0.5" />
+                    <UIcon
+                      name="i-heroicons-phone"
+                      class="w-5 h-5 text-muted mt-0.5"
+                    />
                     <div class="flex-1 leading-tight">
                       <div class="font-medium text-sm">Telefon</div>
                       <ULink
@@ -485,7 +622,10 @@ useHead({
 
                   <!-- Email -->
                   <div v-if="plantskola.email" class="flex items-center gap-4">
-                    <UIcon name="i-heroicons-envelope" class="w-5 h-5 text-muted mt-0.5" />
+                    <UIcon
+                      name="i-heroicons-envelope"
+                      class="w-5 h-5 text-muted mt-0.5"
+                    />
                     <div class="flex-1 leading-tight">
                       <div class="font-medium text-sm">E-post</div>
                       <ULink
@@ -499,7 +639,10 @@ useHead({
 
                   <!-- Website -->
                   <div v-if="plantskola.url" class="flex items-center gap-4">
-                    <UIcon name="i-heroicons-globe-alt" class="w-5 h-5 text-muted mt-0.5" />
+                    <UIcon
+                      name="i-heroicons-globe-alt"
+                      class="w-5 h-5 text-muted mt-0.5"
+                    />
                     <div class="flex-1 leading-tight">
                       <div class="font-medium text-sm">Webbsida</div>
                       <ULink
@@ -507,8 +650,11 @@ useHead({
                         target="_blank"
                         class="text-link hover:underline break-all text-sm inline-flex items-center gap-1"
                       >
-                        {{ plantskola.url.replace(/^https?:\/\//, '') }}
-                        <UIcon name="i-heroicons-arrow-top-right-on-square" class="w-3 h-3" />
+                        {{ plantskola.url.replace(/^https?:\/\//, "") }}
+                        <UIcon
+                          name="i-heroicons-arrow-top-right-on-square"
+                          class="w-3 h-3"
+                        />
                       </ULink>
                     </div>
                   </div>
@@ -522,9 +668,24 @@ useHead({
       <section>
         <div class="">
           <!-- Section header with search and view toggle -->
-          <div class="pb-2">
-            <h2 class="text-2xl font-bold">Växtutbud</h2>
-            <div class="flex flex-col sm:flex-row sm:gap-4 sm:items-center mt-2">
+          <div class="pb-2 max-md:border-b max-md:border-border">
+            <div class="flex items-end gap-4 mb-3">
+              <h2 class="text-2xl font-bold leading-none">Växtutbud</h2>
+              <!-- Search result count -->
+              <div
+                v-if="plants?.length"
+                class="text-sm text-t-muted leading-tight"
+              >
+                <span v-if="searchQuery.trim()">
+                  {{ plants.length }} resultat
+                  <span v-if="plants.length === 1"
+                    >({{ plants[0].facit_name }})</span
+                  >
+                </span>
+                <span v-else> {{ plants.length }} växter </span>
+              </div>
+            </div>
+            <div class="flex flex-col sm:flex-row sm:gap-2 sm:items-center">
               <!-- Search input -->
               <div class="flex-1 relative">
                 <UInput
@@ -539,13 +700,32 @@ useHead({
                   v-if="searchQuery.trim() && plants.length > 0"
                   class="absolute right-3 top-1/2 transform -translate-y-1/2"
                 >
-                  <UIcon name="i-heroicons-check-circle" class="w-5 h-5 text-success" />
+                  <UIcon
+                    name="i-heroicons-check-circle"
+                    class="w-5 h-5 text-success"
+                  />
                 </div>
               </div>
-              <!-- View toggle and results count -->
+              <!-- View toggle and sorting controls -->
               <div class="flex items-center gap-3 max-sm:mt-2">
+                <!-- Sort dropdown -->
+                <USelect
+                  v-model="selectedSort"
+                  :items="sortOptions"
+                  option-attribute="label"
+                  value-attribute="value"
+                  class="w-48 max-sm:w-full text-t-regular"
+                  size="md"
+                >
+                  <template #leading>
+                    <UIcon name="i-heroicons-arrows-up-down" class="w-4 h-4" />
+                  </template>
+                </USelect>
+
                 <!-- View toggle buttons with sliding animation -->
-                <div class="relative grid grid-cols-2 rounded-lg p-1 border border-border">
+                <div
+                  class="relative grid grid-cols-2 rounded-lg p-1 border border-border max-sm:hidden"
+                >
                   <!-- Sliding indicator background -->
                   <div
                     class="absolute top-1 bottom-1 rounded-md border border-border bg-bg-elevated transition-all duration-300 ease-out"
@@ -558,7 +738,7 @@ useHead({
                   <!-- Toggle buttons -->
                   <button
                     @click="viewMode = 'list'"
-                    class="relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
+                    class="relative z-10 flex items-center gap-1.5 px-3 py-[3px] text-sm font-medium transition-colors duration-300 ease-out rounded-md"
                     :class="{
                       '': viewMode === 'list',
                       'text-t-toned': viewMode !== 'list',
@@ -572,7 +752,7 @@ useHead({
 
                   <button
                     @click="viewMode = 'grid'"
-                    class="relative z-10 flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
+                    class="relative z-10 flex items-center gap-1.5 px-3 py-[3px] text-sm font-medium transition-colors duration-300 ease-out rounded-md"
                     :class="{
                       '': viewMode === 'grid',
                       'text-t-toned': viewMode !== 'grid',
@@ -584,13 +764,50 @@ useHead({
                     <span>Rutnät</span>
                   </button>
                 </div>
+              </div>
 
-                <!-- Search results count -->
-                <div v-if="allPlants?.length" class="text-sm text-t-muted whitespace-nowrap">
-                  <span v-if="searchQuery.trim()">
-                    {{ plants.length }} av {{ allPlants.length }} växter
-                  </span>
-                  <span v-else> {{ allPlants.length }} växter totalt </span>
+              <!-- Mobile view toggle (separate row) -->
+              <div class="sm:hidden mt-2 flex justify-center">
+                <div
+                  class="relative grid grid-cols-2 rounded-lg p-1 border border-border w-full"
+                >
+                  <!-- Sliding indicator background -->
+                  <div
+                    class="absolute top-1 bottom-1 rounded-md border border-border bg-bg-elevated transition-all duration-300 ease-out"
+                    :class="{
+                      'left-1 right-1/2 mr-0.5': viewMode === 'list',
+                      'right-1 left-1/2 ml-0.5': viewMode === 'grid',
+                    }"
+                  />
+
+                  <!-- Toggle buttons -->
+                  <button
+                    @click="viewMode = 'list'"
+                    class="relative z-10 flex justify-center items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
+                    :class="{
+                      '': viewMode === 'list',
+                      'text-t-toned': viewMode !== 'list',
+                    }"
+                    :aria-pressed="viewMode === 'list'"
+                    aria-label="Visa som lista"
+                  >
+                    <UIcon name="i-heroicons-list-bullet" class="w-4 h-4" />
+                    <span>Lista</span>
+                  </button>
+
+                  <button
+                    @click="viewMode = 'grid'"
+                    class="relative z-10 flex justify-center items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
+                    :class="{
+                      '': viewMode === 'grid',
+                      'text-t-toned': viewMode !== 'grid',
+                    }"
+                    :aria-pressed="viewMode === 'grid'"
+                    aria-label="Visa som rutnät"
+                  >
+                    <UIcon name="i-heroicons-squares-2x2" class="w-4 h-4" />
+                    <span>Rutnät</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -598,7 +815,10 @@ useHead({
           <!-- Plants list -->
           <div class="">
             <!-- Loading state -->
-            <div v-if="plantsLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div
+              v-if="plantsLoading"
+              class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+            >
               <USkeleton v-for="i in 6" :key="i" class="h-48 rounded-lg" />
             </div>
             <!-- No results -->
@@ -613,14 +833,21 @@ useHead({
               </h3>
               <p class="text-muted">
                 <span v-if="searchQuery.trim()">
-                  Inga växter matchade din sökning "<strong>{{ searchQuery }}</strong
+                  Inga växter matchade din sökning "<strong>{{
+                    searchQuery
+                  }}</strong
                   >". Prova med andra sökord.
                 </span>
-                <span v-else> Denna plantskola har för närvarande inga växter tillgängliga. </span>
+                <span v-else>
+                  Denna plantskola har för närvarande inga växter tillgängliga.
+                </span>
               </p>
             </div>
             <!-- Virtual Scroller for Plants -->
-            <div v-else class="md:border md:border-border md:rounded-lg overflow-hidden">
+            <div
+              v-else
+              class="md:border md:border-border md:rounded-lg overflow-hidden"
+            >
               <DynamicScroller
                 ref="dynamicScrollerRef"
                 class="scroller"
@@ -638,7 +865,8 @@ useHead({
                       ? [
                           item.plants?.length,
                           gridColumns,
-                          ...item.plants?.filter(Boolean).map((p: any) => p?.facit_name || '') || []
+                          ...item.plants?.filter(Boolean).map((p: any) => p?.facit_name || '') || [],
+                          ...item.plants?.filter(Boolean).map((p: any) => getFirstImageUrl(p?.facit_images) || '') || []
                         ]
                       : [
                           item.facit_name,
@@ -649,6 +877,7 @@ useHead({
                           item.height,
                           item.price,
                           item.stock,
+                          getFirstImageUrl(item.facit_images) || '',
                         ]
                   "
                   :data-index="index"
@@ -657,88 +886,175 @@ useHead({
                   <!-- List View -->
                   <div
                     v-if="viewMode === 'list'"
-                    class="border-b border-border p-4 hover:bg-bg-elevated transition-colors duration-200"
+                    class="border-b border-border py-4 md:p-2 md:hover:bg-bg-elevated transition-colors duration-200"
                   >
-                    <div class="flex items-start gap-3 md:gap-4">
-                      <!-- Plant image placeholder -->
-                      <div
-                        class="w-14 h-14 md:w-16 md:h-16 bg-bg-elevated rounded-lg grid place-items-center flex-shrink-0"
+                    <div class="flex flex-row items-start gap-3 md:gap-4">
+                      <!-- Plant image -->
+                      <ULink
+                        :to="`/vaxt/${item.facit_id}/${encodeURIComponent(
+                          item.facit_name
+                        )}`"
+                        class="w-14 h-14 md:w-16 md:h-16 bg-bg-elevated rounded-lg flex-shrink-0 overflow-hidden border border-border"
                       >
-                        <UIcon
-                          name="f7:tree"
-                          :size="isMobile ? '18' : '20'"
-                          class="text-t-muted opacity-70"
+                        <img
+                          v-if="getFirstImageUrl(item.facit_images)"
+                          :src="getFirstImageUrl(item.facit_images)!"
+                          :alt="item.facit_name"
+                          class="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                          loading="lazy"
                         />
-                      </div>
+                        <div
+                          v-else
+                          class="w-full h-full grid place-items-center"
+                        >
+                          <UIcon
+                            name="f7:tree"
+                            :size="isMobile ? '18' : '20'"
+                            class="text-t-muted opacity-70"
+                          />
+                        </div>
+                      </ULink>
 
                       <!-- Plant content -->
-                      <div class="flex-1 min-w-0">
-                        <!-- Plant name and link -->
-                        <div class="mb-2">
-                          <ULink
-                            :to="`/vaxt/${item.facit_id}/${encodeURIComponent(item.facit_name)}`"
-                            class="text-t-regular hover:underline"
+                      <div class="flex-1">
+                        <div class="flex-1 flex flex-row min-w-0 gap-2">
+                          <!-- Plant name and link -->
+                          <div class="flex flex-col justify-center">
+                            <ULink
+                              :to="`/vaxt/${item.facit_id}/${encodeURIComponent(
+                                item.facit_name
+                              )}`"
+                              class="text-t-regular hover:underline"
+                            >
+                              <h3
+                                class="font-semibold text-base md:text-lg leading-tight"
+                              >
+                                {{ item.facit_name }}
+                              </h3>
+                            </ULink>
+                            <p
+                              v-if="item.facit_sv_name"
+                              class="text-sm text-t-muted"
+                            >
+                              {{ item.facit_sv_name }}
+                            </p>
+                            <p
+                              v-if="
+                                item.facit_name &&
+                                item.name_by_plantskola !== item.facit_name
+                              "
+                              class="text-xs text-t-muted italic"
+                            >
+                              ({{ item.name_by_plantskola }})
+                            </p>
+                          </div>
+                          <!-- Plant attributes with badges -->
+                          <div
+                            class="flex flex-wrap gap-1 max-md:hidden"
+                            v-if="item.pot || item.height || item.own_columns"
                           >
-                            <h3 class="font-semibold text-base md:text-lg leading-tight">
-                              {{ item.facit_name }}
-                            </h3>
-                          </ULink>
-                          <p v-if="item.facit_sv_name" class="text-sm text-t-muted">
-                            {{ item.facit_sv_name }}
-                          </p>
+                            <UBadge
+                              v-if="item.pot"
+                              color="neutral"
+                              variant="soft"
+                              class="text-xs max-h-max"
+                            >
+                              Kruka: {{ item.pot }}
+                            </UBadge>
+                            <UBadge
+                              v-if="item.height"
+                              color="neutral"
+                              variant="soft"
+                              class="text-xs max-h-max"
+                            >
+                              Höjd: {{ item.height }}
+                            </UBadge>
+                            <UBadge
+                              v-for="field in formatCustomFields(
+                                item.own_columns
+                              )"
+                              :key="field.key"
+                              color="primary"
+                              variant="soft"
+                              class="text-xs max-h-max"
+                            >
+                              {{ field.displayKey }}: {{ field.value }}
+                            </UBadge>
+                          </div>
+                          <!-- Custom fields from plantskola -->
+                          <!-- <div
+                            v-if="formatCustomFields(item.own_columns).length > 0"
+                            class="flex flex-wrap gap-1 mb-2"
+                          >
+                          </div> -->
                           <p
-                            v-if="item.facit_name && item.name_by_plantskola !== item.facit_name"
-                            class="text-xs text-t-muted italic"
+                            v-if="item.comment_by_plantskola"
+                            class="text-sm text-t-muted italic md:line-clamp-2 max-md:hidden"
                           >
-                            ({{ item.name_by_plantskola }})
+                            {{ item.comment_by_plantskola }}
+                          </p>
+                          <!-- Price and stock info -->
+                          <div
+                            class="flex flex-col items-end leading-tight ml-auto min-w-max"
+                            v-if="item.price || item.stock"
+                          >
+                            <span
+                              v-if="item.price"
+                              class="font-bold text-sm md:text-base"
+                            >
+                              {{ formatPrice(item.price) }}
+                            </span>
+                            <span
+                              v-if="item.stock"
+                              class="text-t-toned text-sm"
+                            >
+                              <span class="font-semibold">{{
+                                item.stock
+                              }}</span>
+                              st i lager
+                            </span>
+                          </div>
+                        </div>
+                        <div>
+                          <div
+                            class="flex flex-wrap gap-1 md:hidden pt-1"
+                            v-if="item.pot || item.height || item.own_columns"
+                          >
+                            <UBadge
+                              v-if="item.pot"
+                              color="neutral"
+                              variant="soft"
+                              class="text-xs max-h-max"
+                            >
+                              Kruka: {{ item.pot }}
+                            </UBadge>
+                            <UBadge
+                              v-if="item.height"
+                              color="neutral"
+                              variant="soft"
+                              class="text-xs max-h-max"
+                            >
+                              Höjd: {{ item.height }}
+                            </UBadge>
+                            <UBadge
+                              v-for="field in formatCustomFields(
+                                item.own_columns
+                              )"
+                              :key="field.key"
+                              color="primary"
+                              variant="soft"
+                              class="text-xs max-h-max"
+                            >
+                              {{ field.displayKey }}: {{ field.value }}
+                            </UBadge>
+                          </div>
+                          <p
+                            v-if="item.comment_by_plantskola"
+                            class="text-sm text-t-muted italic line-clamp-2 md:hidden pt-1"
+                          >
+                            {{ item.comment_by_plantskola }}
                           </p>
                         </div>
-                        <!-- Plant attributes with badges -->
-                        <div class="flex flex-wrap gap-1 mb-2" v-if="item.pot || item.height">
-                          <UBadge v-if="item.pot" color="neutral" variant="soft" class="text-xs">
-                            Kruka: {{ item.pot }}
-                          </UBadge>
-                          <UBadge v-if="item.height" color="neutral" variant="soft" class="text-xs">
-                            Höjd: {{ item.height }}
-                          </UBadge>
-                        </div>
-
-                        <!-- Custom fields from plantskola -->
-                        <div
-                          v-if="formatCustomFields(item.own_columns).length > 0"
-                          class="flex flex-wrap gap-1 mb-2"
-                        >
-                          <UBadge
-                            v-for="field in formatCustomFields(item.own_columns)"
-                            :key="field.key"
-                            color="primary"
-                            variant="soft"
-                            class="text-xs"
-                          >
-                            {{ field.displayKey }}: {{ field.value }}
-                          </UBadge>
-                        </div>
-
-                        <!-- Price and stock info -->
-                        <div
-                          class="flex items-center gap-3 leading-tight mb-2"
-                          v-if="item.price || item.stock"
-                        >
-                          <span v-if="item.price" class="font-bold text-sm md:text-base">
-                            {{ formatPrice(item.price) }}
-                          </span>
-                          <span v-if="item.stock" class="text-t-muted text-sm">
-                            {{ item.stock }} st i lager
-                          </span>
-                        </div>
-
-                        <!-- Comment -->
-                        <p
-                          v-if="item.comment_by_plantskola"
-                          class="text-sm text-t-muted italic line-clamp-2"
-                        >
-                          {{ item.comment_by_plantskola }}
-                        </p>
                       </div>
                     </div>
                   </div>
@@ -751,22 +1067,44 @@ useHead({
                         'grid-cols-1': gridColumns === 1,
                         'grid-cols-2': gridColumns === 2,
                         'grid-cols-3': gridColumns === 3,
+                        'grid-cols-4': gridColumns === 4,
                       }"
                     >
                       <!-- Plant card for each column -->
                       <div
                         v-for="(plant, colIndex) in item.plants"
-                        :key="plant ? plant.id : `empty-${item.index}-${colIndex}`"
+                        :key="
+                          plant ? plant.id : `empty-${item.index}-${colIndex}`
+                        "
                         class="w-full"
                       >
                         <div v-if="plant" class="h-full">
                           <div class="flex flex-col h-full">
-                            <!-- Plant image placeholder -->
-                            <div
-                              class="w-full aspect-[1.618/1] bg-bg-elevated rounded-lg grid place-items-center mb-3"
+                            <!-- Plant image -->
+                            <ULink
+                              :to="`/vaxt/${
+                                plant.facit_id
+                              }/${encodeURIComponent(plant.facit_name)}`"
+                              class="w-full aspect-[1.618/1] bg-bg-elevated rounded-lg mb-3 overflow-hidden border border-border"
                             >
-                              <UIcon name="f7:tree" size="32" class="text-t-muted opacity-70" />
-                            </div>
+                              <img
+                                v-if="getFirstImageUrl(plant.facit_images)"
+                                :src="getFirstImageUrl(plant.facit_images)!"
+                                :alt="plant.facit_name"
+                                class="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                                loading="lazy"
+                              />
+                              <div
+                                v-else
+                                class="w-full h-full grid place-items-center"
+                              >
+                                <UIcon
+                                  name="f7:tree"
+                                  size="32"
+                                  class="text-t-muted opacity-70"
+                                />
+                              </div>
+                            </ULink>
 
                             <!-- Plant content -->
                             <!-- Plant name -->
@@ -774,33 +1112,48 @@ useHead({
                             <!-- Plant attributes with badges -->
                             <div class="flex gap-2 justify-between items-start">
                               <div class="flex-1">
-                                <div class="mb-1">
+                                <div class="mb-2">
                                   <div class="">
                                     <ULink
-                                      :to="`/vaxt/${plant.facit_id}/${encodeURIComponent(
+                                      :to="`/vaxt/${
+                                        plant.facit_id
+                                      }/${encodeURIComponent(
                                         plant.facit_name
                                       )}`"
                                       class="text-t-regular hover:underline"
                                     >
-                                      <h3 class="font-semibold text-base leading-tight">
+                                      <h3
+                                        class="font-semibold text-base leading-tight"
+                                      >
                                         {{ plant.facit_name }}
                                       </h3>
                                     </ULink>
                                   </div>
-                                  <p v-if="plant.facit_sv_name" class="text-md text-t-toned">
+                                  <p
+                                    v-if="plant.facit_sv_name"
+                                    class="text-md text-t-toned"
+                                  >
                                     {{ plant.facit_sv_name }}
                                   </p>
                                   <p
                                     v-if="
                                       plant.facit_name &&
-                                      plant.name_by_plantskola !== plant.facit_name
+                                      plant.name_by_plantskola !==
+                                        plant.facit_name
                                     "
                                     class="text-xs text-t-muted italic"
                                   >
                                     ({{ plant.name_by_plantskola }})
                                   </p>
                                 </div>
-                                <div class="flex flex-wrap gap-1" v-if="plant.pot || plant.height">
+                                <div
+                                  class="flex flex-wrap gap-1"
+                                  v-if="
+                                    plant.pot ||
+                                    plant.height ||
+                                    plant.own_columns
+                                  "
+                                >
                                   <UBadge
                                     v-if="plant.pot"
                                     color="neutral"
@@ -819,11 +1172,16 @@ useHead({
                                   </UBadge>
                                   <!-- Custom fields from plantskola -->
                                   <div
-                                    v-if="formatCustomFields(plant.own_columns).length > 0"
+                                    v-if="
+                                      formatCustomFields(plant.own_columns)
+                                        .length > 0
+                                    "
                                     class="flex flex-wrap gap-1"
                                   >
                                     <UBadge
-                                      v-for="field in formatCustomFields(plant.own_columns)"
+                                      v-for="field in formatCustomFields(
+                                        plant.own_columns
+                                      )"
                                       :key="field.key"
                                       color="primary"
                                       variant="soft"
@@ -844,10 +1202,16 @@ useHead({
                               </div>
                               <div class="" v-if="plant.price || plant.stock">
                                 <div class="flex flex-col items-end gap-1">
-                                  <span v-if="plant.price" class="font-bold text-base leading-none">
+                                  <span
+                                    v-if="plant.price"
+                                    class="font-bold text-base leading-none"
+                                  >
                                     {{ formatPrice(plant.price) }}
                                   </span>
-                                  <span v-if="plant.stock" class="text-t-toned text-sm">
+                                  <span
+                                    v-if="plant.stock"
+                                    class="text-t-toned text-sm"
+                                  >
                                     {{ plant.stock }} st
                                   </span>
                                 </div>

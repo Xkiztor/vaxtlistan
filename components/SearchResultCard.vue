@@ -2,7 +2,10 @@
 import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
 import { usePlantType } from '~/composables/usePlantType';
 
-const props = defineProps<{ plant: AvailablePlantSimilaritySearchResult }>();
+const props = defineProps<{ 
+  plant: AvailablePlantSimilaritySearchResult;
+  showDetailed?: boolean;
+}>();
 const supabase = useSupabaseClient();
 const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
@@ -20,6 +23,15 @@ const lignosdatabasenPlant = computed(() => {
 });
 
 const image = computed(() => {
+  // First priority: Use images from the search results (from database)
+  if (props.plant.images && Array.isArray(props.plant.images) && props.plant.images.length > 0) {
+    const firstImage = props.plant.images[0];
+    if (firstImage && typeof firstImage === 'object' && firstImage.url) {
+      return firstImage.url;
+    }
+  }
+
+  // Fallback: Use lignosdatabasen images
   if (!lignosdatabasenPlant.value) return null;
   let images = lignosdatabasenPlant.value?.text
     .split(/!\[[^\]]*\]\(([^)]+)\)/g)
@@ -30,7 +42,7 @@ const image = computed(() => {
   } else if (images.length) {
     return images[0];
   } else {
-    return '';
+    return null;
   }
 });
 
@@ -91,27 +103,57 @@ const formatPrice = (price: number) => {
         <!-- SV name -->
         <div class="text-sm" v-if="plant.sv_name">{{ plant.sv_name }}</div>
 
-        <!-- Synonym badge and information -->
-        <div v-if="plant.is_synonym" class="mt-2 flex items-center gap-2">
-          <UBadge color="neutral" variant="soft" class="text-t-toned"
-            >Synonym{{ plant.synonym_to ? ' till ' : '' }}{{ plant.synonym_to }}</UBadge
+        <!-- Detailed information (conditionally shown) -->
+        <div v-if="showDetailed" class="flex flex-wrap gap-2 mt-1">
+          <!-- Plant type -->
+          <UBadge
+            v-if="plant.plant_type"
+            color="neutral"
+            variant="subtle"
+            size="sm"
           >
+            <span class="font-semibold">{{ plant.plant_type }}</span>
+          </UBadge>
+
+          <!-- RHS types -->
+          <UBadge
+            v-if="plant.rhs_types && plant.rhs_types.length > 0"
+            color="neutral"
+            variant="subtle"
+            size="sm"
+          >
+            <span class="font-semibold">{{ getAllRhsTypeLabels(plant.rhs_types).join(', ') }}</span>
+          </UBadge>
+
+          <!-- Plant attributes: Height -->
+          <UBadge
+            v-if="plant.plant_attributes && plant.plant_attributes.height"
+            color="neutral"
+            variant="subtle"
+            size="sm"
+          >
+            Höjd: <span class="font-semibold">{{ plant.plant_attributes.height }}</span>
+          </UBadge>
+
+          <!-- Plant attributes: Spread -->
+          <UBadge
+            v-if="plant.plant_attributes && plant.plant_attributes.spread"
+            color="neutral"
+            variant="subtle"
+            size="sm"
+          >
+            Bredd: <span class="font-semibold">{{ plant.plant_attributes.spread }}</span>
+          </UBadge>
         </div>
-        <!-- Plant attributes and availability -->
-        <div
-          class="flex flex-wrap gap-2 mt-2"
-          v-if="plant.rhs_types || plant.height || plant.spread"
-        >
-          <!-- Plant type badges -->
-          <template v-for="label in getAllRhsTypeLabels(plant.rhs_types)" :key="label">
-            <UBadge color="primary" variant="soft">{{ label }}</UBadge>
-          </template>
-          <UBadge v-if="plant.height" color="neutral" variant="soft"
-            >Höjd: {{ plant.height }}</UBadge
-          >
-          <UBadge v-if="plant.spread" color="neutral" variant="soft"
-            >Bredd: {{ plant.spread }}</UBadge
-          >
+
+        <!-- Grupp and Serie information -->
+        <div class="flex flex-wrap gap-2 mt-1" v-if="plant.grupp || plant.serie">
+          <UBadge v-if="plant.grupp" color="neutral" variant="outline" size="sm">
+            Grupp: {{ plant.grupp }}
+          </UBadge>
+          <UBadge v-if="plant.serie" color="neutral" variant="outline" size="sm">
+            Serie: {{ plant.serie }}
+          </UBadge>
         </div>
         <div
           class="p-2 py-1.5 border border-border rounded-lg mt-2 w-fit flex gap-6 text-xs md:text-sm"

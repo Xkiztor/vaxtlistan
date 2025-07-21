@@ -29,7 +29,7 @@
           prev: 'left-0 max-md:hidden',
           next: 'right-0 max-md:hidden',
         }"
-        :page="0"
+        :page="currentIndex"
         class="w-full h-full max-w-7xl mx-auto"
         arrows
         loop
@@ -94,15 +94,25 @@ const props = withDefaults(defineProps<Props>(), {
 // Define emits
 const emit = defineEmits<Emits>();
 
-// Reactive state for current image index (always starts at 0 since we reorder the array)
-const currentIndex = ref(0);
+// Reactive state for current image index
+const currentIndex = ref(props.initialIndex);
 
-// Reset to first image when viewer opens
+// Reset to initial index when viewer opens
 watch(
   () => props.isOpen,
   (isOpen) => {
     if (isOpen) {
-      currentIndex.value = 0;
+      currentIndex.value = props.initialIndex;
+    }
+  }
+);
+
+// Watch for changes to initialIndex
+watch(
+  () => props.initialIndex,
+  (newIndex) => {
+    if (props.isOpen) {
+      currentIndex.value = newIndex;
     }
   }
 );

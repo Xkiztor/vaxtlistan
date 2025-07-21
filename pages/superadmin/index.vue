@@ -75,7 +75,8 @@ definePageMeta({
 </script>
 
 <template>
-  <div class="md:grid md:grid-cols-2 gap-8">
+  <div class="space-y-8 px-4">
+    <div class="md:grid md:grid-cols-2 gap-8">
     <!-- Plantskolor -->
     <div class="border-1 border-border rounded-lg p-4">
       <h1 class="font-black text-3xl">Plantskolor</h1>
@@ -136,6 +137,7 @@ definePageMeta({
         </li>
       </ul>
     </div>
+  </div>
   </div>
 </template>
 

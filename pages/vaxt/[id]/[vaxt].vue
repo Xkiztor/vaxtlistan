@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // Import Nuxt composables and Supabase client
-import type { Facit } from '~/types/supabase-tables';
-import { useLignosdatabasen } from '~/stores/lignosdatabasen';
-import { computed, ref } from 'vue';
+import type { Facit } from "~/types/supabase-tables";
+import { useLignosdatabasen } from "~/stores/lignosdatabasen";
+import { computed, ref } from "vue";
 
 // Function to copy text to clipboard
 const copyToClipboard = async (text: string) => {
@@ -11,25 +11,25 @@ const copyToClipboard = async (text: string) => {
     // Show success notification
     const toast = useToast();
     toast.add({
-      title: 'Kopierat!',
+      title: "Kopierat!",
       description: `${text} har kopierats till urklipp`,
-      color: 'success',
+      color: "success",
     });
   } catch (error) {
-    console.error('Failed to copy to clipboard:', error);
+    console.error("Failed to copy to clipboard:", error);
     // Fallback for older browsers
-    const textArea = document.createElement('textarea');
+    const textArea = document.createElement("textarea");
     textArea.value = text;
     document.body.appendChild(textArea);
     textArea.select();
-    document.execCommand('copy');
+    document.execCommand("copy");
     document.body.removeChild(textArea);
 
     const toast = useToast();
     toast.add({
-      title: 'Kopierat!',
+      title: "Kopierat!",
       description: `${text} har kopierats till urklipp`,
-      color: 'success',
+      color: "success",
     });
   }
 };
@@ -61,27 +61,36 @@ const route = useRoute();
 const id = computed(() => route.params.id);
 const supabase = useSupabaseClient();
 const router = useRouter(); // Import Nuxt router
+const { trackPlantView } = useAnalytics(); // Add analytics composable
 
 const {
   data: plant,
   status,
   error,
 } = await useAsyncData<Facit | null>(
-  'plant',
+  "plant",
   async () => {
-    const { data, error } = await supabase.from('facit').select('*').eq('id', id.value).single();
+    const { data, error } = await supabase
+      .from("facit")
+      .select("*")
+      .eq("id", id.value)
+      .single();
     if (error) {
-      console.error('Error fetching plant data:', error.message);
+      console.error("Error fetching plant data:", error.message);
       throw error;
     }
-    if (data && (data as Facit).name && route.params.vaxt !== (data as Facit).name) {
+    if (
+      data &&
+      (data as Facit).name &&
+      route.params.vaxt !== (data as Facit).name
+    ) {
       const slug = (data as Facit).name
         .toString()
         .toLowerCase()
-        .replace(/[^a-z0-9åäö\- ]/gi, '')
-        .replace(/\s+/g, '+')
-        .replace(/-+/g, '+')
-        .replace(/^-+|-+$/g, '');
+        .replace(/[^a-z0-9åäö\- ]/gi, "")
+        .replace(/\s+/g, "+")
+        .replace(/-+/g, "+")
+        .replace(/^-+|-+$/g, "");
       router.replace({
         name: route.name,
         params: { ...route.params, vaxt: slug },
@@ -104,7 +113,7 @@ const {
   async () => {
     if (!plant.value?.id) return [];
     const { data, error } = await supabase
-      .from('totallager')
+      .from("totallager")
       .select(
         `
         id,
@@ -126,13 +135,13 @@ const {
         )
       `
       )
-      .eq('facit_id', plant.value.id)
-      .eq('hidden', false)
-      .eq('plantskolor.verified', true)
-      .gt('stock', 0)
-      .order('stock', { ascending: false });
+      .eq("facit_id", plant.value.id)
+      .eq("hidden", false)
+      .eq("plantskolor.verified", true)
+      .gt("stock", 0)
+      .order("stock", { ascending: false });
     if (error) {
-      console.error('Error fetching stock data:', error.message);
+      console.error("Error fetching stock data:", error.message);
       throw error;
     } // Transform the data to include nursery information at the top level
     return (data || []).map((item: any) => ({
@@ -145,7 +154,7 @@ const {
       comment_by_plantskola: item.comment_by_plantskola,
       last_edited: item.last_edited,
       plantskola_id: item.plantskolor?.id || 0,
-      nursery_name: item.plantskolor?.name || 'Okänd plantskola',
+      nursery_name: item.plantskolor?.name || "Okänd plantskola",
       nursery_address: item.plantskolor?.adress || null,
       nursery_email: item.plantskolor?.email || null,
       nursery_phone: item.plantskolor?.phone || null,
@@ -178,24 +187,28 @@ const {
 
 // Function to format date for display
 const formatDate = (dateString: string) => {
-  return new Date(dateString).toLocaleDateString('sv-SE', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
+  return new Date(dateString).toLocaleDateString("sv-SE", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
   });
 };
 
 const lignosdatabasen = useLignosdatabasen();
 // lignosdatabasen.getLignosdatabasen(runtimeConfig); // Fetch lignosdatabasen data if needed
-await useAsyncData('lignosdatabasen', () => lignosdatabasen.getLignosdatabasen(runtimeConfig));
+await useAsyncData("lignosdatabasen", () =>
+  lignosdatabasen.getLignosdatabasen(runtimeConfig)
+);
 const lignosdatabasenPlant = computed(() => {
   if (!plant.value || !lignosdatabasen.lignosdatabasen) return null;
   return lignosdatabasen.lignosdatabasen.find(
     (lig) =>
-      `${lig.slakte?.toLowerCase() || ''}${lig.art?.toLowerCase() || ''}${lig.sortnamn ? "'" : ''}${
-        lig.sortnamn ? lig.sortnamn.toLowerCase() : ''
-      }${lig.sortnamn ? "'" : ''}`.replace(/\s+/g, '') ===
-      plant.value?.name.toLowerCase().replace(/\s+/g, '')
+      `${lig.slakte?.toLowerCase() || ""}${lig.art?.toLowerCase() || ""}${
+        lig.sortnamn ? "'" : ""
+      }${lig.sortnamn ? lig.sortnamn.toLowerCase() : ""}${
+        lig.sortnamn ? "'" : ""
+      }`.replace(/\s+/g, "") ===
+      plant.value?.name.toLowerCase().replace(/\s+/g, "")
   );
 });
 const lignosImages = computed(() => {
@@ -204,26 +217,29 @@ const lignosImages = computed(() => {
   let images = lignosdatabasenPlant.value.text
     ? lignosdatabasenPlant.value.text
         .split(/!\[(?!omslag\])[^]*?\]\(([^)]+)\)/g)
-        .filter((str: string) => str !== '' && str.includes('http') && !str.includes('['))
+        .filter(
+          (str: string) =>
+            str !== "" && str.includes("http") && !str.includes("[")
+        )
     : [];
-  if (images.length && images[0].includes('cloudinary')) {
+  if (images.length && images[0].includes("cloudinary")) {
     return images.map((img: string) =>
-      img.replace('/upload/', '/upload/t_1000bred/f_auto/q_auto/')
+      img.replace("/upload/", "/upload/t_1000bred/f_auto/q_auto/")
     );
   } else if (images.length) {
     return images;
   } else {
-    return '';
+    return "";
   }
 });
 const lignosText = () => {
   let desc = lignosdatabasenPlant.value.text;
 
-  desc = desc.replace(/!\[.*?\]\(.*?\)|\[.*?\]\(.*?\)/g, ''); // Remove markdown image and link syntax
-  desc = desc.replace(/text=".*?"/g, ''); // Remove any text="..." attributes
-  desc = desc.replace(/[*\-_#{}\[\]]/g, ''); // Remove markdown formatting characters
-  desc = desc.replace(/::\w+/g, ''); // Remove ::Fify
-  desc = desc.replace(/::/g, ''); // Remove ::
+  desc = desc.replace(/!\[.*?\]\(.*?\)|\[.*?\]\(.*?\)/g, ""); // Remove markdown image and link syntax
+  desc = desc.replace(/text=".*?"/g, ""); // Remove any text="..." attributes
+  desc = desc.replace(/[*\-_#{}\[\]]/g, ""); // Remove markdown formatting characters
+  desc = desc.replace(/::\w+/g, ""); // Remove ::Fify
+  desc = desc.replace(/::/g, ""); // Remove ::
 
   return desc;
 };
@@ -236,7 +252,10 @@ const currentImages = ref<{ src: string; alt: string }[]>([]);
 /**
  * Open image viewer with specified images and index
  */
-const openImageViewer = (images: { src: string; alt: string }[], index: number = 0) => {
+const openImageViewer = (
+  images: { src: string; alt: string }[],
+  index: number = 0
+) => {
   currentImages.value = images;
   currentImageIndex.value = index;
   isImageViewerOpen.value = true;
@@ -264,8 +283,8 @@ const openLignosImage = (imageUrl: string, index: number) => {
 
   // Create full images array with high resolution
   const allImages = lignosImages.value.map((img: string, idx: number) => ({
-    src: img.replace('/t_1000bred', '/t_2000bred'), // Higher resolution for viewer
-    alt: `${plant.value?.name || 'Växt'} - Bild ${idx + 1}`,
+    src: img.replace("/t_1000bred", "/t_2000bred"), // Higher resolution for viewer
+    alt: `${plant.value?.name || "Växt"} - Bild ${idx + 1}`,
   }));
 
   // Reorder array so clicked image comes first
@@ -286,7 +305,28 @@ const openGoogleImage = (imageUrl: string, index: number) => {
   // Create full images array
   const allImages = googleImages.value.map((img: any, idx: number) => ({
     src: img.url,
-    alt: img.title || `${plant.value?.name || 'Växt'} - Bild ${idx + 1}`,
+    alt: img.title || `${plant.value?.name || "Växt"} - Bild ${idx + 1}`,
+  }));
+
+  // Reorder array so clicked image comes first
+  const reorderedImages = [
+    ...allImages.slice(index), // From clicked image to end
+    ...allImages.slice(0, index), // From start to clicked image
+  ];
+
+  openImageViewer(reorderedImages, 0); // Always start at index 0 since clicked image is now first
+};
+
+/**
+ * Open database image in viewer
+ */
+const openDatabaseImage = (imageUrl: string, index: number) => {
+  if (!finalImages.value || !Array.isArray(finalImages.value)) return;
+
+  // Create full images array
+  const allImages = finalImages.value.map((img: any, idx: number) => ({
+    src: img.url,
+    alt: img.title || `${plant.value?.name || "Växt"} - Bild ${idx + 1}`,
   }));
 
   // Reorder array so clicked image comes first
@@ -304,45 +344,47 @@ const structuredData = computed(() => {
 
   const offers =
     stockData.value?.map((stock) => ({
-      '@type': 'Offer',
+      "@type": "Offer",
       price: stock.price || 0,
-      priceCurrency: 'SEK',
+      priceCurrency: "SEK",
       availability:
-        stock.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+        stock.stock > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
       seller: {
-        '@type': 'Organization',
+        "@type": "Organization",
         name: stock.nursery_name,
         address: stock.nursery_address || undefined,
         email: stock.nursery_email || undefined,
         telephone: stock.nursery_phone || undefined,
       },
-      itemCondition: 'https://schema.org/NewCondition',
+      itemCondition: "https://schema.org/NewCondition",
     })) || [];
 
   return {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
+    "@context": "https://schema.org",
+    "@type": "Product",
     name: plant.value.name,
     alternateName: plant.value.sv_name || undefined,
     description: lignosdatabasenPlant.value
       ? lignosText()
       : `Information om växten ${plant.value.name}`,
-    category: 'Plants & Flowers',
+    category: "Plants & Flowers",
     image: lignosImages.value?.[0] || undefined,
     offers: offers.length > 0 ? offers : undefined,
     brand: {
-      '@type': 'Brand',
-      name: 'Växtlistan',
+      "@type": "Brand",
+      name: "Växtlistan",
     },
     additionalProperty: [
       plant.value.height && {
-        '@type': 'PropertyValue',
-        name: 'Höjd',
+        "@type": "PropertyValue",
+        name: "Höjd",
         value: plant.value.height,
       },
       plant.value.spread && {
-        '@type': 'PropertyValue',
-        name: 'Bredd',
+        "@type": "PropertyValue",
+        name: "Bredd",
         value: plant.value.spread,
       },
     ].filter(Boolean),
@@ -353,52 +395,56 @@ const structuredData = computed(() => {
 useHead({
   title: () =>
     plant.value
-      ? `${plant.value.name}${plant.value.sv_name ? ` (${plant.value.sv_name})` : ''} - Växtlistan`
-      : 'Laddar...',
+      ? `${plant.value.name}${
+          plant.value.sv_name ? ` (${plant.value.sv_name})` : ""
+        } - Växtlistan`
+      : "Laddar...",
   meta: [
     {
-      name: 'description',
+      name: "description",
       content: () =>
         plant.value
           ? `Information om ${plant.value.name}${
-              plant.value.sv_name ? ` (${plant.value.sv_name})` : ''
+              plant.value.sv_name ? ` (${plant.value.sv_name})` : ""
             }. ${
               stockData.value?.length
                 ? `Finns hos ${stockData.value.length} plantskolor.`
-                : 'Ej tillgänglig för närvarande.'
+                : "Ej tillgänglig för närvarande."
             }`
-          : 'Laddar växtinformation...',
+          : "Laddar växtinformation...",
     },
     {
-      property: 'og:title',
-      content: () => (plant.value ? `${plant.value.name} - Växtlistan` : 'Laddar...'),
+      property: "og:title",
+      content: () =>
+        plant.value ? `${plant.value.name} - Växtlistan` : "Laddar...",
     },
     {
-      property: 'og:description',
+      property: "og:description",
       content: () =>
         plant.value
           ? `Information om ${plant.value.name}${
-              plant.value.sv_name ? ` (${plant.value.sv_name})` : ''
+              plant.value.sv_name ? ` (${plant.value.sv_name})` : ""
             }. ${
               stockData.value?.length
                 ? `Finns hos ${stockData.value.length} plantskolor.`
-                : 'Ej tillgänglig för närvarande.'
+                : "Ej tillgänglig för närvarande."
             }`
-          : 'Laddar växtinformation...',
+          : "Laddar växtinformation...",
     },
     {
-      property: 'og:image',
-      content: () => lignosImages.value?.[0] || '/favicon.ico',
+      property: "og:image",
+      content: () => lignosImages.value?.[0] || "/favicon.ico",
     },
     {
-      property: 'og:type',
-      content: 'website',
+      property: "og:type",
+      content: "website",
     },
   ],
   script: [
     {
-      type: 'application/ld+json',
-      innerHTML: () => (structuredData.value ? JSON.stringify(structuredData.value) : ''),
+      type: "application/ld+json",
+      innerHTML: () =>
+        structuredData.value ? JSON.stringify(structuredData.value) : "",
     },
   ],
 });
@@ -412,21 +458,23 @@ const groupedStockData = computed(() => {
     {
       nursery: Omit<
         PlantStock,
-        | 'id'
-        | 'stock'
-        | 'price'
-        | 'pot'
-        | 'height'
-        | 'name_by_plantskola'
-        | 'comment_by_plantskola'
-        | 'last_edited'
+        | "id"
+        | "stock"
+        | "price"
+        | "pot"
+        | "height"
+        | "name_by_plantskola"
+        | "comment_by_plantskola"
+        | "last_edited"
       > & { nursery_name: string };
       plants: PlantStock[];
     }
   > = {};
   for (const stock of stockData.value) {
     // Create a unique key for the nursery
-    const key = `${stock.nursery_name}|${stock.nursery_address || ''}|${stock.nursery_email || ''}`;
+    const key = `${stock.nursery_name}|${stock.nursery_address || ""}|${
+      stock.nursery_email || ""
+    }`;
     if (!groups[key]) {
       groups[key] = {
         nursery: {
@@ -447,25 +495,118 @@ const groupedStockData = computed(() => {
   return Object.values(groups);
 });
 
-// Fetch Google image search results if no Lignosdatabasen images are available (SSR, useFetch)
+// Check for images from database first, then fetch from Google API if needed
+const databaseImages = computed(() => {
+  if (!plant.value?.images || !Array.isArray(plant.value.images)) {
+    return null;
+  }
+  return plant.value.images;
+});
+
+// Function to save Google photos to database
+const saveGoogleImagesToDatabase = async (
+  photos: {
+    url: string;
+    title: string;
+    thumbnail: string;
+    sourcePage: string;
+  }[]
+) => {
+  if (!plant.value?.id) return;
+
+  try {
+    const photosToSave = photos.map((photo) => ({
+      url: photo.url,
+      title: photo.title,
+      sourcePage: photo.sourcePage,
+    }));
+
+    const updateData = {
+      images: photosToSave,
+      images_reordered: false,
+      images_added_date: new Date().toISOString(),
+    };
+
+    const { error } = await (supabase as any)
+      .from("facit")
+      .update(updateData)
+      .eq("id", plant.value.id);
+
+    if (error) {
+      console.error("Error saving Google photos to database:", error);
+    } else {
+      console.log("Successfully saved Google photos to database");
+    }
+  } catch (error) {
+    console.error("Error in saveGoogleImagesToDatabase:", error);
+  }
+};
+
+// Fetch Google image search results if no database images and no Lignosdatabasen images
 const { data: googleImages, error: googleImagesError } = await useFetch<
   { url: string; title: string; thumbnail: string; sourcePage: string }[]
 >(
-  () =>
-    !lignosImages.value || !lignosImages.value.length
-      ? `/api/image-search?q=${encodeURIComponent(plant.value?.name || '')}`
-      : null,
+  () => {
+    // Only fetch if no database images and no Lignos images
+    if (databaseImages.value && databaseImages.value.length > 0) {
+      return null; // Don't fetch if we have database images
+    }
+    if (lignosImages.value && lignosImages.value.length > 0) {
+      return null; // Don't fetch if we have Lignos images
+    }
+    if (!plant.value?.name) {
+      return null; // Don't fetch if no plant name
+    }
+    return `/api/image-search?q=${encodeURIComponent(plant.value.name)}`;
+  },
   {
     server: true, // SSR
     immediate: true,
-    watch: [() => plant.value?.name, () => lignosImages.value],
+    watch: [
+      () => plant.value?.name,
+      () => lignosImages.value,
+      () => databaseImages.value,
+    ],
     default: () => [],
     onRequestError: (err) => {
-      console.error('Error fetching Google images:', err);
+      console.error("Error fetching Google images:", err);
+    },
+    onResponse: async ({ response }) => {
+      // Save fetched Google images to database
+      if (
+        response._data &&
+        Array.isArray(response._data) &&
+        response._data.length > 0
+      ) {
+        await saveGoogleImagesToDatabase(response._data);
+      }
     },
   }
 );
-console.log('Google Images:', googleImages.value);
+
+// Combined images: prioritize database images, then Lignos images, then Google images
+const finalImages = computed(() => {
+  if (databaseImages.value && databaseImages.value.length > 0) {
+    return databaseImages.value.map((img, idx) => ({
+      url: img.url,
+      title: img.title,
+      sourcePage: img.sourcePage,
+      source: "database" as const,
+    }));
+  }
+  return null;
+});
+
+console.log("Database Images:", databaseImages.value);
+console.log("Google Images:", googleImages.value);
+
+// Track plant page view for popularity analytics
+onMounted(() => {
+  if (plant.value?.id) {
+    // Track the page view asynchronously - don't await to avoid blocking
+    trackPlantView(plant.value.id);
+  }
+});
 </script>
 
 <template>
@@ -489,6 +630,7 @@ console.log('Google Images:', googleImages.value);
 
     <!-- Plant details -->
     <div v-else-if="plant" class="p-6">
+      <!-- Priority 1: Lignosdatabasen images -->
       <div v-if="lignosImages && lignosImages.length" class="mb-10">
         <UCarousel
           v-slot="{ item, index }"
@@ -513,9 +655,50 @@ console.log('Google Images:', googleImages.value);
           />
         </UCarousel>
       </div>
-      <!-- Google Images fallback if no Lignosdatabasen images -->
+      <!-- Priority 2: Database images (Google Photos from database) -->
       <div
-        v-else-if="googleImages && Array.isArray(googleImages) && googleImages.length"
+        v-else-if="
+          finalImages && Array.isArray(finalImages) && finalImages.length
+        "
+        class="mb-10 relative"
+      >
+        <UCarousel
+          v-slot="{ item, index }"
+          dots
+          :arrows="width > 768"
+          :items="finalImages.map((img) => img.url)"
+          :back="{ icon: 'material-symbols:arrow-back-rounded' }"
+          :next="{ icon: 'material-symbols:arrow-forward-rounded' }"
+          slides-to-scroll="auto"
+          class="w-full mx-auto rounded-md"
+          :ui="{
+            item: 'md:basis-1/3',
+            dots: 'absolute opacity-70 dark:opacity-100 -translate-y-2',
+            dot: 'dark:bg-bg-accented',
+          }"
+        >
+          <img
+            :src="item as string"
+            :alt="
+              Array.isArray(finalImages) && finalImages[index]
+                ? finalImages[index].title
+                : `${plant?.name || 'Växt'} - Bild ${index + 1}`
+            "
+            class="rounded-lg aspect-square object-cover h-full w-full cursor-pointer hover:opacity-90 transition-opacity"
+            loading="lazy"
+            @click="openDatabaseImage(item as string, index)"
+          />
+        </UCarousel>
+        <UIcon
+          name="logos:google"
+          class="absolute bottom-2 max-md:opacity-80 max-md:saturate-50 md:-bottom-6 right-2"
+        />
+      </div>
+      <!-- Priority 3: Google Images fallback (freshly fetched) -->
+      <div
+        v-else-if="
+          googleImages && Array.isArray(googleImages) && googleImages.length
+        "
         class="mb-10 relative"
       >
         <UCarousel
@@ -565,6 +748,7 @@ console.log('Google Images:', googleImages.value);
           <p class="italic text-lg" v-if="plant.sv_name">{{ plant.sv_name }}</p>
           <div
             class="flex justify-between max-[450px]:text-sm max-[360px]:text-xs w-full text-center mt-2 mb-4 border border-border rounded-md py-1"
+            v-if="plant.height || plant.spread || fullHeightTimeLabels"
           >
             <!-- <div v-if="rhsTypeLabels" class="flex flex-col items-start grow">
               <span class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
@@ -573,20 +757,26 @@ console.log('Google Images:', googleImages.value);
               <span class="w-full px-2">{{ rhsTypeLabels }}</span>
             </div> -->
             <div v-if="plant.height" class="flex flex-col items-center grow">
-              <span class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
+              <span
+                class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
                 >Höjd</span
               >
               <span class="w-full px-2">{{ plant.height }}</span>
             </div>
 
             <div v-if="plant.spread" class="flex flex-col items-center grow">
-              <span class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
+              <span
+                class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
                 >Bredd</span
               >
               <span class="w-full px-2">{{ plant.spread }}</span>
             </div>
-            <div v-if="fullHeightTimeLabels" class="flex flex-col items-end grow">
-              <span class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
+            <div
+              v-if="fullHeightTimeLabels"
+              class="flex flex-col items-end grow"
+            >
+              <span
+                class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
                 >Tid till fullväxt</span
               >
               <span class="w-full px-2">{{ fullHeightTimeLabels }}</span>
@@ -596,12 +786,15 @@ console.log('Google Images:', googleImages.value);
 
         <div v-if="lignosdatabasenPlant" class="mt-4">
           <!-- <div class="prose max-w-none" v-html="lignosText()"></div> -->
-          <div class="prose max-w-none" v-html="lignosdatabasenPlant.ingress"></div>
+          <div
+            class="prose max-w-none"
+            v-html="lignosdatabasenPlant.ingress"
+          ></div>
           <div class="mt-2">
             <UButton
-              :href="`https://lignosdatabasen.se/planta/${lignosdatabasenPlant.slakte}/${
-                lignosdatabasenPlant.art
-              }${
+              :href="`https://lignosdatabasen.se/planta/${
+                lignosdatabasenPlant.slakte
+              }/${lignosdatabasenPlant.art}${
                 lignosdatabasenPlant.sortnamn
                   ? `/${lignosdatabasenPlant.sortnamn.replace(`'`, '')}`
                   : ''
@@ -613,7 +806,9 @@ console.log('Google Images:', googleImages.value);
               variant="link"
               class="p-0 opacity-80"
             >
-              <span v-if="lignosdatabasenPlant.ingress">Läs mer på Lignosdatabasen</span>
+              <span v-if="lignosdatabasenPlant.ingress"
+                >Läs mer på Lignosdatabasen</span
+              >
               <span v-else>Läs mer om växten på Lignosdatabasen</span>
             </UButton>
           </div>
@@ -633,17 +828,28 @@ console.log('Google Images:', googleImages.value);
             <p>Kunde inte ladda tillgänglighetsdata</p>
           </div>
           <!-- No stock available -->
-          <div v-else-if="!stockData || stockData.length === 0" class="text-t-toned">
-            <div class="flex flex-col items-center gap-4 p-6 bg-muted rounded-lg text-center">
-              <UIcon name="i-heroicons-exclamation-triangle" class="w-12 h-12 text-warning" />
+          <div
+            v-else-if="!stockData || stockData.length === 0"
+            class="text-t-toned"
+          >
+            <div
+              class="flex flex-col items-center gap-4 p-6 bg-muted rounded-lg text-center"
+            >
+              <UIcon
+                name="i-heroicons-exclamation-triangle"
+                class="w-12 h-12 text-warning"
+              />
               <div>
-                <h4 class="font-semibold text-lg mb-2">Inte tillgänglig just nu</h4>
+                <h4 class="font-semibold text-lg mb-2">
+                  Inte tillgänglig just nu
+                </h4>
                 <p class="text-sm">
-                  Denna växt finns för närvarande inte tillgänglig hos någon av våra registrerade
-                  plantskolor.
+                  Denna växt finns för närvarande inte tillgänglig hos någon av
+                  våra registrerade plantskolor.
                 </p>
                 <p class="text-xs mt-2">
-                  Kontakta din lokala plantskola för att höra om de kan beställa hem växten åt dig.
+                  Kontakta din lokala plantskola för att höra om de kan beställa
+                  hem växten åt dig.
                 </p>
               </div>
               <UButton
@@ -661,20 +867,27 @@ console.log('Google Images:', googleImages.value);
           <!-- Stock data available -->
           <div v-else class="space-y-3">
             <p class="text-sm text-t-toned">
-              {{ stockData.length }} plantskol{{ stockData.length === 1 ? 'a' : 'or' }} har denna
-              växt i lager
+              {{ stockData.length }} plantskol{{
+                stockData.length === 1 ? "a" : "or"
+              }}
+              har denna växt i lager
             </p>
             <div class="grid gap-4">
               <!-- Grouped by nursery -->
               <article
                 v-for="group in groupedStockData"
-                :key="group.nursery.nursery_name + (group.nursery.nursery_address || '')"
+                :key="
+                  group.nursery.nursery_name +
+                  (group.nursery.nursery_address || '')
+                "
                 class="border border-border rounded-lg p-4"
                 itemscope
                 itemtype="https://schema.org/Offer"
               >
                 <!-- Nursery Header -->
-                <header class="flex flex-col sm:flex-row sm:items-start gap-2 mb-3">
+                <header
+                  class="flex flex-col sm:flex-row sm:items-start gap-2 mb-3"
+                >
                   <div class="flex-1">
                     <ULink
                       :to="`/plantskola/${group.nursery.plantskola_id}`"
@@ -683,15 +896,22 @@ console.log('Google Images:', googleImages.value);
                       itemscope
                       itemtype="https://schema.org/Organization"
                     >
-                      <span itemprop="name">{{ group.nursery.nursery_name }}</span>
+                      <span itemprop="name">{{
+                        group.nursery.nursery_name
+                      }}</span>
                     </ULink>
                     <p
                       v-if="group.nursery.nursery_address"
                       class="text-sm text-t-toned flex items-center"
                       itemprop="address"
                     >
-                      <UIcon name="i-heroicons-map-pin" class="inline-block mr-1" />
-                      <span itemprop="streetAddress">{{ group.nursery.nursery_address }}</span>
+                      <UIcon
+                        name="i-heroicons-map-pin"
+                        class="inline-block mr-1"
+                      />
+                      <span itemprop="streetAddress">{{
+                        group.nursery.nursery_address
+                      }}</span>
                     </p>
                     <div>
                       <UBadge
@@ -721,21 +941,30 @@ console.log('Google Images:', googleImages.value);
                   >
                     <!-- Stock and Price -->
                     <div class="flex items-center gap-4 flex-wrap">
-                      <div class="flex items-center gap-2" v-if="stock.stock > 0">
+                      <div
+                        class="flex items-center gap-2"
+                        v-if="stock.stock > 0"
+                      >
                         <span
                           class="font-medium"
                           itemprop="availability"
                           content="https://schema.org/InStock"
                         >
-                          <span class="font-bold">{{ stock.stock }}</span> st i lager
+                          <span class="font-bold">{{ stock.stock }}</span> st i
+                          lager
                         </span>
                       </div>
                       <div v-if="stock.price" class="flex items-center gap-2">
                         <span class="font-medium">
-                          <span itemprop="price" :content="stock.price" class="font-bold">{{
-                            stock.price
-                          }}</span>
-                          <span itemprop="priceCurrency" content="SEK"> kr</span>
+                          <span
+                            itemprop="price"
+                            :content="stock.price"
+                            class="font-bold"
+                            >{{ stock.price }}</span
+                          >
+                          <span itemprop="priceCurrency" content="SEK">
+                            kr</span
+                          >
                         </span>
                       </div>
                     </div>
@@ -767,7 +996,9 @@ console.log('Google Images:', googleImages.value);
                     <!-- Nursery's comment -->
                     <div v-if="stock.comment_by_plantskola" class="text-sm">
                       <span class="font-medium">Kommentar:</span>
-                      <span class="ml-1">{{ stock.comment_by_plantskola }}</span>
+                      <span class="ml-1">{{
+                        stock.comment_by_plantskola
+                      }}</span>
                     </div>
                   </div>
                 </div>
@@ -785,7 +1016,10 @@ console.log('Google Images:', googleImages.value);
                           {
                             label: 'Kopiera e-post',
                             icon: 'i-heroicons-clipboard-document',
-                            onSelect: () => copyToClipboard(group.nursery.nursery_email || ''),
+                            onSelect: () =>
+                              copyToClipboard(
+                                group.nursery.nursery_email || ''
+                              ),
                           },
                         ],
                         [
@@ -794,7 +1028,7 @@ console.log('Google Images:', googleImages.value);
                             icon: 'i-heroicons-envelope',
                             onSelect: () =>
                               navigateTo(
-                                `mailto:${group.nursery.nursery_email}?subject=Intresse för ${plant?.name}&body=Hej,%0D%0A%0D%0AJag är intresserad av att köpa ${plant?.name} som ni har i er plantskola.%0D%0A%0D%0AMvh`,
+                                `mailto:${group.nursery.nursery_email}`,
                                 { external: true }
                               ),
                           },
@@ -820,7 +1054,10 @@ console.log('Google Images:', googleImages.value);
                           {
                             label: 'Kopiera telefonnummer',
                             icon: 'i-heroicons-clipboard-document',
-                            onSelect: () => copyToClipboard(group.nursery.nursery_phone || ''),
+                            onSelect: () =>
+                              copyToClipboard(
+                                group.nursery.nursery_phone || ''
+                              ),
                           },
                         ],
                         [
@@ -828,7 +1065,9 @@ console.log('Google Images:', googleImages.value);
                             label: 'Ring upp',
                             icon: 'i-heroicons-phone',
                             onSelect: () =>
-                              navigateTo(`tel:${group.nursery.nursery_phone}`, { external: true }),
+                              navigateTo(`tel:${group.nursery.nursery_phone}`, {
+                                external: true,
+                              }),
                           },
                         ],
                       ]"
@@ -864,8 +1103,9 @@ console.log('Google Images:', googleImages.value);
                     {{
                       formatDate(
                         group.plants.reduce(
-                          (latest, s) => (s.last_edited > latest ? s.last_edited : latest),
-                          group.plants[0]?.last_edited || ''
+                          (latest, s) =>
+                            s.last_edited > latest ? s.last_edited : latest,
+                          group.plants[0]?.last_edited || ""
                         )
                       )
                     }}
@@ -879,16 +1119,27 @@ console.log('Google Images:', googleImages.value);
         <!-- Growing Conditions -->
         <div
           class="mt-12 lg:mt-16"
-          v-if="sunlightLabels || exposureLabels || soilTypeLabels || phLabels || moistureLabels"
+          v-if="
+            sunlightLabels ||
+            exposureLabels ||
+            soilTypeLabels ||
+            phLabels ||
+            moistureLabels
+          "
         >
           <h3 class="text-xl lg:text-2xl font-bold">Odlingsförhållanden</h3>
           <div
             class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center mt-2"
           >
             <div v-if="sunlightLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">Ljus</span>
+              <span class="font-bold mb-1 pb-1 border-b border-border"
+                >Ljus</span
+              >
               <div class="flex gap-2 items-center justify-center">
-                <template v-for="(label, idx) in sunlightLabels.split(' / ')" :key="idx">
+                <template
+                  v-for="(label, idx) in sunlightLabels.split(' / ')"
+                  :key="idx"
+                >
                   <UIcon
                     :name="
                       label.trim() === 'Soligt'
@@ -911,7 +1162,9 @@ console.log('Google Images:', googleImages.value);
               </div>
             </div>
             <div v-if="exposureLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">Exponering</span>
+              <span class="font-bold mb-1 pb-1 border-b border-border"
+                >Exponering</span
+              >
               <span>{{ exposureLabels }}</span>
             </div>
           </div>
@@ -921,7 +1174,9 @@ console.log('Google Images:', googleImages.value);
             v-if="soilTypeLabels || phLabels || moistureLabels"
           >
             <div v-if="soilTypeLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">Jord</span>
+              <span class="font-bold mb-1 pb-1 border-b border-border"
+                >Jord</span
+              >
               <span>{{ soilTypeLabels }}</span>
             </div>
             <div v-if="phLabels" class="flex flex-col grow">
@@ -929,7 +1184,9 @@ console.log('Google Images:', googleImages.value);
               <span>{{ phLabels }}</span>
             </div>
             <div v-if="moistureLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">Fuktighet</span>
+              <span class="font-bold mb-1 pb-1 border-b border-border"
+                >Fuktighet</span
+              >
               <span>{{ moistureLabels }}</span>
             </div>
           </div>
@@ -939,16 +1196,23 @@ console.log('Google Images:', googleImages.value);
             v-if="soilTypeLabels || phLabels || moistureLabels"
           >
             <span class="font-bold mb-1 pb-1 border-b border-border">Jord</span>
-            <span class="mb-1 pb-1 border-b border-border">{{ soilTypeLabels }}</span>
+            <span class="mb-1 pb-1 border-b border-border">{{
+              soilTypeLabels
+            }}</span>
             <span class="mb-1 pb-1 border-b border-border">{{ phLabels }}</span>
             <span>{{ moistureLabels }}</span>
           </div>
 
-          <div v-if="graphicalPlantBySeason" class="mt-4 pt-4 pb-1 border border-border rounded-md">
+          <div
+            v-if="graphicalPlantBySeason"
+            class="mt-4 pt-4 pb-1 border border-border rounded-md"
+          >
             <!-- Graphical timeline -->
             <div class="relative pt-4">
               <!-- Timeline line -->
-              <div class="absolute bottom-6 left-0 right-0 h-0.25 bg-border"></div>
+              <div
+                class="absolute bottom-6 left-0 right-0 h-0.25 bg-border"
+              ></div>
 
               <!-- Season markers and plant representations -->
               <div class="grid grid-cols-4 gap-4">
@@ -973,15 +1237,30 @@ console.log('Google Images:', googleImages.value);
                         v-if="season.plant.foliage.length > 0"
                         :icon-name="getBaseIcon"
                         icon-class="w-12 h-12"
-                        :icon-style="getIconColorStyle(season.plant.foliage).style"
-                        :use-gradient="getIconColorStyle(season.plant.foliage).useGradient"
-                        :gradient-colors="getIconColorStyle(season.plant.foliage).gradientColors"
-                        :gradient-id="getIconColorStyle(season.plant.foliage).gradientId"
+                        :icon-style="
+                          getIconColorStyle(season.plant.foliage).style
+                        "
+                        :use-gradient="
+                          getIconColorStyle(season.plant.foliage).useGradient
+                        "
+                        :gradient-colors="
+                          getIconColorStyle(season.plant.foliage).gradientColors
+                        "
+                        :gradient-id="
+                          getIconColorStyle(season.plant.foliage).gradientId
+                        "
                       />
-                      <UIcon v-else :name="getBaseIcon" class="w-12 h-12 text-t-muted opacity-10" />
+                      <UIcon
+                        v-else
+                        :name="getBaseIcon"
+                        class="w-12 h-12 text-t-muted opacity-10"
+                      />
                     </div>
                     <!-- Flower overlay (top-left) -->
-                    <div v-if="season.plant.flower.length > 0" class="absolute -top-1 -left-4 z-20">
+                    <div
+                      v-if="season.plant.flower.length > 0"
+                      class="absolute -top-1 -left-4 z-20"
+                    >
                       <UTooltip
                         :text="`Blomma: ${season.plant.flower.map((f: any) => f.colorName).join(', ')}`"
                         :popper="{ placement: 'top' }"
@@ -990,15 +1269,27 @@ console.log('Google Images:', googleImages.value);
                         <GradientIcon
                           icon-name="famicons:flower"
                           icon-class="w-6 h-6 cursor-help"
-                          :icon-style="getIconColorStyle(season.plant.flower).style"
-                          :use-gradient="getIconColorStyle(season.plant.flower).useGradient"
-                          :gradient-colors="getIconColorStyle(season.plant.flower).gradientColors"
-                          :gradient-id="getIconColorStyle(season.plant.flower).gradientId"
+                          :icon-style="
+                            getIconColorStyle(season.plant.flower).style
+                          "
+                          :use-gradient="
+                            getIconColorStyle(season.plant.flower).useGradient
+                          "
+                          :gradient-colors="
+                            getIconColorStyle(season.plant.flower)
+                              .gradientColors
+                          "
+                          :gradient-id="
+                            getIconColorStyle(season.plant.flower).gradientId
+                          "
                         />
                       </UTooltip>
                     </div>
                     <!-- Fruit overlay (top-right) -->
-                    <div v-if="season.plant.fruit.length > 0" class="absolute -top-1 -right-4 z-20">
+                    <div
+                      v-if="season.plant.fruit.length > 0"
+                      class="absolute -top-1 -right-4 z-20"
+                    >
                       <UTooltip
                         :text="`Frukt: ${season.plant.fruit.map((f: any) => f.colorName).join(', ')}`"
                         :popper="{ placement: 'top' }"
@@ -1007,15 +1298,26 @@ console.log('Google Images:', googleImages.value);
                         <GradientIcon
                           icon-name="tabler:apple-filled"
                           icon-class="w-6 h-6 cursor-help"
-                          :icon-style="getIconColorStyle(season.plant.fruit).style"
-                          :use-gradient="getIconColorStyle(season.plant.fruit).useGradient"
-                          :gradient-colors="getIconColorStyle(season.plant.fruit).gradientColors"
-                          :gradient-id="getIconColorStyle(season.plant.fruit).gradientId"
+                          :icon-style="
+                            getIconColorStyle(season.plant.fruit).style
+                          "
+                          :use-gradient="
+                            getIconColorStyle(season.plant.fruit).useGradient
+                          "
+                          :gradient-colors="
+                            getIconColorStyle(season.plant.fruit).gradientColors
+                          "
+                          :gradient-id="
+                            getIconColorStyle(season.plant.fruit).gradientId
+                          "
                         />
                       </UTooltip>
                     </div>
                     <!-- Stem (above main icon) -->
-                    <div v-if="season.plant.stem.length > 0" class="absolute -top-5 z-5">
+                    <div
+                      v-if="season.plant.stem.length > 0"
+                      class="absolute -top-5 z-5"
+                    >
                       <UTooltip
                         :text="`Stam: ${season.plant.stem.map((s: any) => s.colorName).join(', ')}`"
                         :popper="{ placement: 'bottom' }"
@@ -1024,10 +1326,18 @@ console.log('Google Images:', googleImages.value);
                         <GradientIcon
                           icon-name="game-icons:birch-trees"
                           icon-class="w-6 h-6 cursor-help"
-                          :icon-style="getIconColorStyle(season.plant.stem).style"
-                          :use-gradient="getIconColorStyle(season.plant.stem).useGradient"
-                          :gradient-colors="getIconColorStyle(season.plant.stem).gradientColors"
-                          :gradient-id="getIconColorStyle(season.plant.stem).gradientId"
+                          :icon-style="
+                            getIconColorStyle(season.plant.stem).style
+                          "
+                          :use-gradient="
+                            getIconColorStyle(season.plant.stem).useGradient
+                          "
+                          :gradient-colors="
+                            getIconColorStyle(season.plant.stem).gradientColors
+                          "
+                          :gradient-id="
+                            getIconColorStyle(season.plant.stem).gradientId
+                          "
                         />
                       </UTooltip>
                     </div>
@@ -1045,7 +1355,10 @@ console.log('Google Images:', googleImages.value);
 
                   <!-- Empty state -->
                   <div v-else class="h-24 flex items-center justify-center">
-                    <UIcon :name="getBaseIcon" class="w-12 h-12 text-t-muted opacity-10" />
+                    <UIcon
+                      :name="getBaseIcon"
+                      class="w-12 h-12 text-t-muted opacity-10"
+                    />
                   </div>
 
                   <!-- Season name at bottom -->

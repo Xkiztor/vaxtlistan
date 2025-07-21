@@ -22,11 +22,13 @@ function handleMobileSearchBlur() {
 </script>
 
 <template>
-  <div>
+  <div class="min-h-screen flex flex-col">
     <nav
       class="fixed z-40 top-0 left-0 right-0 h-20 has-[.mobile-nav]:h-screen has-[.mobile-nav]:bottom-0 has-[.mobile-nav]:grid grid-rows-[auto_1fr]"
     >
-      <div class="border-border border-b-1 flex justify-between p-4 bg-bg-elevated h-20">
+      <div
+        class="border-border border-b-1 flex justify-between p-4 bg-bg-elevated h-20"
+      >
         <!-- Top part -->
         <transition name="logo-fade">
           <div
@@ -76,11 +78,19 @@ function handleMobileSearchBlur() {
           />
 
           <!-- Login button using Nuxt UI UButton -->
-          <UButton class="max-md:hidden w-max shrink-0" size="xl" to="/plantskola-admin/login">
+          <UButton
+            class="max-md:hidden w-max shrink-0"
+            size="xl"
+            to="/plantskola-admin/login"
+          >
             <span v-if="user">Adminsidan </span>
             <span v-else>Plantskola - Login</span></UButton
           >
-          <div class="max-md:hidden shrink-0 h-full flex flex-col justify-center"><ColorModeButton /></div>
+          <div
+            class="max-md:hidden shrink-0 h-full flex flex-col justify-center"
+          >
+            <ColorModeButton />
+          </div>
           <UButton
             v-if="menuOpen"
             icon="i-material-symbols-close-rounded"
@@ -123,7 +133,10 @@ function handleMobileSearchBlur() {
       </div>
       <!-- Mobile menu overlay (bottom part) -->
       <transition name="fade">
-        <div v-if="menuOpen" class="mobile-nav p-4 bg-bg-elevated flex flex-col gap-4 text-xl">
+        <div
+          v-if="menuOpen"
+          class="mobile-nav p-4 bg-bg-elevated flex flex-col gap-4 text-xl"
+        >
           <div class="py-2 flex flex-col gap-4">
             <!-- Navigation links -->
             <NuxtLink
@@ -152,7 +165,12 @@ function handleMobileSearchBlur() {
             </NuxtLink>
           </div>
           <div class="flex flex-col gap-4 border-t-1 border-border pt-4">
-            <UButton class="w-full" size="xl" @click="closeMenu" to="/plantskola-admin/login">
+            <UButton
+              class="w-full"
+              size="xl"
+              @click="closeMenu"
+              to="/plantskola-admin/login"
+            >
               <span v-if="user">Till Adminsidan</span>
               <span v-else>Plantskola - Login</span>
             </UButton>
@@ -161,9 +179,63 @@ function handleMobileSearchBlur() {
         </div>
       </transition>
     </nav>
-    <div class="page pt-20">
+
+    <!-- Main content area -->
+    <div class="page pt-20 flex-1">
       <slot />
     </div>
+    <!--  -->
+
+    <!-- Footer -->
+    <footer
+      class="mt-4 flex flex-col items-center justify-center p-4 bg-bg-elevated border-t border-border"
+    >
+      <div class="flex-1">
+        <div
+          class="flex flex-col md:grid grid-cols-[auto_auto] max-md:items-center gap-2 md:gap-8"
+        >
+          <div
+            class="flex gap-4 md:gap-2 md:flex-col md:col-[2] text-sm underline"
+          >
+            <NuxtLink
+              to="/om-oss"
+              class="text-muted hover:text-primary transition-colors"
+            >
+              Om Växtlistan
+            </NuxtLink>
+            <NuxtLink
+              to="/for-plantskolor"
+              class="text-muted hover:text-primary transition-colors"
+            >
+              Information för plantskolor
+            </NuxtLink>
+            <NuxtLink
+              to="/plantskola-admin/login"
+              class="text-muted hover:text-primary transition-colors"
+            >
+              Plantskola - Login
+            </NuxtLink>
+          </div>
+          <div class="md:col-[1] md:row-[1]">
+            <div class="max-md:mt-2 text-sm text-muted max-md:text-center">
+              Växtlistan.se är en samlad plats för Sveriges plantskolor och
+              växtintresserade.<br />
+            </div>
+            <div class="mt-2 text-sm text-muted max-md:text-center">
+              Kontakta oss på
+              <a
+                href="mailto:kontakt@vaxtlistan.se"
+                class="text-primary underline"
+                >kontakt@vaxtlistan.se</a
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="text-xs text-muted text-center">
+        &copy; {{ new Date().getFullYear() }} Växtlistan.se
+      </div>
+    </footer>
   </div>
 </template>
 

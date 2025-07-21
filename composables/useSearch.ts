@@ -24,6 +24,7 @@ export interface SearchOptions {
   includeCount?: boolean;
   includeHidden?: boolean;
   plantType?: string; // Filter by plant type (träd, buskar, etc.)
+  sortBy?: 'relevance' | 'popularity' | 'name_asc' | 'name_desc'; // Sort option
 }
 
 export interface InlineSearchResult {
@@ -61,40 +62,83 @@ export const useSearch = () => {
   const supabase = useSupabaseClient();
 
   /**
-   * Main plant search using the optimized search_plants_main_page function
-   * Features fuzzy matching, relevance scoring, analytics, and plant type filtering
+   * Main plant search with intelligent sorting and search mode selection
+   * - No search query: Sort by popularity by default, allow name/popularity sorting
+   * - With search query: Sort by relevance by default (fuzzy search), allow relevance/popularity/name sorting
+   * - When sorting by popularity/name with search: Use strict matching for better performance
    */
   const searchPlants = async (
     query: string,
     options: SearchOptions = {}
   ): Promise<AvailableSearchResult> => {
     const startTime = performance.now();
-    const { limit = 60, offset = 0, includeCount = true, plantType } = options;
+    const { limit = 60, offset = 0, includeCount = true, plantType, sortBy } = options;
 
-    // Sanitize and validate query
+    // Sanitize query but allow any length including empty
     const sanitizedQuery = query.trim();
-    if (sanitizedQuery.length < 2) {
-      return {
-        results: [],
-        totalCount: 0,
-        searchTime: performance.now() - startTime,
-      };
+    const hasSearchQuery = sanitizedQuery.length > 0;
+
+    // Determine sort option based on context
+    let finalSortBy = sortBy;
+    if (!finalSortBy) {
+      // Default sorting logic
+      if (hasSearchQuery) {
+        finalSortBy = 'relevance'; // Default to relevance when searching
+      } else {
+        finalSortBy = 'popularity'; // Default to popularity when showing all plants
+      }
     }
 
-    try {      // Use the new optimized search_plants_main_page function
-      const { data, error } = await supabase.rpc('search_plants_main_page', {
-        search_term: sanitizedQuery,
-        filters: plantType ? JSON.stringify({ plant_types: [plantType] }) : '{}',
-        include_hidden: false,
-        result_limit: limit,
-        offset_param: offset,
-      } as any);
+    // Determine which search function to use
+    const useStrictSearch = hasSearchQuery && (finalSortBy === 'popularity' || finalSortBy === 'name_asc' || finalSortBy === 'name_desc');
+    const searchFunction = useStrictSearch ? 'search_plants_main_page_strict' : 'search_plants_main_page';
+
+    try {
+      // Build filters object (no longer includes sort_by)
+      const filters: any = {};
+      if (plantType) {
+        filters.plant_types = [plantType];
+      }
+
+      // Use the appropriate search function with new signatures
+      let rpcCall;
+      if (useStrictSearch) {
+        // For strict search, pass sort_by as separate parameter
+        rpcCall = supabase.rpc('search_plants_main_page_strict', {
+          search_term: sanitizedQuery || null,
+          filters: JSON.stringify(filters),
+          include_hidden: false,
+          sort_by: finalSortBy,
+          result_limit: limit,
+          offset_param: offset,
+        } as any);
+      } else {
+        // For fuzzy search, no sort parameter (always sorts by relevance)
+        rpcCall = supabase.rpc('search_plants_main_page', {
+          search_term: sanitizedQuery || null,
+          filters: JSON.stringify(filters),
+          include_hidden: false,
+          result_limit: limit,
+          offset_param: offset,
+        } as any);
+      }
+
+      const { data, error } = await rpcCall;
 
       if (error) {
-        console.error('Main plant search RPC error:', error);
+        console.error(`${searchFunction} RPC error:`, error);
         throw error;
-      }      const results = (data as any[]) || [];
+      }
+
+      const results = (data as any[]) || [];
       const searchTime = performance.now() - startTime;
+
+      // Debug: Log the sort method being used (only for strict search which still has debug info)
+      if (results.length > 0 && useStrictSearch) {
+        console.log('🔧 DEBUG: SQL sort method detected:', results[0].debug_sort_method);
+        console.log('🔧 DEBUG: Frontend sort option sent:', finalSortBy);
+        console.log('🔧 DEBUG: First 3 plant names:', results.slice(0, 3).map(r => r.name));
+      }
 
       // Get total count from the first result if available (returned by the function)
       const totalCount = includeCount && results.length > 0 ? (results[0] as any).total_results || 0 : 0;
@@ -105,7 +149,7 @@ export const useSearch = () => {
         searchTime,
       };
     } catch (error) {
-      console.error('Main plant search error:', error);
+      console.error('Plant search error:', error);
       const searchTime = performance.now() - startTime;
       return {
         results: [],
@@ -118,17 +162,19 @@ export const useSearch = () => {
   /**
    * Fast inline search for autocomplete and navigation
    * Uses the optimized search_inline function with both plant and nursery results
+   * Now supports single character searches
    */
   const searchInline = async (
     query: string,
     limit: number = 10
   ): Promise<InlineSearchResult[]> => {
     const sanitizedQuery = query.trim();
-    if (sanitizedQuery.length < 2) {
+    // Allow single character searches for inline search too
+    if (sanitizedQuery.length < 1) {
       return [];
     }
 
-    try {      // Use the new optimized search_inline function
+    try {      // Use the optimized search_inline function
       const { data, error } = await supabase.rpc('search_inline', {
         search_term: sanitizedQuery,
         result_limit: limit,
@@ -161,6 +207,7 @@ export const useSearch = () => {
    * Search ALL plants in facit table (170k+ rows) - for PlantPicker component
    * Uses the redesigned search_all_plants SQL function with advanced trigram similarity matching
    * Features: fuzzy matching, synonym splitting, similarity scoring, matched synonym detection
+   * Now supports single character searches
    */
   const searchAllPlants = async (
     query: string,
@@ -169,9 +216,9 @@ export const useSearch = () => {
     const startTime = performance.now();
     const { limit = 50, minimumSimilarity = 0.25 } = options;
 
-    // Sanitize and validate query
+    // Sanitize query but allow single character searches
     const sanitizedQuery = query.trim();
-    if (sanitizedQuery.length < 2) {
+    if (sanitizedQuery.length < 1) {
       return {
         results: [],
         totalCount: 0,

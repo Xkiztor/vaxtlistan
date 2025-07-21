@@ -1,5 +1,6 @@
 // server/api/image-search.get.ts (Nuxt 3 server route)
 import type { H3Event } from 'h3';
+import type { GoogleImageResult } from '~/types/supabase-tables';
 
 // Define the type for the Google Custom Search API image result
 interface GoogleImageItem {
@@ -25,7 +26,9 @@ interface ImageSearchResult {
 }
 
 export default defineEventHandler(async (event: H3Event): Promise<ImageSearchResult[]> => {  
-  const query = getQuery(event).q as string;
+  const query = getQuery(event);
+  const searchQuery = query.q as string;
+  const start = parseInt(query.start as string) || 1;
   const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
   const cx = process.env.GOOGLE_CSE_ID;
 
@@ -34,8 +37,9 @@ export default defineEventHandler(async (event: H3Event): Promise<ImageSearchRes
       key: apiKey,
       cx: cx,
       searchType: 'image',
-      q: query,
+      q: searchQuery,
       num: 10,
+      start: start,
     },
   });  
 

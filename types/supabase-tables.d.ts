@@ -182,6 +182,13 @@ export const RHS_TYPES_LABELS = {
   [RHS_TYPES.CONIFERS]: "Barrträd"
 } as const;
 
+// Google Photos data structure
+export interface GoogleImageResult {
+  url: string; // Direct URL to the image file
+  title: string; // Descriptive title or alt text for the image
+  sourcePage: string; // URL of the webpage where the image was found
+}
+
 // Table: facit
 export interface Facit {
   id: number; // bigint (auto-generated). Unique identifier for the plant.
@@ -214,6 +221,10 @@ export interface Facit {
   user_submitted?: boolean | null; // boolean. Whether the entry was user-submitted.
   created_by?: number | null; // bigint. User or nursery who created the entry.
   last_edited?: string | null; // timestamp with time zone (ISO string). When last edited.
+  images?: GoogleImageResult[] | null; // ARRAY of JSONB. Google Images data.
+  images_reordered?: boolean | null; // If the images have been reordered on superadmin page.
+  images_reordered_date?: string | null; // Timestampz, date of reordering.
+  images_added_date?: string | null; // Timestampz, date when images were added.
 }
 
 // Table: plantskolor
@@ -297,7 +308,9 @@ export interface LagerComplete {
   facit_colors?: string[] | null;
   facit_season_of_interest?: number[] | null;
   facit_user_submitted?: boolean | null;
-  facit_created_by?: number | null;  facit_created_at?: string | null;
+  facit_created_by?: number | null;
+  facit_created_at?: string | null;
+  facit_images?: GoogleImageResult[] | null;
 }
 
 // Search function return types for ALL plants (used by PlantPicker)
@@ -330,11 +343,11 @@ export interface AvailablePlantSearchResult {
   plant_type?: string | null;
   rhs_types?: number[] | null;
   taxonomy_type?: string | null;
+  grupp?: string | null;
+  serie?: string | null;
   is_synonym?: boolean | null;
   synonym_to?: string | null;
   synonym_to_id?: number | null;
-  spread?: string | null;
-  height?: string | null;
   colors?: string[] | null;
   last_edited?: string | null;
   available_count: number; // Total stock across all plantskolor
@@ -345,6 +358,7 @@ export interface AvailablePlantSearchResult {
   avg_price?: number; // Average price across nurseries
   nursery_info?: NurseryInfo; // Aggregated nursery information
   plant_attributes?: PlantAttributes; // Detailed plant characteristics
+  images?: any[] | null; // Plant images from Google search
   total_results?: number; // Total matching results (for pagination)
 }
 
@@ -449,6 +463,13 @@ export interface Database {
       }
     }
   }
+}
+
+// Google Photos data structure
+export interface GoogleImageResult {
+  url: string; // Direct URL to the image file
+  title: string; // Descriptive titlez or alt text for the image
+  sourcePage: string; // URL of the webpage where the image was found
 }
 
 // Enhanced search result interface for the new search_all_plants function
