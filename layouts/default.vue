@@ -48,7 +48,7 @@ function handleMobileSearchBlur() {
           class="flex items-center gap-4 lg:gap-8 max-md:hidden flex-1 w-max shrink-0 pr-4 xl:pl-8"
         >
           <!-- Navigation links -->
-          <NuxtLink
+          <!-- <NuxtLink
             to="/for-plantskolor"
             @click="closeMenu"
             class="shrink-0 w-max"
@@ -64,7 +64,54 @@ function handleMobileSearchBlur() {
             active-class="text-primary font-bold underline router-link-active"
           >
             Om växtlistan
+          </NuxtLink> -->
+          <NuxtLink
+            to="/vaxt/s"
+            @click="closeMenu"
+            class="shrink-0 w-max"
+            active-class="text-primary font-bold underline router-link-active"
+          >
+            Alla växter
           </NuxtLink>
+
+          <UPopover
+            class="shrink-0 w-max flex items-center cursor-pointer gap-1"
+            :content="{
+              align: 'center',
+              side: 'bottom',
+              sideOffset: 8,
+            }"
+            mode="hover"
+            :open-delay="0"
+            :close-delay="0"
+            :ui="{ content: 'bg-bg-elevated p-4 flex flex-col gap-4' }"
+          >
+            <span class=""
+              >Plantskolor
+              <UIcon
+                name="material-symbols:keyboard-arrow-down-rounded"
+                class="text-xl"
+              ></UIcon>
+            </span>
+            <template #content>
+              <NuxtLink
+                to="/plantskolor"
+                @click="closeMenu"
+                class="shrink-0 w-max"
+                active-class="text-primary font-bold underline router-link-active"
+              >
+                Alla plantskolor
+              </NuxtLink>
+              <NuxtLink
+                to="/for-plantskolor"
+                @click="closeMenu"
+                class="shrink-0 w-max"
+                active-class="text-primary font-bold underline router-link-active"
+              >
+                Information för plantskolor
+              </NuxtLink>
+            </template>
+          </UPopover>
         </div>
         <div
           class="items-center flex-row flex gap-2 min-[450px]:gap-4 justify-end max-md:w-full max-md:grow"
@@ -146,6 +193,14 @@ function handleMobileSearchBlur() {
               active-class="text-primary font-bold underline router-link-active"
             >
               Startsidan
+            </NuxtLink>
+            <NuxtLink
+              to="/vaxt/s"
+              @click="closeMenu"
+              class="block"
+              active-class="text-primary font-bold underline router-link-active"
+            >
+              Alla växter
             </NuxtLink>
             <NuxtLink
               to="/for-plantskolor"

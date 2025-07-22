@@ -66,22 +66,18 @@ const availableSortOptions = computed(() => {
       {
         value: "relevance",
         label: "Relevans",
-        icon: "i-material-symbols-star-rate-rounded",
       },
       {
         value: "popularity",
         label: "Popularitet",
-        icon: "i-material-symbols-trending-up-rounded",
       },
       {
         value: "name_asc",
         label: "Namn (A-Z)",
-        icon: "i-material-symbols-sort-by-alpha-rounded",
       },
       {
         value: "name_desc",
         label: "Namn (Z-A)",
-        icon: "i-material-symbols-keyboard-arrow-down-rounded",
       },
     ];
   } else {
@@ -89,17 +85,14 @@ const availableSortOptions = computed(() => {
       {
         value: "popularity",
         label: "Popularitet",
-        icon: "i-material-symbols-trending-up-rounded",
       },
       {
         value: "name_asc",
         label: "Namn (A-Z)",
-        icon: "i-material-symbols-sort-by-alpha-rounded",
       },
       {
         value: "name_desc",
         label: "Namn (Z-A)",
-        icon: "i-material-symbols-keyboard-arrow-down-rounded",
       },
     ];
   }
@@ -320,10 +313,6 @@ const testVar = ref(1234567); // Example variable for testing purposes
   <!-- Main container -->
   <div class="p-4 sm:p-8 max-w-7xl mx-auto">
     <!-- Search input -->
-    <div class="flex items-center gap-2 mb-2">
-      <USwitch v-model="showDetailedInfo" />
-      <span class="text-sm text-t-muted">Detaljerad information</span>
-    </div>
     <div
       class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4"
     >
@@ -336,6 +325,8 @@ const testVar = ref(1234567); // Example variable for testing purposes
           leading-icon="i-material-symbols-search-rounded"
           @keydown.enter="onSearch"
           :ui="{
+            root: 'w-full',
+
             leadingIcon: 'pointer-events-none',
             leading: 'pointer-events-none',
           }"
@@ -365,44 +356,34 @@ const testVar = ref(1234567); // Example variable for testing purposes
       >
         Sök
       </UButton>
+      <USelect
+        v-model="sortBy"
+        :items="availableSortOptions"
+        value-attribute="value"
+        option-attribute="label"
+        size="xl"
+        @change="onSortChange"
+        class="w-40"
+        icon="i-material-symbols-sort"
+      />
     </div>
 
     <!-- Sort controls -->
-    <div class="flex items-center gap-3 mb-4">
-      <span class="text-sm text-t-muted font-medium">Sortera:</span>
-      <UButtonGroup size="sm" orientation="horizontal">
-        <UButton
-          v-for="option in availableSortOptions"
-          :key="option.value"
-          :variant="sortBy === option.value ? 'solid' : 'ghost'"
-          :color="sortBy === option.value ? 'primary' : 'neutral'"
-          :icon="option.icon"
-          size="sm"
-          @click="() => { sortBy = option.value as typeof sortBy; onSortChange(); }"
-          class="text-xs"
-        >
-          {{ option.label }}
-        </UButton>
-      </UButtonGroup>
-
-      <!-- Search mode indicator -->
-      <div
-        v-if="search.trim().length > 0"
-        class="flex items-center gap-1 text-xs text-t-muted"
-      >
-        <UIcon
-          :name="
-            sortBy === 'relevance'
-              ? 'i-material-symbols-auto-awesome-rounded'
-              : 'i-material-symbols-speed-rounded'
-          "
-          size="16"
-        />
-        <span>
-          {{ sortBy === "relevance" ? "Fuzzy sökning" : "Exakt sökning" }}
-        </span>
+    <!-- <div
+      class="flex items-center justify-between mb-4 max-sm:flex-col max-sm:items-start max-sm:gap-2"
+    >
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-t-muted font-medium">Sortera:</span>
       </div>
-    </div>
+      <div class="flex items-center gap-2 mb-2">
+        <USwitch v-model="showDetailedInfo" size="xs" />
+        <span class="text-sm text-t-muted">Detaljerad information</span>
+      </div>
+      <div class="flex items-center gap-2 mb-2">
+        <USwitch v-model="showDetailedInfo" size="xs" />
+        <span class="text-sm text-t-muted">Detaljerad information</span>
+      </div>
+    </div> -->
 
     <!-- Search results info -->
     <div v-if="hasSearched && !loading" class="mb-6">
@@ -421,6 +402,10 @@ const testVar = ref(1234567); // Example variable for testing purposes
         <!-- <p v-if="searchTime > 0" class="text-sm text-t-muted">
           Söktid: {{ Math.round(searchTime) }}ms
         </p> -->
+        <div class="flex items-center gap-2 mb-2">
+          <USwitch v-model="showDetailedInfo" size="xs" />
+          <span class="text-sm text-t-muted">Detaljerad information</span>
+        </div>
       </div>
     </div>
 

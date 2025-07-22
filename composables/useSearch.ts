@@ -90,7 +90,10 @@ export const useSearch = () => {
     }
 
     // Determine which search function to use
-    const useStrictSearch = hasSearchQuery && (finalSortBy === 'popularity' || finalSortBy === 'name_asc' || finalSortBy === 'name_desc');
+    // Use strict search when:
+    // 1. No search query (showing all plants) - so sorting options work
+    // 2. Has search query but sorting by popularity/name (not relevance)
+    const useStrictSearch = !hasSearchQuery || (hasSearchQuery && (finalSortBy === 'popularity' || finalSortBy === 'name_asc' || finalSortBy === 'name_desc'));
     const searchFunction = useStrictSearch ? 'search_plants_main_page_strict' : 'search_plants_main_page';
 
     try {

@@ -27,19 +27,30 @@
     <div class="search">
       <input type="text" name="" id="" v-model="sok" placeholder="Sök..." />
     </div>
-    <div class="results">
-      <nuxt-link
-        v-for="item in filteredItems"
-        :key="item.id"
-        :to="`/brainrot/${item.title}`"
-        class="brainrot-item"
-      >
-        <img :src="item.image" alt="" />
-        <h2>{{ item.title }}</h2>
-        <!-- <p>{{ item.description }}</p> -->
-      </nuxt-link>
+    <div>
+      <div class="column-titles">
+        <span></span>
+        <span>Titel</span>
+        <span>Id</span>
+      </div>
+      <div class="results">
+        <nuxt-link
+          v-for="item in filteredItems"
+          :key="item.id"
+          :to="`/brainrot/${item.title}`"
+          class="brainrot-item"
+        >
+          <img :src="item.image" alt="" />
+          <h2>{{ item.title }}</h2>
+          <p>{{ item.id }}</p>
+          <!-- <p>{{ item.description }}</p> -->
+        </nuxt-link>
+      </div>
     </div>
   </div>
+  <nuxt-link class="info-button" to="/brainrot/brainrot-info"
+    >Vad är brainrot?</nuxt-link
+  >
 </template>
 
 <script setup>
@@ -94,7 +105,7 @@ const brainrotItems = [
   {
     id: 3,
     title: "Tung Tung Tung Sahur",
-    description: "",
+    description: "tung ".repeat(50).trim(),
     image: "https://i.redd.it/t20nfsv8guwe1.jpeg",
   },
   {
@@ -117,7 +128,7 @@ const filteredItems = computed(() => {
 <style>
 .brainrot-page {
   padding: 1rem;
-  min-height: 100vh;
+  height: 120vh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -146,7 +157,6 @@ const filteredItems = computed(() => {
 .brainrot-page img {
   max-width: 500px;
   height: auto;
-  margin-top: 20px;
 }
 
 .brainrot-page button {
@@ -198,27 +208,58 @@ button.cappuccino {
 }
 
 .results {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 2rem 3rem;
+  max-height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+@media screen and (max-width: 700px) {
+  .results {
+    grid-template-columns: 1fr;
+  }
+
+  .brainrot-page .title {
+    font-size: 5rem;
+  }
 }
 
 .brainrot-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  border: #ccc solid 1px;
-  padding: 1rem;
-  border-radius: 1rem;
-}
-.brainrot-item img {
   width: 100%;
+  border: #ccc solid 1px;
+  border-radius: 1rem;
+  width: 100%;
+}
+.brainrot-item,
+.column-titles {
+  padding: 0.5rem;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 5fr 1fr;
+}
+
+.brainrot-item img {
   object-fit: cover;
-  height: auto;
+  height: 100%;
+  max-height: 4rem;
+  aspect-ratio: 1/1;
   border-radius: 10px;
 }
 .brainrot-item h2 {
   font-size: 1.5rem;
-  margin: 10px 0;
+}
+
+.info-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background-color: #c8c8c8;
+  color: #000;
+  padding: 10px 20px;
+  border-radius: 5px;
+  text-decoration: none;
+  font-weight: bold;
 }
 </style>

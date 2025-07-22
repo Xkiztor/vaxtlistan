@@ -32,7 +32,7 @@ const brainrotItems = [
   {
     id: 3,
     title: "Tung Tung Tung Sahur",
-    description: "",
+    description: "tung ".repeat(500).trim(),
     image: "https://i.redd.it/t20nfsv8guwe1.jpeg",
   },
   {

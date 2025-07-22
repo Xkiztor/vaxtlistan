@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { InlineSearchResult } from '~/composables/useSearch';
-import { usePlantType } from '~/composables/usePlantType';
+import type { InlineSearchResult } from "~/composables/useSearch";
+import { usePlantType } from "~/composables/usePlantType";
 
 // Props: mode controls size/layout
-const props = defineProps<{ mode?: 'navbar' | 'hero' | 'dropdown' }>();
+const props = defineProps<{ mode?: "navbar" | "hero" | "dropdown" }>();
 
 const { width, height } = useWindowSize();
 const expandSearchScreenWidth = 550; // Width at which search expands
 
-const emit = defineEmits(['select', 'deslect']);
+const emit = defineEmits(["select", "deslect"]);
 const isFocused = ref(false);
 
 const supabase = useSupabaseClient();
@@ -16,7 +16,7 @@ const router = useRouter();
 const { searchInline } = useSearch();
 const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
 
-const search = ref('');
+const search = ref("");
 const results = ref<InlineSearchResult[]>([]);
 const loading = ref(false);
 const showDropdown = ref(false);
@@ -36,10 +36,10 @@ const debouncedSearch = useDebounceFn(async () => {
     const searchResult = await searchInline(search.value, maxResults);
 
     // Filter for plants only since this is a plant search component
-    results.value = searchResult.filter((item) => item.type === 'plant');
+    results.value = searchResult.filter((item) => item.type === "plant");
     showDropdown.value = results.value.length > 0;
   } catch (error) {
-    console.error('Search error:', error);
+    console.error("Search error:", error);
     results.value = [];
     showDropdown.value = false;
   } finally {
@@ -63,7 +63,7 @@ watch(
 // Handle navigation to all results page
 function goToAllResults() {
   showDropdown.value = false;
-  router.push({ path: '/vaxt/s', query: { q: search.value } });
+  router.push({ path: "/vaxt/s", query: { q: search.value } });
 }
 
 // Handle Enter key
@@ -72,7 +72,7 @@ function onEnter(e: KeyboardEvent) {
     deSelect();
     e.preventDefault();
     goToAllResults();
-    search.value = '';
+    search.value = "";
   }
 }
 
@@ -86,35 +86,39 @@ function onBlurDropdown(e: FocusEvent) {
 
 function handleFocus() {
   isFocused.value = true;
-  emit('select');
-  if (search.value.length >= minChars && results.value.length > 0) showDropdown.value = true;
+  emit("select");
+  if (search.value.length >= minChars && results.value.length > 0)
+    showDropdown.value = true;
 }
 
 function handleBlur(e: FocusEvent) {
   isFocused.value = false;
-  emit('deslect');
+  emit("deslect");
   onBlurDropdown(e);
 }
 
 function clearSearch() {
-  search.value = '';
+  search.value = "";
   results.value = [];
   showDropdown.value = false;
 }
 
 const deSelect = () => {
   isFocused.value = false;
-  emit('deslect');
+  emit("deslect");
   showDropdown.value = false;
   // Try to blur the input in a robust way
   let el = inputRef.value;
   if (el) {
-    if (typeof el.blur === 'function') {
+    if (typeof el.blur === "function") {
       el.blur();
-    } else if ('input' in el && typeof (el as any).input?.blur === 'function') {
+    } else if ("input" in el && typeof (el as any).input?.blur === "function") {
       (el as any).input.blur();
-    } else if ('$el' in el && typeof (el as any).$el?.querySelector === 'function') {
-      (el as any).$el.querySelector('input')?.blur();
+    } else if (
+      "$el" in el &&
+      typeof (el as any).$el?.querySelector === "function"
+    ) {
+      (el as any).$el.querySelector("input")?.blur();
     }
   }
 };
@@ -134,15 +138,9 @@ const deSelect = () => {
     <UInput
       ref="inputRef"
       v-model="search"
-      :placeholder="
-        mode === 'hero'
-          ? 'Sök växtnamn'
-          : width <= expandSearchScreenWidth
-          ? 'Sök'
-          : 'Sök växt'
-      "
       :size="width > expandSearchScreenWidth ? 'xl' : 'lg'"
       class="w-full"
+      placeholder="Sök"
       leading-icon="i-material-symbols-search-rounded"
       loading-icon="ant-design:loading-outlined"
       :loading="loading"
@@ -193,7 +191,9 @@ const deSelect = () => {
             "
           >
             <span class="font-semibold leading-4 block">{{ plant.name }}</span>
-            <span v-if="plant.sv_name" class="text-t-muted text-sm">{{ plant.sv_name }}</span>
+            <span v-if="plant.sv_name" class="text-t-muted text-sm">{{
+              plant.sv_name
+            }}</span>
           </li>
         </ul>
         <UButton
