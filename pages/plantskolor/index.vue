@@ -1,5 +1,5 @@
 <template>
-  <h1. class="text-2xl">Alla plantskolor</h1.>
+  <h1 class="text-2xl">Work in progress</h1>
 </template>
 
 <script setup>

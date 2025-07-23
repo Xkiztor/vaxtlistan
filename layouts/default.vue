@@ -74,7 +74,7 @@ function handleMobileSearchBlur() {
             Alla växter
           </NuxtLink>
 
-          <UPopover
+          <!-- <UPopover
             class="shrink-0 w-max flex items-center cursor-pointer gap-1"
             :content="{
               align: 'center',
@@ -111,7 +111,38 @@ function handleMobileSearchBlur() {
                 Information för plantskolor
               </NuxtLink>
             </template>
-          </UPopover>
+          </UPopover> -->
+          <UNavigationMenu
+            :items="[
+              {
+                label: 'Plantskolor',
+                activeClass:
+                  'text-primary font-bold underline router-link-active',
+                children: [
+                  {
+                    label: 'Alla plantskolor',
+                    to: '/plantskolor',
+                    activeClass:
+                      'text-primary font-bold underline router-link-active',
+                  },
+                  {
+                    label: 'Information för plantskolor',
+                    to: '/for-plantskolor',
+                    activeClass:
+                      'text-primary font-bold underline router-link-active',
+                  },
+                ],
+              },
+            ]"
+            :ui="{
+              link: 'text-t-regular text-base font-normal',
+              viewport: 'w-fit sm:w-fit overflow-visible bg-bg-elevated',
+              content: 'static',
+              childLink: 'bg-transparent',
+            }"
+            content-orientation="vertical"
+            highlight
+          />
         </div>
         <div
           class="items-center flex-row flex gap-2 min-[450px]:gap-4 justify-end max-md:w-full max-md:grow"

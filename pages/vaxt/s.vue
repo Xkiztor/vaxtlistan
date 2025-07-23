@@ -6,6 +6,8 @@ const route = useRoute();
 const router = useRouter();
 const { searchPlants } = useSearch();
 
+const { isMobile, isDesktop } = useScreen();
+
 // URL sort mapping for Swedish URLs
 const sortUrlMapping = {
   // Internal -> Swedish URL
@@ -324,6 +326,7 @@ const testVar = ref(1234567); // Example variable for testing purposes
           class="w-full"
           leading-icon="i-material-symbols-search-rounded"
           @keydown.enter="onSearch"
+          @blur="isMobile ? onSearch() : null"
           :ui="{
             root: 'w-full',
 
@@ -346,11 +349,13 @@ const testVar = ref(1234567); // Example variable for testing purposes
           </template>
         </UInput>
       </div>
+
       <UButton
         @click="onSearch"
         size="xl"
         icon="i-material-symbols-search-rounded"
         loading-icon="ant-design:loading-outlined"
+        class="max-sm:hidden"
         :loading="loading"
         :disabled="loading"
       >
@@ -363,7 +368,7 @@ const testVar = ref(1234567); // Example variable for testing purposes
         option-attribute="label"
         size="xl"
         @change="onSortChange"
-        class="w-40"
+        class="max-sm:w-full w-40"
         icon="i-material-symbols-sort"
       />
     </div>

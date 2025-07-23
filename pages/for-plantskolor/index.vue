@@ -1,7 +1,7 @@
 <script setup></script>
 
 <template>
-  <div></div>
+  <div>Work in progress</div>
 </template>
 
 <style></style>
