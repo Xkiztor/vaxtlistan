@@ -527,10 +527,12 @@ const saveGoogleImagesToDatabase = async (
       images_added_date: new Date().toISOString(),
     };
 
-    const { error } = await (supabase as any)
+    // First, let's try just updating the images field to see if that's the issue
+    const { data, error } = await (supabase as any)
       .from("facit")
       .update(updateData)
-      .eq("id", plant.value.id);
+      .eq("id", plant.value.id)
+      .select();
 
     if (error) {
       console.error("Error saving Google photos to database:", error);
@@ -543,7 +545,12 @@ const saveGoogleImagesToDatabase = async (
 };
 
 // Fetch Google image search results if no database images and no Lignosdatabasen images
-const { data: googleImages, error: googleImagesError } = await useFetch<
+const {
+  data: googleImages,
+  error: googleImagesError,
+  pending: googleImagesPending,
+  refresh: refreshGoogleImages,
+} = await useFetch<
   { url: string; title: string; thumbnail: string; sourcePage: string }[]
 >(
   () => {
@@ -560,8 +567,9 @@ const { data: googleImages, error: googleImagesError } = await useFetch<
     return `/api/image-search?q=${encodeURIComponent(plant.value.name)}`;
   },
   {
-    server: true, // SSR
-    immediate: true,
+    server: false, // Client-side only to avoid blocking SSR
+    immediate: false, // Don't fetch immediately, wait for onMounted
+    lazy: true, // Enable lazy loading
     watch: [
       () => plant.value?.name,
       () => lignosImages.value,
@@ -600,8 +608,41 @@ const finalImages = computed(() => {
 console.log("Database Images:", databaseImages.value);
 console.log("Google Images:", googleImages.value);
 
+// Helper functions for Google images lazy loading and preloading
+const shouldPreloadGoogleImage = (index: number) => {
+  // Eagerly load first 2 images on mobile, 3 on desktop
+  const preloadCount = width.value > 768 ? 3 : 2;
+  return index < preloadCount;
+};
+
+const getGoogleImagesToPreload = () => {
+  if (!googleImages.value || !Array.isArray(googleImages.value)) return [];
+
+  // Preload next 2-3 images after the initially loaded ones for smooth carousel navigation
+  const preloadCount = width.value > 768 ? 3 : 2;
+  const startIndex = preloadCount;
+  const endIndex = Math.min(
+    startIndex + preloadCount,
+    googleImages.value.length
+  );
+
+  return googleImages.value.slice(startIndex, endIndex);
+};
+
 // Track plant page view for popularity analytics
-onMounted(() => {
+onMounted(async () => {
+  // Trigger Google image search after page load if needed
+  if (
+    plant.value?.name &&
+    (!databaseImages.value || databaseImages.value.length === 0) &&
+    (!lignosImages.value || lignosImages.value.length === 0)
+  ) {
+    // Use nextTick to ensure the page is fully rendered first
+    await nextTick();
+    // Refresh the Google images fetch
+    await refreshGoogleImages();
+  }
+
   if (plant.value?.id) {
     // Track the page view asynchronously - don't await to avoid blocking
     trackPlantView(plant.value.id);
@@ -694,7 +735,17 @@ onMounted(() => {
           class="absolute bottom-2 max-md:opacity-80 max-md:saturate-50 md:-bottom-6 right-2"
         />
       </div>
-      <!-- Priority 3: Google Images fallback (freshly fetched) -->
+      <!-- Priority 3: Loading state for Google Images -->
+      <div
+        v-else-if="googleImagesPending"
+        class="mb-10 flex items-center justify-center p-8 bg-muted rounded-lg"
+      >
+        <div class="flex items-center gap-3">
+          <UIcon name="i-heroicons-arrow-path" class="w-5 h-5 animate-spin" />
+          <span class="text-t-toned">Laddar bilder från Google...</span>
+        </div>
+      </div>
+      <!-- Priority 4: Google Images fallback (freshly fetched) -->
       <div
         v-else-if="
           googleImages && Array.isArray(googleImages) && googleImages.length
@@ -724,10 +775,22 @@ onMounted(() => {
                 : `${plant?.name || 'Växt'} - Bild ${index + 1}`
             "
             class="rounded-lg aspect-square object-cover h-full w-full cursor-pointer hover:opacity-90 transition-opacity"
-            loading="lazy"
+            :loading="shouldPreloadGoogleImage(index) ? 'eager' : 'lazy'"
             @click="openGoogleImage(item as string, index)"
           />
         </UCarousel>
+
+        <!-- Preload next images for smooth carousel navigation -->
+        <template v-if="googleImages && Array.isArray(googleImages)">
+          <link
+            v-for="(img, idx) in getGoogleImagesToPreload()"
+            :key="`preload-${idx}`"
+            rel="preload"
+            as="image"
+            :href="img.url"
+          />
+        </template>
+
         <UIcon
           name="logos:google"
           class="absolute bottom-2 max-md:opacity-80 max-md:saturate-50 md:-bottom-6 right-2"

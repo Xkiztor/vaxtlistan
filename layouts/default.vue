@@ -38,6 +38,7 @@ function handleMobileSearchBlur() {
             <!-- Logo with transition -->
             <NuxtLink
               to="/"
+              @click="closeMenu"
               class="font-black text-xl sm:text-2xl whitespace-nowrap overflow-hidden"
               >Växtlistan.se</NuxtLink
             >
@@ -233,22 +234,78 @@ function handleMobileSearchBlur() {
             >
               Alla växter
             </NuxtLink>
-            <NuxtLink
-              to="/for-plantskolor"
-              @click="closeMenu"
-              class="block"
-              active-class="text-primary font-bold underline router-link-active"
-            >
-              Information för plantskolor
-            </NuxtLink>
-            <NuxtLink
-              to="/om-oss"
-              @click="closeMenu"
-              class="block"
-              active-class="text-primary font-bold underline router-link-active"
-            >
-              Om växtlistan
-            </NuxtLink>
+            <UCollapsible>
+              <UButton
+                label="Plantskolor"
+                class="group p-0 w-full justify-between text-xl font-normal"
+                color="neutral"
+                size="xl"
+                variant="ghost"
+                trailing-icon="i-lucide-chevron-down"
+                :ui="{
+                  trailingIcon:
+                    'group-data-[state=open]:rotate-180 transition-transform duration-200',
+                }"
+              />
+              <template #content>
+                <div
+                  class="flex flex-col gap-4 pl-2 ml-2 border-l border-border mt-3"
+                >
+                  <NuxtLink
+                    to="/plantskolor"
+                    @click="closeMenu"
+                    class="block"
+                    active-class="text-primary font-bold underline router-link-active"
+                  >
+                    Alla plantskolor
+                  </NuxtLink>
+                  <NuxtLink
+                    to="/for-plantskolor"
+                    @click="closeMenu"
+                    class="block"
+                    active-class="text-primary font-bold underline router-link-active"
+                  >
+                    Information för plantskolor
+                  </NuxtLink>
+                </div>
+              </template>
+            </UCollapsible>
+            <UCollapsible>
+              <UButton
+                label="Info"
+                class="group p-0 w-full justify-between text-xl font-normal"
+                color="neutral"
+                size="xl"
+                variant="ghost"
+                trailing-icon="i-lucide-chevron-down"
+                :ui="{
+                  trailingIcon:
+                    'group-data-[state=open]:rotate-180 transition-transform duration-200',
+                }"
+              />
+              <template #content>
+                <div
+                  class="flex flex-col gap-4 pl-2 ml-2 border-l border-border mt-3"
+                >
+                  <NuxtLink
+                    to="/om-oss"
+                    @click="closeMenu"
+                    class="block"
+                    active-class="text-primary font-bold underline router-link-active"
+                  >
+                    Om Växtlistan
+                  </NuxtLink>
+                  <NuxtLink
+                    to="/for-plantskolor"
+                    @click="closeMenu"
+                    class="block"
+                    active-class="text-primary font-bold underline router-link-active"
+                  >
+                    Information för plantskolor
+                  </NuxtLink>
+                </div>
+              </template>
+            </UCollapsible>
           </div>
           <div class="flex flex-col gap-4 border-t-1 border-border pt-4">
             <UButton

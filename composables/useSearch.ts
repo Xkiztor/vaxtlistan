@@ -136,13 +136,6 @@ export const useSearch = () => {
       const results = (data as any[]) || [];
       const searchTime = performance.now() - startTime;
 
-      // Debug: Log the sort method being used (only for strict search which still has debug info)
-      if (results.length > 0 && useStrictSearch) {
-        console.log('🔧 DEBUG: SQL sort method detected:', results[0].debug_sort_method);
-        console.log('🔧 DEBUG: Frontend sort option sent:', finalSortBy);
-        console.log('🔧 DEBUG: First 3 plant names:', results.slice(0, 3).map(r => r.name));
-      }
-
       // Get total count from the first result if available (returned by the function)
       const totalCount = includeCount && results.length > 0 ? (results[0] as any).total_results || 0 : 0;
 
