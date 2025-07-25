@@ -8,7 +8,11 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     '@nuxtjs/supabase',
     '@vueuse/nuxt',
+    'nuxt-charts'
   ],
+    experimental: {
+    payloadExtraction: true,
+  },
   css: ['~/assets/css/main.css'],
   supabase: {
     // redirect: false

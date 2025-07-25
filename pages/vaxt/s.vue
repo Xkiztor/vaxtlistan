@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { AvailablePlantSimilaritySearchResult } from "~/types/supabase-tables";
+import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
 
 const supabase = useSupabaseClient();
 const route = useRoute();
@@ -11,22 +11,22 @@ const { isMobile, isDesktop } = useScreen();
 // URL sort mapping for Swedish URLs
 const sortUrlMapping = {
   // Internal -> Swedish URL
-  relevance: "relevans",
-  popularity: "popularitet",
-  name_asc: "namn_az",
-  name_desc: "namn_za",
+  relevance: 'relevans',
+  popularity: 'popularitet',
+  name_asc: 'namn_az',
+  name_desc: 'namn_za',
 } as const;
 
 // Reverse mapping for parsing URLs
 const sortFromUrl = {
-  relevans: "relevance",
-  popularitet: "popularity",
-  namn_az: "name_asc",
-  namn_za: "name_desc",
+  relevans: 'relevance',
+  popularitet: 'popularity',
+  namn_az: 'name_asc',
+  namn_za: 'name_desc',
 } as const;
 
-type InternalSort = "relevance" | "popularity" | "name_asc" | "name_desc";
-type UrlSort = "relevans" | "popularitet" | "namn_az" | "namn_za";
+type InternalSort = 'relevance' | 'popularity' | 'name_asc' | 'name_desc';
+type UrlSort = 'relevans' | 'popularitet' | 'namn_az' | 'namn_za';
 
 // Helper functions for URL conversion
 const sortToUrl = (sort: InternalSort): UrlSort => sortUrlMapping[sort];
@@ -35,28 +35,28 @@ const sortFromUrlParam = (urlSort: string): InternalSort => {
     return sortFromUrl[urlSort as UrlSort];
   }
   // Fallback for backwards compatibility
-  if (["relevance", "popularity", "name_asc", "name_desc"].includes(urlSort)) {
+  if (['relevance', 'popularity', 'name_asc', 'name_desc'].includes(urlSort)) {
     return urlSort as InternalSort;
   }
-  return "popularity"; // Default fallback
+  return 'popularity'; // Default fallback
 };
 
 // Search input, initialized from query param if present
-const search = ref(typeof route.query.q === "string" ? route.query.q : "");
+const search = ref(typeof route.query.q === 'string' ? route.query.q : '');
 // Filtered plant results from search query
 const searchResults = ref<AvailablePlantSimilaritySearchResult[]>([]);
 const hasSearched = ref(false);
 const totalCount = ref(0);
 // Loading and error states
 const loading = ref(false);
-const errorMsg = ref("");
+const errorMsg = ref('');
 const searchTime = ref(0);
 
 // Sorting options
-const sortBy = ref<"relevance" | "popularity" | "name_asc" | "name_desc">(
-  typeof route.query.sortera === "string"
+const sortBy = ref<'relevance' | 'popularity' | 'name_asc' | 'name_desc'>(
+  typeof route.query.sortera === 'string'
     ? (sortFromUrlParam(route.query.sortera) as any)
-    : "popularity" // Will be overridden by watch logic
+    : 'popularity' // Will be overridden by watch logic
 );
 
 // Computed property to determine available sort options based on search state
@@ -66,35 +66,35 @@ const availableSortOptions = computed(() => {
   if (hasSearchQuery) {
     return [
       {
-        value: "relevance",
-        label: "Relevans",
+        value: 'relevance',
+        label: 'Relevans',
       },
       {
-        value: "popularity",
-        label: "Popularitet",
+        value: 'popularity',
+        label: 'Popularitet',
       },
       {
-        value: "name_asc",
-        label: "Namn (A-Z)",
+        value: 'name_asc',
+        label: 'Namn (A-Z)',
       },
       {
-        value: "name_desc",
-        label: "Namn (Z-A)",
+        value: 'name_desc',
+        label: 'Namn (Z-A)',
       },
     ];
   } else {
     return [
       {
-        value: "popularity",
-        label: "Popularitet",
+        value: 'popularity',
+        label: 'Popularitet',
       },
       {
-        value: "name_asc",
-        label: "Namn (A-Z)",
+        value: 'name_asc',
+        label: 'Namn (A-Z)',
       },
       {
-        value: "name_desc",
-        label: "Namn (Z-A)",
+        value: 'name_desc',
+        label: 'Namn (Z-A)',
       },
     ];
   }
@@ -107,9 +107,9 @@ watch([search, sortBy], ([newSearch, newSortBy]) => {
 
   if (!validOptions.includes(newSortBy)) {
     if (hasSearchQuery) {
-      sortBy.value = "relevance";
+      sortBy.value = 'relevance';
     } else {
-      sortBy.value = "popularity";
+      sortBy.value = 'popularity';
     }
   }
 });
@@ -121,18 +121,16 @@ watch(search, (newValue, oldValue) => {
 
   // When transitioning from no search to search, default to relevance
   if (!hadSearchQuery && hasSearchQuery) {
-    sortBy.value = "relevance";
+    sortBy.value = 'relevance';
   }
   // When transitioning from search to no search, default to popularity
   else if (hadSearchQuery && !hasSearchQuery) {
-    sortBy.value = "popularity";
+    sortBy.value = 'popularity';
   }
 });
 
 // Pagination - initialize from URL params
-const currentPage = ref(
-  typeof route.query.sida === "string" ? parseInt(route.query.sida) || 1 : 1
-);
+const currentPage = ref(typeof route.query.sida === 'string' ? parseInt(route.query.sida) || 1 : 1);
 const itemsPerPage = 60;
 
 // Computed property for total pages
@@ -143,8 +141,8 @@ const showDetailedInfo = ref(false);
 
 // Initialize detailed info from localStorage on client side
 onMounted(() => {
-  if (process.client) {
-    const stored = localStorage.getItem("detailedInfo");
+  if (import.meta.client) {
+    const stored = localStorage.getItem('detailedInfo');
     showDetailedInfo.value = stored ? JSON.parse(stored) : false;
 
     // Set initial sort based on whether there's a search query
@@ -152,9 +150,9 @@ onMounted(() => {
     if (!route.query.sortera) {
       // Changed to Swedish parameter
       if (hasInitialSearch) {
-        sortBy.value = "relevance";
+        sortBy.value = 'relevance';
       } else {
-        sortBy.value = "popularity";
+        sortBy.value = 'popularity';
       }
     }
   }
@@ -162,8 +160,8 @@ onMounted(() => {
 
 // Watch for changes to save to localStorage
 watch(showDetailedInfo, (newValue) => {
-  if (process.client) {
-    localStorage.setItem("detailedInfo", JSON.stringify(newValue));
+  if (import.meta.client) {
+    localStorage.setItem('detailedInfo', JSON.stringify(newValue));
   }
 });
 
@@ -174,15 +172,14 @@ watch(showDetailedInfo, (newValue) => {
  */
 async function performSearch(immediate = false) {
   loading.value = true;
-  errorMsg.value = "";
+  errorMsg.value = '';
 
   // Update URL for deep linking without page reload - include search query, page, and sort
   const query: Record<string, string | undefined> = {
     ...route.query,
     q: search.value || undefined,
     sida: currentPage.value > 1 ? currentPage.value.toString() : undefined,
-    sortera:
-      sortBy.value !== "popularity" ? sortToUrl(sortBy.value) : undefined, // Swedish sort parameter
+    sortera: sortBy.value !== 'popularity' ? sortToUrl(sortBy.value) : undefined, // Swedish sort parameter
     sort: undefined, // Remove old English parameter
   };
   router.replace({ query });
@@ -191,7 +188,7 @@ async function performSearch(immediate = false) {
     const offset = (currentPage.value - 1) * itemsPerPage;
 
     // Use the enhanced search function with sorting
-    const result = await searchPlants(search.value || "", {
+    const result = await searchPlants(search.value || '', {
       limit: itemsPerPage,
       offset,
       includeCount: true, // Include total count for pagination
@@ -203,8 +200,8 @@ async function performSearch(immediate = false) {
     searchTime.value = result.searchTime;
     hasSearched.value = true;
   } catch (error) {
-    console.error("Search error:", error);
-    errorMsg.value = "Ett fel uppstod vid sökning. Försök igen.";
+    console.error('Search error:', error);
+    errorMsg.value = 'Ett fel uppstod vid sökning. Försök igen.';
     searchResults.value = [];
   } finally {
     loading.value = false;
@@ -229,7 +226,7 @@ function goToPage(page: number) {
   currentPage.value = page;
   performSearch(true);
   // Scroll to top of results
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // Load search results on mount - always load plants (all plants if no search, filtered if search exists)
@@ -247,29 +244,27 @@ watch(
     const newSort = newQuery.sortera; // Changed to Swedish parameter
 
     // Handle search query changes
-    if (typeof newQ === "string" && newQ !== search.value) {
+    if (typeof newQ === 'string' && newQ !== search.value) {
       search.value = newQ;
     }
 
     // Handle page changes
-    const pageNum = typeof newPage === "string" ? parseInt(newPage) || 1 : 1;
+    const pageNum = typeof newPage === 'string' ? parseInt(newPage) || 1 : 1;
     if (pageNum !== currentPage.value) {
       currentPage.value = pageNum;
     }
 
     // Handle sort changes - convert from Swedish URL to internal format
-    if (typeof newSort === "string") {
+    if (typeof newSort === 'string') {
       const internalSort = sortFromUrlParam(newSort);
       if (
-        ["relevance", "popularity", "name_asc", "name_desc"].includes(
-          internalSort
-        ) &&
+        ['relevance', 'popularity', 'name_asc', 'name_desc'].includes(internalSort) &&
         internalSort !== sortBy.value
       ) {
         sortBy.value = internalSort as any;
       }
-    } else if (!newSort && sortBy.value !== "popularity") {
-      sortBy.value = "popularity"; // Default sort
+    } else if (!newSort && sortBy.value !== 'popularity') {
+      sortBy.value = 'popularity'; // Default sort
     }
 
     // Always perform search (will show all plants if no search term)
@@ -284,8 +279,8 @@ watch(search, (newValue) => {
     // Don't clear results, instead show all plants
     currentPage.value = 1; // Reset to first page
     // Reset sort to popularity when clearing search
-    if (sortBy.value === "relevance") {
-      sortBy.value = "popularity";
+    if (sortBy.value === 'relevance') {
+      sortBy.value = 'popularity';
     }
     performSearch(true); // This will show all plants since search is empty
     // Clear URL query parameters when search is cleared
@@ -295,15 +290,13 @@ watch(search, (newValue) => {
 
 // Set page metadata for SEO
 useHead({
-  title: search.value
-    ? `Sök växter: ${search.value} | Växtlistan`
-    : "Sök växter | Växtlistan",
+  title: search.value ? `Sök växter: ${search.value} | Växtlistan` : 'Sök växter | Växtlistan',
   meta: [
     {
-      name: "description",
+      name: 'description',
       content: search.value
         ? `Sök efter ${search.value} och andra växter i Växtlistan - hitta tillgängliga växter i svenska plantskolor.`
-        : "Sök efter växter i Växtlistan - hitta tillgängliga växter i svenska plantskolor.",
+        : 'Sök efter växter i Växtlistan - hitta tillgängliga växter i svenska plantskolor.',
     },
   ],
 });
@@ -315,9 +308,7 @@ const testVar = ref(1234567); // Example variable for testing purposes
   <!-- Main container -->
   <div class="p-4 sm:p-8 max-w-7xl mx-auto">
     <!-- Search input -->
-    <div
-      class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4"
-    >
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-4">
       <div class="relative w-full sm:w-96 flex-grow">
         <UInput
           v-model="search"
@@ -392,9 +383,7 @@ const testVar = ref(1234567); // Example variable for testing purposes
 
     <!-- Search results info -->
     <div v-if="hasSearched && !loading" class="mb-6">
-      <div
-        class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
-      >
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <p class="text-t-muted">
           <span v-if="searchResults.length > 0">
             Visar {{ (currentPage - 1) * itemsPerPage + 1 }}-{{
@@ -416,9 +405,7 @@ const testVar = ref(1234567); // Example variable for testing purposes
 
     <!-- Error message -->
     <div v-if="errorMsg" class="mb-6">
-      <div
-        class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg"
-      >
+      <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
         {{ errorMsg }}
       </div>
     </div>
@@ -426,11 +413,7 @@ const testVar = ref(1234567); // Example variable for testing purposes
     <!-- Loading state -->
     <div v-if="loading" class="flex justify-center py-12">
       <div class="flex items-center flex-col gap-3 text-t-muted">
-        <UIcon
-          name="ant-design:loading-outlined"
-          class="animate-spin"
-          size="40"
-        />
+        <UIcon name="ant-design:loading-outlined" class="animate-spin" size="40" />
         <span>Söker...</span>
       </div>
     </div>
@@ -463,31 +446,18 @@ const testVar = ref(1234567); // Example variable for testing purposes
 
       <!-- No results -->
       <div v-else class="text-center py-12">
-        <UIcon
-          name="i-material-symbols-search-off-rounded"
-          size="48"
-          class="text-t-muted mb-4"
-        />
-        <h3 class="text-xl font-semibold mb-2">
-          Inga resultat hittades - Kontrollera stavningen
-        </h3>
-        <p class="text-t-muted mb-6">
-          Du kan söka efter vetenskapligt eller svenskt namn
-        </p>
+        <UIcon name="i-material-symbols-search-off-rounded" size="48" class="text-t-muted mb-4" />
+        <h3 class="text-xl font-semibold mb-2">Inga resultat hittades - Kontrollera stavningen</h3>
+        <p class="text-t-muted mb-6">Du kan söka efter vetenskapligt eller svenskt namn</p>
       </div>
     </div>
 
     <!-- Initial state - only show when no search has been performed yet -->
     <div v-else class="text-center py-12">
-      <UIcon
-        name="i-material-symbols-search-rounded"
-        size="48"
-        class="text-t-muted mb-4"
-      />
+      <UIcon name="i-material-symbols-search-rounded" size="48" class="text-t-muted mb-4" />
       <h3 class="text-xl font-semibold mb-2">Laddar växter...</h3>
       <p class="text-t-muted">
-        Visar alla tillgängliga växter. Använd sökfältet för att filtrera bland
-        170 000+ arter.
+        Visar alla tillgängliga växter. Använd sökfältet för att filtrera bland 170 000+ arter.
       </p>
     </div>
   </div>

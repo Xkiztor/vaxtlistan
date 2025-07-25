@@ -9,6 +9,8 @@
 
   --primary-yellow-light: #e39b00;
   --primary-yellow-dark: #f0cd34;
+  --primary-yellow-bg-light: #fff3c3;
+  --primary-yellow-bg-dark: #775900;
 
   --primary-blue-light: #2164d0;
   --primary-blue-dark: #4881dd;
@@ -116,6 +118,7 @@
 
   --ui-primary-bg: var(--primary-green-bg-light);
   --ui-secondary-bg: var(--primary-blue-bg-light);
+  --ui-info-bg: var(--primary-yellow-bg-light);
   --ui-error-bg: var(--primary-red-bg-light);
 }
 
@@ -169,6 +172,7 @@
 
   --ui-primary-bg: var(--primary-green-bg-dark);
   --ui-secondary-bg: var(--primary-blue-bg-dark);
+  --ui-info-bg: var(--primary-yellow-bg-dark);
   --ui-error-bg: var(--primary-red-bg-dark);
 }
 
@@ -214,6 +218,7 @@
 
   --color-primary-bg: var(--ui-primary-bg);
   --color-secondary-bg: var(--ui-secondary-bg);
+  --color-info-bg: var(--ui-info-bg);
   --color-error-bg: var(--ui-error-bg);
 }
 

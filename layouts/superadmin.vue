@@ -16,10 +16,12 @@ const navItems = [
   { label: 'Start', to: '/superadmin' },
   { label: 'Bilder', to: '/superadmin/bilder' },
   { label: 'Plantskolor', to: '/superadmin/plantskolor' },
+  { label: 'Växter', to: '/superadmin/vaxter' },
 ];
 </script>
 
 <template>
+  <NuxtLoadingIndicator color="#76994e" />
   <div class="grid grid-rows-[auto_1fr_auto] min-h-screen w-full">
     <div class="mb-10">
       <div
@@ -34,17 +36,24 @@ const navItems = [
           </h1>
         </ULink>
         <div class="flex flex-row gap-4 items-center">
-
           <UButton color="primary" to="/">Tillbaka</UButton>
           <ColorModeButton />
         </div>
       </div>
-      <div class="w-full bg-bg-elevated p-2 px-4 border-b border-border flex items-center gap-4">
-        <ULink v-for="item in navItems" :key="item.label" :to="item.to">
+      <div class="w-full bg-bg-elevated px-2 border-b border-border flex items-center md:gap-4">
+        <ULink
+          v-for="item in navItems"
+          :key="item.label"
+          :to="item.to"
+          class="py-2 px-2 hover:bg-bg-accented"
+          active-class="bg-primary text-white hover:bg-primary"
+        >
           {{ item.label }}
         </ULink>
-        
-        <UButton color="error" @click="handleLogout" size="xs" variant="ghost" class="ml-auto">Logga ut</UButton>
+
+        <UButton color="error" @click="handleLogout" size="xs" variant="ghost" class="ml-auto p-2"
+          >Logga ut</UButton
+        >
       </div>
     </div>
 
@@ -53,11 +62,13 @@ const navItems = [
     </div>
 
     <!-- Footer -->
-    <div class="flex flex-col items-center justify-center p-4 bg-bg-elevated border-t border-border">
+    <div
+      class="flex flex-col items-center justify-center p-4 bg-bg-elevated border-t border-border"
+    >
       <h2 class="text-lg font-semibold mb-2">Superadmin 😛😛😛</h2>
-                <div class="text-t-toned text-xs">
-            Inloggad som: <span class="font-mono">{{ user?.email }}</span>
-          </div>
+      <div class="text-t-toned text-xs">
+        Inloggad som: <span class="font-mono">{{ user?.email }}</span>
+      </div>
     </div>
   </div>
 </template>

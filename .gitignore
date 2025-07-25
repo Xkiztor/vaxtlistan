@@ -24,5 +24,4 @@ logs
 !.env.example
 skud-types.md
 test-import.csv
-.github/copilot-instructions.md
-project-info.md
+test.get.ts

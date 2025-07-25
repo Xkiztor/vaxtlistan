@@ -36,6 +36,7 @@ function closeMenu() {
     <nav
       class="fixed z-40 top-0 left-0 right-0 h-20 has-[.mobile-nav]:h-screen has-[.mobile-nav]:bottom-0 has-[.mobile-nav]:grid grid-rows-[auto_1fr]"
     >
+      <NuxtLoadingIndicator color="#76994e" />
       <div class="border-border border-b-1 flex gap-6 justify-between p-4 bg-bg-elevated h-20">
         <!-- Top part -->
         <div class="flex gap-6 items-center">
@@ -62,7 +63,7 @@ function closeMenu() {
           </div>
         </div>
         <div class="items-center flex-row flex gap-2">
-          <div class="max-md:hidden"><ColorModeButton /></div>
+          <div class="max-md:hidden h-full flex justify-center"><ColorModeButton /></div>
           <UButton color="error" @click="handleLogout" class="max-md:hidden">Logga ut</UButton>
           <!-- Hamburger/Close button for mobile -->
           <transition name="rotate-180">

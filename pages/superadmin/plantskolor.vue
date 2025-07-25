@@ -17,14 +17,20 @@ const {
   data: unverifiedPlantskolor,
   status,
   refresh,
-} = await useAsyncData('unverifiedPlantskolor', async () => {
-  const { data, error } = await supabase.from('plantskolor').select('*');
-  if (error) {
-    toast.add({ title: 'Fel', description: 'Kunde inte hämta plantskolor.' });
-    return [];
+} = await useAsyncData(
+  'unverifiedPlantskolor',
+  async () => {
+    const { data, error } = await supabase.from('plantskolor').select('*');
+    if (error) {
+      toast.add({ title: 'Fel', description: 'Kunde inte hämta plantskolor.' });
+      return [];
+    }
+    return data as Plantskola[];
+  },
+  {
+    lazy: true,
   }
-  return data as Plantskola[];
-});
+);
 
 // Handler to verify a plantskola
 const handleVerify = async (id: number) => {
@@ -67,7 +73,7 @@ const handleDelete = async (id: number) => {
 
 <template>
   <div>
-    <UButton to="/superadmin/">Tillbaka</UButton>
+    <!-- <UButton to="/superadmin/">Tillbaka</UButton> -->
     <ul class="flex flex-col gap-4 py-2">
       <li
         v-for="plantskola in unverifiedPlantskolor"

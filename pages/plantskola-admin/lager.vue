@@ -187,6 +187,9 @@ const { data: lagerComplete, refresh: refreshLager } = await useAsyncData(
 
     if (error || !data) return [];
     return data as LagerComplete[];
+  },
+  {
+    lazy: true,
   }
 );
 
