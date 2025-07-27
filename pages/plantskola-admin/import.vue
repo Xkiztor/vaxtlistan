@@ -10,6 +10,21 @@
 // The manual review for the plants that did not get found in last step could use plantPicker to find the correct plant or add if it doesn't exist
 // The user can then review and correct the mappings before final import
 
+// SEO metadata for plantskola import admin page
+useHead({
+  title: 'Importera växter - Admin - Växtlistan',
+  meta: [
+    {
+      name: 'description',
+      content: 'Importera växter till ditt lager på Växtlistan. Ladda upp CSV, Excel eller andra format för att snabbt uppdatera ditt växtsortiment.',
+    },
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import type {

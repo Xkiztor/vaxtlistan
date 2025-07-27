@@ -126,7 +126,7 @@ onMounted(() => {
           class="absolute inset-0 top-1/2 bg-gradient-to-t from-black/40 via-black/20 to-transparent"
         ></div> -->
         <div
-          class="w-full h-full md:rounded-3xl hero-bg flex flex-col items-center justify-center text-center py-24"
+          class="w-full h-full md:rounded-3xl hero-bg flex flex-col items-center justify-center text-center pt-18 pb-12 lg:py-8"
         >
           <h1 class="font-black text-white title border-b-2 border-white mb-4 pb-2 lg:px-16">
             Växtlistan
@@ -144,9 +144,18 @@ onMounted(() => {
             to="/vaxt/s"
             >Se alla växter</UButton
           >
+          <section class="p-6 mt-8 lg:pt-16 flex items-center justify-center gap-4 text-white">
+            <UIcon name="bx:bxs-quote-alt-left" class="text-5xl md:text-7xl text-white mb-12" />
+            <h2
+              class="font-semibold text-center slogan tracking-wider md:border-b-2 md:border-white/70"
+            >
+              <span class="block md:inline">Som Prisjakt fast</span><span> för växter</span>
+            </h2>
+            <UIcon name="bx:bxs-quote-alt-right" class="text-5xl md:text-7xl text-white mt-12" />
+          </section>
         </div>
       </header>
-      <section class="p-4 py-4 lg:py-12 flex items-center justify-center gap-0 md:gap-4">
+      <!-- <section class="p-4 py-4 lg:py-12 flex items-center justify-center gap-0 md:gap-4">
         <UIcon name="bx:bxs-quote-alt-left" class="text-5xl md:text-7xl text-bg-elevated mb-12" />
         <h2
           class="font-semibold text-center slogan tracking-wider md:border-b-2 md:border-primary/80"
@@ -154,15 +163,15 @@ onMounted(() => {
           Som Prisjakt fast för växter
         </h2>
         <UIcon name="bx:bxs-quote-alt-right" class="text-5xl md:text-7xl text-bg-elevated mt-12" />
-      </section>
-      <section class="mt-6 w-full grid">
+      </section> -->
+      <section class="mt-12 w-full grid">
         <div
-          class="w-full rounded-3xl flex flex-col items-center justify-center px-6 md:px-24 gap-4"
+          class="w-full rounded-3xl flex flex-col items-center justify-center px-6 md:px-24 gap-6"
         >
-          <p class="md:text-2xl font-semibold text-center max-w-[50ch]">
+          <p class="text-xl md:text-2xl font-semibold text-center max-w-[50ch]">
             Växtlistan erbjuder Sveriges största utbud av växter
           </p>
-          <p class="md:text-2xl font-semibold text-center max-w-[50ch]">
+          <p class="text-xl md:text-2xl font-semibold text-center max-w-[50ch]">
             Sök, jämför och se direkt vart växterna säljs - utan att leta runt bland massa olika
             hemsidor.
           </p>
@@ -177,10 +186,10 @@ onMounted(() => {
           </UButton>
         </div>
       </section>
-      <section class="p-4 py-12">
+      <section class="p-4 py-12 mt-6">
         <div class="max-w-7xl mx-auto">
-          <div class="text-center mb-8">
-            <h2 class="text-2xl md:text-3xl font-bold mb-4">Är du kanske intresserad av</h2>
+          <div class="text-center mb-6 md:mb-8">
+            <h2 class="text-2xl md:text-3xl font-bold">Är du kanske intresserad av</h2>
           </div>
 
           <!-- Loading state -->

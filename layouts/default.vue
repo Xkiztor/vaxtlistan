@@ -311,7 +311,7 @@ const route = useRoute();
 
     <!-- Footer -->
     <footer
-      class="mt-4 flex flex-col items-center justify-center p-4 bg-bg-elevated border-t border-border"
+      class="mt-4 flex flex-col items-center justify-center p-4 pb-6 bg-bg-elevated border-t border-border"
     >
       <div class="flex-1">
         <div class="flex flex-col md:grid grid-cols-[auto_auto] max-md:items-center gap-2 md:gap-8">
@@ -342,7 +342,7 @@ const route = useRoute();
           </div>
         </div>
       </div>
-      <div class="text-xs text-muted text-center">
+      <div class="text-xs text-muted text-center mt-4">
         &copy; {{ new Date().getFullYear() }} Växtlistan.se
       </div>
     </footer>

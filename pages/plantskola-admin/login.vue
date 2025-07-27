@@ -2,6 +2,21 @@
 // Login page for nursery owners (plantskolor)
 // Uses Supabase Auth
 
+// SEO metadata for plantskola login page
+useHead({
+  title: 'Logga in - Plantskola Admin - Växtlistan',
+  meta: [
+    {
+      name: 'description',
+      content: 'Logga in till din plantskola admin-panel på Växtlistan. Hantera ditt växtsortiment och nå ut till fler kunder.',
+    },
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Login pages should not be indexed
+    },
+  ],
+});
+
 definePageMeta({
   layout: 'empty',
   middleware: 'redirect-if-logged-in',

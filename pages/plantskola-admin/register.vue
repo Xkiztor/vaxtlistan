@@ -2,6 +2,55 @@
 // Registration page for nursery owners (plantskolor)
 // Uses Supabase Auth and inserts into plantskolor table
 
+// SEO metadata for plantskola registration page
+useHead({
+  title: 'Registrera plantskola - Växtlistan',
+  meta: [
+    {
+      name: 'description',
+      content: 'Registrera din plantskola på Växtlistan och nå ut till fler kunder. Enkelt att komma igång och visa ditt växtsortiment.',
+    },
+    {
+      name: 'keywords',
+      content: 'registrera plantskola, plantskola växtlistan, växtförsäljning online, växtsortiment, plantskolor sverige',
+    },
+    {
+      property: 'og:title',
+      content: 'Registrera plantskola - Växtlistan',
+    },
+    {
+      property: 'og:description',
+      content: 'Registrera din plantskola på Växtlistan och nå ut till fler kunder.',
+    },
+    {
+      property: 'og:type',
+      content: 'website',
+    },
+    {
+      property: 'og:url',
+      content: 'https://vaxtlistan.se/plantskola-admin/register',
+    },
+    {
+      name: 'twitter:card',
+      content: 'summary',
+    },
+    {
+      name: 'twitter:title',
+      content: 'Registrera plantskola - Växtlistan',
+    },
+    {
+      name: 'twitter:description',
+      content: 'Registrera din plantskola på Växtlistan och nå ut till fler kunder.',
+    },
+  ],
+  link: [
+    {
+      rel: 'canonical',
+      href: 'https://vaxtlistan.se/plantskola-admin/register',
+    },
+  ],
+});
+
 definePageMeta({
   layout: 'empty',
 });
