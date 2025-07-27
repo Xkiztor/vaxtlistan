@@ -9,8 +9,9 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Test configuration - these should match your environment
 const TEST_CONFIG = {
-  SUPABASE_URL: process.env.LINDERSPLANTSKOLA_SUPABASE_URL,
-  SUPABASE_KEY: process.env.LINDERSPLANTSKOLA_SUPABASE_KEY,
+  SUPABASE_URL: 'https://sbieytuivryrjygmovkd.supabase.co',
+  SUPABASE_KEY:
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNiaWV5dHVpdnJ5cmp5Z21vdmtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU0MzA5NTQsImV4cCI6MjA2MTAwNjk1NH0.NCy80Bf50TtjF5n6JFXyWdS476EHhdozyYlovzzGk1s',
   SITE_URL: 'https://vaxtlistan.se',
 };
 

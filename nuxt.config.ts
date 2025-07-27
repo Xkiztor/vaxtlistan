@@ -29,8 +29,7 @@ export default defineNuxtConfig({
   },
   sitemap: {
     sources: [
-      '/api/sitemap-plants',
-      '/api/sitemap-plantskolor'
+      '/api/sitemap'
     ],
     urls: [
       {
@@ -64,6 +63,8 @@ export default defineNuxtConfig({
     public: {
       LINDERSPLANTSKOLA_SUPABASE_URL: process.env.LINDERSPLANTSKOLA_SUPABASE_URL,
       LINDERSPLANTSKOLA_SUPABASE_KEY: process.env.LINDERSPLANTSKOLA_SUPABASE_KEY,
+      SUPABASE_URL: process.env.SUPABASE_URL,
+      SUPABASE_KEY: process.env.SUPABASE_KEY,
       siteUrl: 'https://vaxtlistan.se',
     },
   },
