@@ -19,6 +19,8 @@ function handleMobileSearchFocus() {
 function handleMobileSearchBlur() {
   mobileSearchActive.value = false;
 }
+
+const route = useRoute();
 </script>
 
 <template>
@@ -27,7 +29,7 @@ function handleMobileSearchBlur() {
       class="fixed z-40 top-0 left-0 right-0 h-20 has-[.mobile-nav]:h-screen has-[.mobile-nav]:bottom-0 has-[.mobile-nav]:grid grid-rows-[auto_1fr]"
     >
       <NuxtLoadingIndicator color="#76994e" />
-      <div class="border-border border-b-1 flex justify-between p-4 bg-bg-elevated h-20">
+      <div class="border-b-1 flex justify-between bg-bg-elevated border-border p-4 h-20">
         <!-- Top part -->
         <transition name="logo-fade">
           <div
@@ -302,7 +304,7 @@ function handleMobileSearchBlur() {
     </nav>
 
     <!-- Main content area -->
-    <div class="page pt-20 flex-1">
+    <div class="page flex-1 pt-20">
       <slot />
     </div>
     <!--  -->
