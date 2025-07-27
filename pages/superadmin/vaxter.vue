@@ -1,5 +1,16 @@
 <!-- Superadmin page for managing and viewing all plants in the facit table -->
 <script setup lang="ts">
+// SEO metadata for superadmin vaxter page
+useHead({
+  title: 'Växter - Superadmin - Växtlistan',
+  meta: [
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 import type { Facit } from '~/types/supabase-tables';
 
 // Simplified type for the plant data we're fetching in the table

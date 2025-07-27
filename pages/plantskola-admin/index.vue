@@ -1,6 +1,21 @@
 <script setup lang="ts">
 import type { Plantskola, Totallager, Facit } from '~/types/supabase-tables';
 
+// SEO metadata for plantskola admin dashboard
+useHead({
+  title: 'Admin Dashboard - Växtlistan',
+  meta: [
+    {
+      name: 'description',
+      content: 'Admin dashboard för plantskolor på Växtlistan. Hantera ditt lager, uppdatera profil och importera nya växter.',
+    },
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 // Get current user and supabase client
 const user = useSupabaseUser();
 const supabase = useSupabaseClient();

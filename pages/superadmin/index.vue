@@ -1,4 +1,15 @@
 <script setup lang="ts">
+// SEO metadata for superadmin dashboard
+useHead({
+  title: 'Superadmin Dashboard - Växtlistan',
+  meta: [
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 // Use Nuxt composables and Supabase client
 const user = useSupabaseUser();
 const supabase = useSupabaseClient();

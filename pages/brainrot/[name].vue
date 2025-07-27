@@ -8,7 +8,7 @@
 
 <script setup>
 definePageMeta({
-  layout: "empty",
+  layout: 'empty',
 });
 
 const route = useRoute();
@@ -17,30 +17,30 @@ const pageTitle = computed(() => `Brainrot: ${route.params.name}`);
 const brainrotItems = [
   {
     id: 1,
-    title: "Tralalero Tralala",
-    description: "Väldigt cool haj. Snygga blåa skor!",
+    title: 'Tralalero Tralala',
+    description: 'Väldigt cool haj. Snygga blåa skor!',
     image:
-      "https://brushme.com/static/uploads/media/products/product_thumb_12925_68348a339f0223.48585529.jpg",
+      'https://brushme.com/static/uploads/media/products/product_thumb_12925_68348a339f0223.48585529.jpg',
   },
   {
     id: 2,
-    title: "Ballerina Cappuccina",
-    description: "",
+    title: 'Ballerina Cappuccina',
+    description: '',
     image:
-      "https://brushme.com/static/uploads/media/products/product_thumb_12930_68348a3ee51580.32373640.jpg",
+      'https://brushme.com/static/uploads/media/products/product_thumb_12930_68348a3ee51580.32373640.jpg',
   },
   {
     id: 3,
-    title: "Tung Tung Tung Sahur",
-    description: "tung ".repeat(500).trim(),
-    image: "https://i.redd.it/t20nfsv8guwe1.jpeg",
+    title: 'Tung Tung Tung Sahur',
+    description: 'tung '.repeat(500).trim(),
+    image: 'https://i.redd.it/t20nfsv8guwe1.jpeg',
   },
   {
     id: 4,
-    title: "Bombardino krokodilo",
-    description: "",
+    title: 'Bombardino krokodilo',
+    description: '',
     image:
-      "https://brushmeworld.com/cdn/shop/files/2_4004c186-b51a-4488-8125-7de4fd984528.jpg?v=1746642987",
+      'https://brushmeworld.com/cdn/shop/files/2_4004c186-b51a-4488-8125-7de4fd984528.jpg?v=1746642987',
   },
 ];
 

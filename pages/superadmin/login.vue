@@ -1,4 +1,15 @@
 <script setup lang="ts">
+// SEO metadata for superadmin login page
+useHead({
+  title: 'Superadmin Login - Växtlistan',
+  meta: [
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 // Use Nuxt composables and Supabase client
 
 // State for email, password, and loading

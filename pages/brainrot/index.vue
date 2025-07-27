@@ -48,14 +48,12 @@
       </div>
     </div>
   </div>
-  <nuxt-link class="info-button" to="/brainrot/brainrot-info"
-    >Vad är brainrot?</nuxt-link
-  >
+  <nuxt-link class="info-button" to="/brainrot/brainrot-info">Vad är brainrot?</nuxt-link>
 </template>
 
 <script setup>
 definePageMeta({
-  layout: "empty",
+  layout: 'empty',
 });
 const showTung = ref(false);
 const showTralalero = ref(false);
@@ -85,43 +83,41 @@ function toggleCappuccino() {
   }
 }
 
-const sok = ref("");
+const sok = ref('');
 
 const brainrotItems = [
   {
     id: 1,
-    title: "Tralalero Tralala",
-    description: "",
+    title: 'Tralalero Tralala',
+    description: '',
     image:
-      "https://brushme.com/static/uploads/media/products/product_thumb_12925_68348a339f0223.48585529.jpg",
+      'https://brushme.com/static/uploads/media/products/product_thumb_12925_68348a339f0223.48585529.jpg',
   },
   {
     id: 2,
-    title: "Ballerina Cappuccina",
-    description: "",
+    title: 'Ballerina Cappuccina',
+    description: '',
     image:
-      "https://brushme.com/static/uploads/media/products/product_thumb_12930_68348a3ee51580.32373640.jpg",
+      'https://brushme.com/static/uploads/media/products/product_thumb_12930_68348a3ee51580.32373640.jpg',
   },
   {
     id: 3,
-    title: "Tung Tung Tung Sahur",
-    description: "tung ".repeat(50).trim(),
-    image: "https://i.redd.it/t20nfsv8guwe1.jpeg",
+    title: 'Tung Tung Tung Sahur',
+    description: 'tung '.repeat(50).trim(),
+    image: 'https://i.redd.it/t20nfsv8guwe1.jpeg',
   },
   {
     id: 4,
-    title: "Bombardino krokodilo",
-    description: "",
+    title: 'Bombardino krokodilo',
+    description: '',
     image:
-      "https://brushmeworld.com/cdn/shop/files/2_4004c186-b51a-4488-8125-7de4fd984528.jpg?v=1746642987",
+      'https://brushmeworld.com/cdn/shop/files/2_4004c186-b51a-4488-8125-7de4fd984528.jpg?v=1746642987',
   },
 ];
 
 const filteredItems = computed(() => {
   if (!sok.value) return [];
-  return brainrotItems.filter((item) =>
-    item.title.toLowerCase().includes(sok.value.toLowerCase())
-  );
+  return brainrotItems.filter((item) => item.title.toLowerCase().includes(sok.value.toLowerCase()));
 });
 </script>
 
@@ -138,7 +134,7 @@ const filteredItems = computed(() => {
   font-size: 10rem;
   font-weight: 900;
   color: transparent;
-  background-image: url("https://i.ytimg.com/vi/3gmogp5-xXA/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLBswJf3RFSuaR28EXqpaxf_XV6ZQg");
+  background-image: url('https://i.ytimg.com/vi/3gmogp5-xXA/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLBswJf3RFSuaR28EXqpaxf_XV6ZQg');
   background-size: cover;
   background-position: center;
   -webkit-background-clip: text;

@@ -1,2 +1,44 @@
-User-Agent: *
-Disallow:
+# Robots.txt for Växtlistan.se - Sveriges växtplattform
+# Last updated: 2025-01-27
+
+# Allow all search engines to crawl public content
+User-agent: *
+
+# Allow crawling of main public pages
+Allow: /
+Allow: /vaxt/s
+Allow: /vaxt/*/
+Allow: /plantskola/*/
+Allow: /plantskolor
+Allow: /om-oss
+Allow: /for-plantskolor
+
+# Block admin areas and login pages
+Disallow: /plantskola-admin/
+Disallow: /superadmin/
+Disallow: /api/
+
+# Block experimental/test content
+Disallow: /brainrot/
+Disallow: /index-old
+
+# Block old/deprecated pages
+Disallow: /*?*
+
+# Allow CSS, JS, and image files for proper rendering
+Allow: /_nuxt/
+Allow: /favicon.ico
+Allow: /*.css
+Allow: /*.js
+Allow: /*.png
+Allow: /*.jpg
+Allow: /*.jpeg
+Allow: /*.gif
+Allow: /*.svg
+Allow: /*.webp
+
+# Crawl delay (be respectful to server resources)
+Crawl-delay: 1
+
+# Sitemap location
+Sitemap: https://vaxtlistan.se/sitemap.xml

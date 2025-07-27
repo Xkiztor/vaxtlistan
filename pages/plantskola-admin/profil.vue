@@ -1,4 +1,19 @@
 <script setup lang="ts">
+// SEO metadata for plantskola profil admin page
+useHead({
+  title: 'Min profil - Admin - Växtlistan',
+  meta: [
+    {
+      name: 'description',
+      content: 'Uppdatera din plantskola-profil på Växtlistan. Ändra kontaktinformation, beskrivning och andra inställningar.',
+    },
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 definePageMeta({
   layout: 'admin',
   middleware: 'plantskola-admin',

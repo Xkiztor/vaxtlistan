@@ -1,4 +1,19 @@
 <script setup lang="ts">
+// SEO metadata for plantskola lager admin page
+useHead({
+  title: 'Lagerhantering - Admin - Växtlistan',
+  meta: [
+    {
+      name: 'description',
+      content: 'Hantera ditt växtlager på Växtlistan. Uppdatera lagersaldo, priser och tillgänglighet för dina växter.',
+    },
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 definePageMeta({
   layout: 'admin',
   middleware: 'plantskola-admin',

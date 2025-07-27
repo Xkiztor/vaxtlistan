@@ -1,4 +1,15 @@
 <script setup lang="ts">
+// SEO metadata for superadmin plantskolor page
+useHead({
+  title: 'Plantskolor - Superadmin - Växtlistan',
+  meta: [
+    {
+      name: 'robots',
+      content: 'noindex, nofollow', // Admin pages should not be indexed
+    },
+  ],
+});
+
 definePageMeta({
   layout: 'superadmin',
   middleware: 'superadmin',
