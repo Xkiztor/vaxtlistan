@@ -68,13 +68,13 @@ export default defineNuxtConfig({
       siteUrl: 'https://vaxtlistan.se',
     },
   },
-  image: {
-    providers: {
-      netlify: {
-        baseURL: '', // disable Netlify image CDN
-      }
-    }
-  },
+  // image: {
+  //   providers: {
+  //     netlify: {
+  //       baseURL: '', // disable Netlify image CDN
+  //     }
+  //   }
+  // },
   ui: {
     theme: {
       colors: [

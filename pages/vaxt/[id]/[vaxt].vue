@@ -694,7 +694,7 @@ const colorMode = useColorMode();
             dot: 'dark:bg-bg-accented',
           }"
         >
-          <NuxtImg
+          <img
             :src="item"
             :alt="`${plant?.name || 'Växt'} - Bild ${index + 1}`"
             class="rounded-lg aspect-square object-cover h-full w-full cursor-pointer hover:opacity-90 transition-opacity"
