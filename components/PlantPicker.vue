@@ -125,15 +125,13 @@ const plantsToDisplay = computed(() => {
 });
 
 // Add plant
-const rhs_types_options = [
-  { value: 13, label: 'Träd' },
-  { value: 19, label: 'Barrträd' },
-  { value: 1, label: 'Perenn' },
-  { value: 2, label: 'Klätterväxt' },
-  { value: 5, label: 'Ormbunke' },
-  { value: 6, label: 'Buske' },
-  { value: 9, label: 'Ros' },
-  { value: 12, label: 'Ätbar växt' },
+const types_options = [
+  { value: 'T', label: 'Träd / buske' },
+  { value: 'B', label: 'Barrträd' },
+  { value: 'P', label: 'Perenn' },
+  { value: 'K', label: 'Klätterväxt' },
+  { value: 'O', label: 'Ormbunke' },
+  { value: 'R', label: 'Ros' },
 ];
 
 const modalOpen = ref(false);
@@ -141,17 +139,17 @@ const closeAdd = () => {
   modalOpen.value = false;
   addInputName.value = '';
   addInputSv.value = '';
-  addInputRhsType.value = undefined;
+  addInputType.value = undefined;
 };
 
 const addInputName = ref('');
 const addInputSv = ref('');
-const addInputRhsType = ref<number | undefined>(undefined);
+const addInputType = ref<string | undefined>(undefined);
 
 // Add plant to facit table
 const addPlant = async () => {
   // Validate required fields
-  if (!addInputName.value.trim() || !addInputRhsType.value) {
+  if (!addInputName.value.trim() || !addInputType.value) {
     useToast().add({
       title: 'Fel',
       description: 'Artnamn och typ är obligatoriska.',
@@ -190,7 +188,7 @@ const addPlant = async () => {
   const newPlant = {
     name: addInputName.value.trim(),
     sv_name: addInputSv.value.trim() || null,
-    rhs_types: addInputRhsType.value ? [addInputRhsType.value] : null,
+    type: addInputType.value || null,
     user_submitted: true,
     created_by: (pk as any).id,
   };
@@ -387,8 +385,8 @@ const addSelectPlant = (id: number) => {
               </UFormField>
               <UFormField label="Typ" required>
                 <USelect
-                  v-model="addInputRhsType"
-                  :options="rhs_types_options"
+                  v-model="addInputType"
+                  :items="types_options"
                   class="w-full"
                   :ui="{ item: 'cursor-pointer' }"
                 />
