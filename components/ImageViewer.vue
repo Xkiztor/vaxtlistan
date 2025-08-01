@@ -13,6 +13,20 @@
       class="absolute top-4 right-4 z-10 text-white hover:opacity-40 hover:bg-transparent"
       @click="close"
     />
+
+    <!-- Source link button - bottom left -->
+    <!-- <ULink
+      v-if="images.length > 0 && currentImage?.sourcePage"
+      icon="i-heroicons-link"
+      :to="currentImage.sourcePage"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="absolute bottom-4 left-4 z-10 text-white/50 hover:text-white/80"
+      :title="`Källa: ${currentImage.title || 'Extern länk'}`"
+    >
+      {{ currentImage.title || 'Källa' }}
+      <UIcon name="i-heroicons-arrow-top-right-on-square" />
+    </ULink> -->
     <!-- Image carousel container -->
     <div
       class="relative w-full h-full flex items-center justify-center"
@@ -46,6 +60,18 @@
             loading="lazy"
             @click.stop
           />
+          <ULink
+            v-if="item.sourcePage"
+            icon="i-heroicons-link"
+            :to="item.sourcePage"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="absolute -bottom-1 left-2 z-10 text-white/40 hover:text-white/60"
+            :title="`Källa: ${item.title || 'Extern länk'}`"
+          >
+            {{ item.title || 'Källa' }}
+            <UIcon name="i-heroicons-arrow-top-right-on-square" />
+          </ULink>
         </div>
       </UCarousel>
     </div>
@@ -53,6 +79,9 @@
 </template>
 
 <script setup lang="ts">
+const testFunc = (event) => {
+  console.log('Carousel item selected:', event);
+};
 /**
  * ImageViewer Component
  *
@@ -70,6 +99,8 @@
 interface ImageItem {
   src: string;
   alt?: string;
+  sourcePage?: string;
+  title?: string;
 }
 
 // Component props
@@ -96,6 +127,12 @@ const emit = defineEmits<Emits>();
 
 // Reactive state for current image index
 const currentIndex = ref(props.initialIndex);
+
+// Computed property to ensure we have a valid current image
+const currentImage = computed(() => {
+  const index = Math.max(0, Math.min(currentIndex.value, props.images.length - 1));
+  return props.images[index];
+});
 
 // Reset to initial index when viewer opens
 watch(
@@ -138,8 +175,10 @@ const close = () => {
  * Update current image index
  */
 const updateCurrentIndex = (index: number) => {
-  currentIndex.value = index;
-  emit('update:currentIndex', index);
+  // Ensure the index is within valid bounds
+  const validIndex = Math.max(0, Math.min(index, props.images.length - 1));
+  currentIndex.value = validIndex;
+  emit('update:currentIndex', validIndex);
 };
 
 /**
@@ -153,14 +192,14 @@ const handleKeydown = (event: KeyboardEvent) => {
       close();
       break;
     case 'ArrowLeft':
-      if (currentIndex.value > 0) {
-        updateCurrentIndex(currentIndex.value - 1);
-      }
+      // Handle looping: go to last image if at first
+      const prevIndex = currentIndex.value > 0 ? currentIndex.value - 1 : props.images.length - 1;
+      updateCurrentIndex(prevIndex);
       break;
     case 'ArrowRight':
-      if (currentIndex.value < props.images.length - 1) {
-        updateCurrentIndex(currentIndex.value + 1);
-      }
+      // Handle looping: go to first image if at last
+      const nextIndex = currentIndex.value < props.images.length - 1 ? currentIndex.value + 1 : 0;
+      updateCurrentIndex(nextIndex);
       break;
   }
 };
@@ -202,14 +241,16 @@ onUnmounted(() => {
 const handleContainerClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
 
-  // Don't close if clicking on carousel controls (arrows, dots, etc.)
+  // Don't close if clicking on carousel controls (arrows, dots, etc.) or source link
   if (
     target.closest('button') ||
     target.closest('[role="button"]') ||
     target.closest('.carousel-control') ||
     target.tagName === 'BUTTON' ||
     target.classList.contains('carousel-arrow') ||
-    target.classList.contains('carousel-dot')
+    target.classList.contains('carousel-dot') ||
+    target.closest('a') ||
+    target.tagName === 'A'
   ) {
     return;
   }
@@ -224,11 +265,13 @@ const handleContainerClick = (event: MouseEvent) => {
 const handleImageAreaClick = (event: MouseEvent) => {
   const target = event.target as HTMLElement;
 
-  // Don't close if clicking on carousel controls
+  // Don't close if clicking on carousel controls or source link
   if (
     target.closest('button') ||
     target.closest('[role="button"]') ||
-    target.tagName === 'BUTTON'
+    target.tagName === 'BUTTON' ||
+    target.closest('a') ||
+    target.tagName === 'A'
   ) {
     return;
   }

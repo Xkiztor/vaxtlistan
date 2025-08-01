@@ -177,25 +177,13 @@ const sortOptions = [
 
 const selectedSort = ref('name-asc');
 
-// Load saved sort option from localStorage on client
+// Load saved view mode from localStorage on client
 onMounted(() => {
   if (process.client) {
     const savedViewMode = localStorage.getItem('plantskola-view-mode');
     if (savedViewMode === 'grid' || savedViewMode === 'list') {
       viewMode.value = savedViewMode;
     }
-
-    const savedSort = localStorage.getItem('plantskola-sort-option');
-    if (savedSort && sortOptions.some((opt) => opt.value === savedSort)) {
-      selectedSort.value = savedSort;
-    }
-  }
-});
-
-// Save sort option to localStorage when it changes
-watch(selectedSort, (newSort) => {
-  if (process.client) {
-    localStorage.setItem('plantskola-sort-option', newSort);
   }
 });
 
@@ -779,6 +767,18 @@ useHead({
               </div>
             </div>
           </div>
+          <!-- List Header -->
+          <div v-if="viewMode === 'list'" class="max-md:hidden flex mb-1 mt-1 px-2 gap-4">
+            <div class="w-16 pl-1 text-sm text-t-muted">Bild</div>
+            <div
+              class="grid grid-cols-[1fr_6rem_6rem_6rem] lg:grid-cols-[5fr_1fr_1fr_1.2fr] gap-1 w-full"
+            >
+              <span class="text-sm text-t-muted">Namn</span>
+              <span class="text-sm text-t-muted">Kruka</span>
+              <span class="text-sm text-t-muted">Höjd</span>
+              <span class="text-right text-sm text-t-muted pr-1">Pris</span>
+            </div>
+          </div>
           <!-- Plants list -->
           <div class="">
             <!-- Loading state -->
@@ -867,8 +867,8 @@ useHead({
                         </div>
                       </ULink>
 
-                      <!-- Plant content -->
-                      <div class="flex-1">
+                      <!-- Mobile -->
+                      <div class="flex-1 md:hidden">
                         <div class="flex-1 flex flex-row min-w-0 gap-2">
                           <!-- Plant name and link -->
                           <div class="flex flex-col justify-center">
@@ -890,43 +890,6 @@ useHead({
                               ({{ item.name_by_plantskola }})
                             </p>
                           </div>
-                          <!-- Plant attributes with badges -->
-                          <div
-                            class="flex flex-wrap gap-1 max-md:hidden"
-                            v-if="item.pot || item.height || item.own_columns"
-                          >
-                            <UBadge
-                              v-if="item.pot"
-                              color="neutral"
-                              variant="soft"
-                              class="text-xs max-h-max"
-                            >
-                              Kruka: {{ item.pot }}
-                            </UBadge>
-                            <UBadge
-                              v-if="item.height"
-                              color="neutral"
-                              variant="soft"
-                              class="text-xs max-h-max"
-                            >
-                              Höjd: {{ item.height }}
-                            </UBadge>
-                            <UBadge
-                              v-for="field in formatCustomFields(item.own_columns)"
-                              :key="field.key"
-                              color="primary"
-                              variant="soft"
-                              class="text-xs max-h-max"
-                            >
-                              {{ field.displayKey }}: {{ field.value }}
-                            </UBadge>
-                          </div>
-                          <!-- Custom fields from plantskola -->
-                          <!-- <div
-                            v-if="formatCustomFields(item.own_columns).length > 0"
-                            class="flex flex-wrap gap-1 mb-2"
-                          >
-                          </div> -->
                           <p
                             v-if="item.comment_by_plantskola"
                             class="text-sm text-t-muted italic md:line-clamp-2 max-md:hidden"
@@ -947,49 +910,120 @@ useHead({
                             </span>
                           </div>
                         </div>
-                        <div>
-                          <div
-                            class="flex flex-wrap gap-1 md:hidden pt-1"
-                            v-if="item.pot || item.height || item.own_columns"
+                        <div
+                          class="flex flex-wrap gap-1 md:hidden pt-1"
+                          v-if="item.pot || item.height || item.own_columns"
+                        >
+                          <UBadge
+                            v-if="item.pot"
+                            color="neutral"
+                            variant="soft"
+                            class="text-xs max-h-max"
                           >
-                            <UBadge
-                              v-if="item.pot"
-                              color="neutral"
-                              variant="soft"
-                              class="text-xs max-h-max"
+                            Kruka: {{ item.pot }}
+                          </UBadge>
+                          <UBadge
+                            v-if="item.height"
+                            color="neutral"
+                            variant="soft"
+                            class="text-xs max-h-max"
+                          >
+                            Höjd: {{ item.height }}
+                          </UBadge>
+                          <UBadge
+                            v-for="field in formatCustomFields(item.own_columns)"
+                            :key="field.key"
+                            color="primary"
+                            variant="soft"
+                            class="text-xs max-h-max"
+                          >
+                            {{ field.displayKey }}: {{ field.value }}
+                          </UBadge>
+                        </div>
+                        <p
+                          v-if="item.comment_by_plantskola"
+                          class="text-sm text-t-muted italic md:hidden pt-1"
+                        >
+                          {{ item.comment_by_plantskola }}
+                        </p>
+                      </div>
+
+                      <!--  -->
+                      <!-- Desktop -->
+                      <!--  -->
+                      <div class="flex-1 max-md:hidden">
+                        <div
+                          class="grid grid-cols-[1fr_6rem_6rem_6rem] lg:grid-cols-[5fr_1fr_1fr_1.2fr] gap-1"
+                        >
+                          <!-- Plant name and link -->
+                          <div class="flex flex-col justify-center">
+                            <ULink
+                              :to="`/vaxt/${item.facit_id}/${encodeURIComponent(item.facit_name)}`"
+                              class="text-t-regular hover:underline"
                             >
-                              Kruka: {{ item.pot }}
-                            </UBadge>
-                            <UBadge
-                              v-if="item.height"
-                              color="neutral"
-                              variant="soft"
-                              class="text-xs max-h-max"
+                              <h3 class="font-semibold text-base md:text-lg leading-tight">
+                                {{ item.facit_name }}
+                              </h3>
+                            </ULink>
+                            <p v-if="item.facit_sv_name" class="text-sm text-t-muted">
+                              {{ item.facit_sv_name }}
+                            </p>
+                            <p
+                              v-if="item.facit_name && item.name_by_plantskola !== item.facit_name"
+                              class="text-xs text-t-muted italic"
                             >
-                              Höjd: {{ item.height }}
-                            </UBadge>
-                            <UBadge
-                              v-for="field in formatCustomFields(item.own_columns)"
-                              :key="field.key"
-                              color="primary"
-                              variant="soft"
-                              class="text-xs max-h-max"
-                            >
-                              {{ field.displayKey }}: {{ field.value }}
-                            </UBadge>
+                              ({{ item.name_by_plantskola }})
+                            </p>
                           </div>
+                          <!-- Plant attributes with badges -->
+                          <span class="text-base">{{ item.pot }} </span>
+                          <span class="text-base">{{ item.height }}</span>
+
+                          <!-- Custom fields from plantskola -->
+                          <!-- <div
+                            v-if="formatCustomFields(item.own_columns).length > 0"
+                            class="flex flex-wrap gap-1 mb-2"
+                          >
+                          </div> -->
+
+                          <!-- Price and stock info -->
+                          <div
+                            class="flex flex-col items-end leading-tight ml-auto min-w-max"
+                            v-if="item.price || item.stock"
+                          >
+                            <span v-if="item.price" class="font-bold text-sm md:text-base">
+                              {{ formatPrice(item.price) }}
+                            </span>
+                            <span v-if="item.stock" class="text-t-toned text-sm">
+                              <span class="font-semibold">{{ item.stock }}</span>
+                              st i lager
+                            </span>
+                          </div>
+                        </div>
+                        <!-- Bottom part -->
+                        <div class="flex flex-wrap gap-1 pt-1">
                           <p
                             v-if="item.comment_by_plantskola"
-                            class="text-sm text-t-muted italic line-clamp-2 md:hidden pt-1"
+                            class="text-sm text-t-muted italic md:line-clamp-2 max-md:hidden"
                           >
                             {{ item.comment_by_plantskola }}
                           </p>
+                          <UBadge
+                            v-for="field in formatCustomFields(item.own_columns)"
+                            :key="field.key"
+                            color="primary"
+                            variant="soft"
+                            class="text-xs max-h-max"
+                          >
+                            {{ field.displayKey }}: {{ field.value }}
+                          </UBadge>
                         </div>
                       </div>
                     </div>
                   </div>
-
+                  <!-- --------- -->
                   <!-- Grid View -->
+                  <!------------ -->
                   <div v-else class="p-2 md:p-4">
                     <div
                       class="grid gap-3 md:gap-4"

@@ -35,7 +35,7 @@ export default defineNuxtConfig({
       {
         loc: '/',
         changefreq: 'monthly',
-        priority: 0.6
+        priority: 1
       },
       {
         loc: '/vaxt/s',
@@ -67,6 +67,13 @@ export default defineNuxtConfig({
       SUPABASE_KEY: process.env.SUPABASE_KEY,
       siteUrl: 'https://vaxtlistan.se',
     },
+  },
+  image: {
+    providers: {
+      netlify: {
+        baseURL: '', // disable Netlify image CDN
+      }
+    }
   },
   ui: {
     theme: {

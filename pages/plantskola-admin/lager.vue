@@ -5,7 +5,8 @@ useHead({
   meta: [
     {
       name: 'description',
-      content: 'Hantera ditt växtlager på Växtlistan. Uppdatera lagersaldo, priser och tillgänglighet för dina växter.',
+      content:
+        'Hantera ditt växtlager på Växtlistan. Uppdatera lagersaldo, priser och tillgänglighet för dina växter.',
     },
     {
       name: 'robots',
@@ -745,9 +746,10 @@ const addPlantToLager = async () => {
             ref="actionsScrollerRef"
           >
             <UButton
-              color="primary"
+              color="neutral"
               :size="isMobile ? 'md' : 'xl'"
               icon="material-symbols:add"
+              variant="subtle"
               class="md:w-auto min-w-max"
               :disabled="!plantskola"
               @click="openAddModal"
@@ -885,6 +887,9 @@ const addPlantToLager = async () => {
         <!-- <ULoader size="lg" color="primary" /> -->
         Laddar...
       </div>
+      <div v-else-if="filteredLager.length === 0 && lagerComplete" class="py-8 text-center">
+        <p class="text-lg font-bold">Inga växter matchade filtreringen</p>
+      </div>
       <div v-else-if="filteredLager.length === 0" class="py-8 text-center">
         <p class="text-lg font-bold">Lägg till växter genom att till exempel:</p>
         <ul class="list-disc list-inside space-y-1">
@@ -908,20 +913,11 @@ const addPlantToLager = async () => {
           :style="{ height: virtualScrollerHeight + 'px' }"
           key-field="id"
           v-slot="{ item: plant, index, active }"
+          :buffer="2000"
         >
           <DynamicScrollerItem
             :item="plant"
             :active="active"
-            :size-dependencies="[
-              plant.name_by_plantskola,
-              plant.facit_sv_name,
-              plant.facit_name,
-              plant.comment_by_plantskola,
-              plant.pot,
-              plant.height,
-              plant.price,
-              plant.stock,
-            ]"
             :data-index="index"
             :data-active="active"
           >
