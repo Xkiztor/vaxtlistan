@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Facit, GoogleImageResult } from '~/types/supabase-tables';
+import draggable from 'vuedraggable';
 
 // Page meta
 definePageMeta({
@@ -295,15 +296,20 @@ const makeImageFirst = async (plant: Facit, index: number) => {
 const deleteImage = async (plant: Facit, index: number) => {
   if (!plant.images) return;
 
-  // Show confirmation dialog
-  const confirmed = confirm(`Är du säker på att du vill ta bort denna bild från ${plant.name}?`);
-  if (!confirmed) return;
-
   const images = [...plant.images];
   images.splice(index, 1);
 
   // Update local state only
   plant.images = images;
+  unsavedChanges.value.add(plant.id);
+
+  // Refresh image elements to handle any load errors
+  refreshPlantImages(plant.id);
+};
+
+// Drag and drop function for Vue Draggable
+const onImageDragEnd = (plant: Facit) => {
+  // Mark as having unsaved changes when images are reordered
   unsavedChanges.value.add(plant.id);
 
   // Refresh image elements to handle any load errors
@@ -473,6 +479,21 @@ const addImageToPlant = async () => {
   }
 };
 
+// Function to revert all unsaved changes for a plant
+const revertPlantChanges = async (plant: Facit) => {
+  // Find the original plant data
+  const originalPlant = plants.value?.find((p) => p.id === plant.id);
+  if (!originalPlant) return;
+
+  // Revert to original images
+  plant.images = originalPlant.images ? [...originalPlant.images] : [];
+
+  // Remove from unsaved changes
+  unsavedChanges.value.delete(plant.id);
+
+  refresh();
+};
+
 const savePlantChanges = async (plant: Facit) => {
   try {
     const now = new Date().toISOString();
@@ -579,13 +600,13 @@ const unmarkAsReordered = async (plant: Facit) => {
       <!-- Filter Controls -->
       <div class="flex items-center gap-4">
         <UButton
-          @click="refresh"
+          @click="() => refresh()"
           color="primary"
           variant="outline"
           icon="i-heroicons-arrow-path"
           size="sm"
         >
-          Uppdatera
+          <span class="max-sm:hidden">Uppdatera</span>
         </UButton>
         <div class="flex items-center gap-2">
           <label for="reorder-filter" class="text-sm font-medium">Visa bilder:</label>
@@ -685,6 +706,17 @@ const unmarkAsReordered = async (plant: Facit) => {
             </div>
           </div>
           <div class="flex gap-2">
+            <UTooltip text="Ångra alla ändringar" :delay-duration="0">
+              <UButton
+                v-if="unsavedChanges.has(plant.id)"
+                @click="revertPlantChanges(plant)"
+                icon="i-heroicons-arrow-uturn-left"
+                color="error"
+                size="sm"
+                variant="outline"
+              >
+              </UButton>
+            </UTooltip>
             <UButton
               v-if="unsavedChanges.has(plant.id)"
               @click="savePlantChanges(plant)"
@@ -741,67 +773,32 @@ const unmarkAsReordered = async (plant: Facit) => {
         </div>
 
         <!-- Images Grid -->
-        <div
+        <draggable
           v-if="plant.images && plant.images.length > 0"
+          v-model="plant.images"
+          :ghost-class="'ghost'"
+          :chosen-class="'chosen'"
+          :drag-class="'drag'"
           class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-10 gap-3"
+          @end="() => onImageDragEnd(plant)"
         >
-          <div
-            v-for="(image, index) in plant.images"
-            :key="`${plant.id}-${index}-${image.url}`"
-            class="image-container relative aspect-square rounded-lg overflow-hidden"
-          >
-            <img
-              :src="image.url"
-              :alt="image.title || `${plant.name} - Bild ${index + 1}`"
-              class="w-full h-full object-cover cursor-pointer hover:opacity-90 transition-opacity"
-              loading="lazy"
-              @click="openImageViewer(plant.images, index)"
-              @error="handleImageError(`${plant.id}-${index}-${image.url}`, $event)"
-              @load="handleImageLoad(`${plant.id}-${index}-${image.url}`)"
-            />
-
-            <!-- Image Overlay Info -->
-            <div class="image-overlay absolute inset-0 opacity-0 transition-opacity duration-300">
+          <template #item="{ element: image, index }">
+            <div
+              :key="`${plant.id}-${index}-${image.url}`"
+              class="image-container relative aspect-square rounded-lg overflow-hidden cursor-move"
+            >
+              <img
+                :src="image.url"
+                :alt="image.title || `${plant.name} - Bild ${index + 1}`"
+                class="w-full h-full object-cover hover:opacity-90 transition-opacity select-none"
+                loading="lazy"
+                @error="handleImageError(`${plant.id}-${index}-${image.url}`, $event)"
+                @load="handleImageLoad(`${plant.id}-${index}-${image.url}`)"
+              />
               <div
-                class="w-full h-full p-2 text-white text-xs flex flex-col justify-between"
-                @click="openImageViewer(plant.images, index)"
+                class="opacity-0 image-overlay absolute bottom-0 left-0 right-0 p-2 bg-black/50 text-white text-xs"
               >
-                <!-- Actions -->
-                <div
-                  class="flex items-center justify-between gap-2 bg-black/70 rounded-md p-2"
-                  @click.stop
-                >
-                  <UButton
-                    class="disabled:opacity-50"
-                    icon="material-symbols:arrow-back-rounded"
-                    color="neutral"
-                    :disabled="index === 0"
-                    @click.stop="moveImageLeft(plant, index)"
-                  ></UButton>
-                  <UButton
-                    class="flex-1 grow flex justify-center disabled:opacity-50"
-                    color="primary"
-                    :disabled="index === 0"
-                    @click.stop="makeImageFirst(plant, index)"
-                  >
-                    Först
-                  </UButton>
-                  <UButton
-                    class=""
-                    icon="material-symbols:delete-outline-rounded"
-                    color="error"
-                    @click.stop="deleteImage(plant, index)"
-                  ></UButton>
-                  <UButton
-                    class="disabled:opacity-50"
-                    icon="material-symbols:arrow-forward-rounded"
-                    color="neutral"
-                    :disabled="index === plant.images.length - 1"
-                    @click.stop="moveImageRight(plant, index)"
-                  ></UButton>
-                </div>
-                <!-- Title -->
-                <div class="bg-black/60 rounded-md px-2 py-1 flex gap-1" @click.stop>
+                <div class="flex items-center justify-between gap-1">
                   <div class="text-gray-300 text-xs">{{ index + 1 }}.</div>
                   <UTooltip :text="image.title || 'Utan titel'" :delay-duration="0">
                     <ULink
@@ -813,9 +810,117 @@ const unmarkAsReordered = async (plant: Facit) => {
                   </UTooltip>
                 </div>
               </div>
+              <div
+                class="opacity-0 image-overlay absolute top-0 left-0 right-0 p-2 bg-black/50 text-white text-xs"
+              >
+                <div class="flex items-center justify-between gap-1">
+                  <UButton
+                    class="disabled:opacity-30"
+                    icon="material-symbols:arrow-back-rounded"
+                    size="sm"
+                    color="neutral"
+                    variant="subtle"
+                    :disabled="index === 0"
+                    @click="moveImageLeft(plant, index)"
+                  ></UButton>
+                  <UButton
+                    class="flex justify-center disabled:opacity-50"
+                    icon="nrk:media-jumpto"
+                    size="sm"
+                    variant="solid"
+                    color="primary"
+                    :disabled="index === 0"
+                    @click="makeImageFirst(plant, index)"
+                  >
+                  </UButton>
+                  <UButton
+                    class="flex-1 grow flex justify-center disabled:opacity-50"
+                    icon="material-symbols:open-in-full-rounded"
+                    size="sm"
+                    variant="solid"
+                    color="primary"
+                    @click="openImageViewer(plant.images, index)"
+                  >
+                  </UButton>
+                  <UButton
+                    class=""
+                    icon="material-symbols:delete-outline-rounded"
+                    size="sm"
+                    variant="solid"
+                    color="error"
+                    @click="deleteImage(plant, index)"
+                  ></UButton>
+                  <UButton
+                    class="disabled:opacity-30"
+                    icon="material-symbols:arrow-forward-rounded"
+                    size="sm"
+                    variant="subtle"
+                    color="neutral"
+                    :disabled="index === plant.images.length - 1"
+                    @click="moveImageRight(plant, index)"
+                  ></UButton>
+                </div>
+              </div>
+              <!-- 
+              Image Overlay Info
+              <div
+                class="image-overlay absolute inset-0 opacity-0 transition-opacity duration-300 pointer-events-none"
+              >
+                <div
+                  class="w-full h-full p-2 text-white text-xs flex flex-col justify-between cursor-pointer pointer-events-auto"
+                  @click="openImageViewer(plant.images, index)"
+                >
+                  Actions
+                  <div
+                    class="flex items-center justify-between gap-2 bg-black/70 rounded-md p-2"
+                    @click.stop
+                  >
+                    <UButton
+                      class="disabled:opacity-50"
+                      icon="material-symbols:arrow-back-rounded"
+                      color="neutral"
+                      :disabled="index === 0"
+                      @click.stop="moveImageLeft(plant, index)"
+                    ></UButton>
+                    <UButton
+                      class="flex-1 grow flex justify-center disabled:opacity-50"
+                      color="primary"
+                      :disabled="index === 0"
+                      @click.stop="makeImageFirst(plant, index)"
+                    >
+                      Först
+                    </UButton>
+                    <UButton
+                      class=""
+                      icon="material-symbols:delete-outline-rounded"
+                      color="error"
+                      @click.stop="deleteImage(plant, index)"
+                    ></UButton>
+                    <UButton
+                      class="disabled:opacity-50"
+                      icon="material-symbols:arrow-forward-rounded"
+                      color="neutral"
+                      :disabled="index === plant.images.length - 1"
+                      @click.stop="moveImageRight(plant, index)"
+                    ></UButton>
+                  </div>
+                  Title
+                  <div class="bg-black/60 rounded-md px-2 py-1 flex gap-1" @click.stop>
+                    <div class="text-gray-300 text-xs">{{ index + 1 }}.</div>
+                    <UTooltip :text="image.title || 'Utan titel'" :delay-duration="0">
+                      <ULink
+                        :to="image.sourcePage"
+                        target="_blank"
+                        class="font-medium truncate text-white hover:text-white/70"
+                        >{{ image.title || 'Utan titel' }}</ULink
+                      >
+                    </UTooltip>
+                  </div>
+                </div>
+              </div> -->
             </div>
-          </div>
-        </div>
+          </template>
+        </draggable>
 
         <!-- No Images State -->
         <div v-else class="text-center py-8 bg-bg-elevated rounded-lg">
@@ -836,7 +941,7 @@ const unmarkAsReordered = async (plant: Facit) => {
     />
 
     <!-- Add Image Modal -->
-    <UModal v-model:open="isAddImageModalOpen">
+    <UModal v-model:open="isAddImageModalOpen" class="max-w-full">
       <template #header>
         <h2 class="text-lg font-semibold">
           Lägg till bild{{ currentPlantForImage ? ` - ${currentPlantForImage.name}` : '' }}
@@ -1091,6 +1196,14 @@ const unmarkAsReordered = async (plant: Facit) => {
   opacity: 1;
 }
 
+.image-container {
+  transition: all 0.2s ease;
+}
+
+.image-container:hover {
+  transform: scale(1.02);
+}
+
 .search-result-container {
   border: 2px solid transparent;
   transition: border-color 0.2s ease;
@@ -1100,5 +1213,26 @@ const unmarkAsReordered = async (plant: Facit) => {
   border-color: rgb(var(--color-primary-500));
 }
 
-/* Add any custom styles if needed */
+/* Vue Draggable styles */
+.ghost {
+  opacity: 0.5;
+}
+
+.chosen {
+  transform: scale(1.05);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.drag {
+  transform: rotate(5deg);
+  opacity: 0.8;
+}
+
+.image-container {
+  cursor: grab;
+}
+
+.image-container:active {
+  cursor: grabbing;
+}
 </style>

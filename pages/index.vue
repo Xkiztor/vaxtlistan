@@ -275,7 +275,7 @@ onMounted(() => {
       </section>
       <section class="p-4 py-12">
         <div class="max-w-4xl mx-auto text-center">
-          <h2 class="text-2xl md:text-3xl font-bold mb-4">Är du plantskola?</h2>
+          <h2 class="text-2xl md:text-3xl font-bold mb-4">Har du plantskola?</h2>
           <p class="text-t-toned mb-8 max-w-2xl mx-auto">
             Registrera dig på Växtlistan och nå ut till fler kunder. Visa ditt sortiment och öka din
             försäljning.

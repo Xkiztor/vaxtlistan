@@ -2,7 +2,7 @@
 import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
 import { usePlantType } from '~/composables/usePlantType';
 
-const props = defineProps<{ 
+const props = defineProps<{
   plant: AvailablePlantSimilaritySearchResult;
   showDetailed?: boolean;
 }>();
@@ -93,7 +93,7 @@ const formatPrice = (price: number) => {
   >
     <div class="flex items-center gap-4 mb-2">
       <!-- Placeholder avatar, replace with image if available -->
-      <NuxtImg v-if="image" :src="image" class="object-cover h-20 w-20 rounded-md aspect-square" />
+      <img v-if="image" :src="image" class="object-cover h-20 w-20 rounded-md aspect-square" />
       <div v-else class="w-20 h-20 bg-bg-elevated rounded-md grid place-items-center">
         <UIcon name="f7:tree" size="30" class="text-t-muted opacity-70" />
       </div>
@@ -106,12 +106,7 @@ const formatPrice = (price: number) => {
         <!-- Detailed information (conditionally shown) -->
         <div v-if="showDetailed" class="flex flex-wrap gap-2 mt-1">
           <!-- Plant type -->
-          <UBadge
-            v-if="plant.plant_type"
-            color="neutral"
-            variant="subtle"
-            size="sm"
-          >
+          <UBadge v-if="plant.plant_type" color="neutral" variant="subtle" size="sm">
             <span class="font-semibold">{{ plant.plant_type }}</span>
           </UBadge>
 

@@ -237,12 +237,15 @@ const lignosText = () => {
 // Image viewer state
 const isImageViewerOpen = ref(false);
 const currentImageIndex = ref(0);
-const currentImages = ref<{ src: string; alt: string }[]>([]);
+const currentImages = ref<{ src: string; alt: string; sourcePage?: string; title?: string }[]>([]);
 
 /**
  * Open image viewer with specified images and index
  */
-const openImageViewer = (images: { src: string; alt: string }[], index: number = 0) => {
+const openImageViewer = (
+  images: { src: string; alt: string; sourcePage?: string; title?: string }[],
+  index: number = 0
+) => {
   currentImages.value = images;
   currentImageIndex.value = index;
   isImageViewerOpen.value = true;
@@ -268,10 +271,18 @@ const updateImageIndex = (index: number) => {
 const openLignosImage = (imageUrl: string, index: number) => {
   if (!lignosImages.value) return;
 
-  // Create full images array with high resolution
+  // Create full images array with high resolution and Lignosdatabasen source
   const allImages = lignosImages.value.map((img: string, idx: number) => ({
     src: img.replace('/t_1000bred', '/t_2000bred'), // Higher resolution for viewer
     alt: `${plant.value?.name || 'Växt'} - Bild ${idx + 1}`,
+    sourcePage: `https://lignosdatabasen.se/planta/${lignosdatabasenPlant.value?.slakte}/${
+      lignosdatabasenPlant.value?.art
+    }${
+      lignosdatabasenPlant.value?.sortnamn
+        ? `/${lignosdatabasenPlant.value.sortnamn.replace(`'`, '')}`
+        : ''
+    }`,
+    title: 'Lignosdatabasen',
   }));
 
   // Reorder array so clicked image comes first
@@ -289,10 +300,12 @@ const openLignosImage = (imageUrl: string, index: number) => {
 const openGoogleImage = (imageUrl: string, index: number) => {
   if (!googleImages.value || !Array.isArray(googleImages.value)) return;
 
-  // Create full images array
+  // Create full images array with Google source information
   const allImages = googleImages.value.map((img: any, idx: number) => ({
     src: img.url,
     alt: img.title || `${plant.value?.name || 'Växt'} - Bild ${idx + 1}`,
+    sourcePage: img.sourcePage,
+    title: img.title,
   }));
 
   // Reorder array so clicked image comes first
@@ -310,10 +323,12 @@ const openGoogleImage = (imageUrl: string, index: number) => {
 const openDatabaseImage = (imageUrl: string, index: number) => {
   if (!finalImages.value || !Array.isArray(finalImages.value)) return;
 
-  // Create full images array
+  // Create full images array with database source information
   const allImages = finalImages.value.map((img: any, idx: number) => ({
     src: img.url,
     alt: img.title || `${plant.value?.name || 'Växt'} - Bild ${idx + 1}`,
+    sourcePage: img.sourcePage,
+    title: img.title,
   }));
 
   // Reorder array so clicked image comes first
@@ -611,6 +626,8 @@ onMounted(async () => {
     trackPlantView(plant.value.id);
   }
 });
+
+const colorMode = useColorMode();
 </script>
 
 <template>
@@ -661,7 +678,7 @@ onMounted(async () => {
     <!-- Plant details -->
     <div v-else-if="plant" class="p-6">
       <!-- Priority 1: Lignosdatabasen images -->
-      <div v-if="lignosImages && lignosImages.length" class="mb-10">
+      <div v-if="lignosImages && lignosImages.length" class="mb-10 relative">
         <UCarousel
           v-slot="{ item, index }"
           dots
@@ -684,6 +701,29 @@ onMounted(async () => {
             @click="openLignosImage(item as string, index)"
           />
         </UCarousel>
+        <ULink
+          :href="`https://lignosdatabasen.se/planta/${lignosdatabasenPlant.slakte}/${
+            lignosdatabasenPlant.art
+          }${
+            lignosdatabasenPlant.sortnamn
+              ? `/${lignosdatabasenPlant.sortnamn.replace(`'`, '')}`
+              : ''
+          }`"
+          target="_blank"
+          class="absolute max-md:hidden -bottom-7 -right-1 px-2 py-1"
+        >
+          <!-- Show correct logo depending on theme (dark/light) -->
+          <img
+            :src="
+              colorMode.preference === 'dark'
+                ? 'https://res.cloudinary.com/dxwhmugdr/image/upload/v1753737919/logga-text-mörk_ehrwq8.svg'
+                : 'https://res.cloudinary.com/dxwhmugdr/image/upload/v1753737919/logga-text-ljus_jeorjy.svg'
+            "
+            alt="Lignosdatabasen logotyp"
+            class="h-4"
+            loading="lazy"
+          />
+        </ULink>
       </div>
       <!-- Priority 2: Database images (Google Photos from database) -->
       <div
@@ -849,7 +889,7 @@ onMounted(async () => {
         <div class="mt-12 lg:mt-16">
           <h3 class="text-xl lg:text-2xl font-bold">Finns att köpa</h3>
           <!-- Loading state for nursery stock -->
-          <div v-if="pendingStock" class="flex items-center gap-2">
+          <div v-if="statusStock === 'pending'" class="flex items-center gap-2">
             <UIcon name="i-heroicons-arrow-path" class="animate-spin" />
             <span>Laddar tillgänglighet...</span>
           </div>
