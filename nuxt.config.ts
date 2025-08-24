@@ -28,14 +28,14 @@ export default defineNuxtConfig({
     name: 'Växtlistan - Hitta växter hos svenska plantskolor'
   },
   routeRules: {
-    '/': {swr: true},
+    '/': {swr: 3600},
     '/om-oss': {prerender: true},
     '/for-plantskolor': {prerender: true},
     '/superadmin/**': {ssr: false},
     '/plantskola-admin/**': {ssr: false},
-    '/vaxt/s/**': {swr: false},
-    '/vaxt/s/': {swr: false},
-    '/vaxt/**': {swr: true}
+    // '/vaxt/s/**': {swr: false},
+    // '/vaxt/s/': {swr: false},
+    // '/vaxt/**': {swr: true}
     // '/plantskola/**':
 
   },
