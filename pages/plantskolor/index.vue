@@ -54,7 +54,7 @@ useHead({
 </script>
 
 <template>
-  <h1 class="text-2xl">Work in progress</h1>
+  <div><WIP /></div>
 </template>
 
 <style></style>

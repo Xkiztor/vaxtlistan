@@ -54,7 +54,7 @@ useHead({
 </script>
 
 <template>
-  <div>Om oss</div>
+  <div><WIP /></div>
 </template>
 
 <style></style>
