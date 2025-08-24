@@ -129,7 +129,7 @@ const {
       .eq('facit_id', id.value)
       .eq('hidden', false)
       .eq('plantskolor.verified', true)
-      .gt('stock', 0)
+      // .gt('stock', 0)
       .order('stock', { ascending: false });
     if (error) {
       console.error('Error fetching stock data:', error.message);
@@ -828,7 +828,8 @@ const colorMode = useColorMode();
         @update:current-index="updateImageIndex"
       />
       <div>
-        <div class="xl:grid xl:grid-cols-2 xl:gap-16 xl:pt-4">
+        <div class="xl:grid xl:grid-cols-2 xl:gap-x-16 xl:pt-4 xl:grid-rows-[auto_1fr]">
+          <!-- Plant info -->
           <div>
             <div>
               <h1 class="text-3xl font-bold mb-1">{{ plant.name }}</h1>
@@ -888,8 +889,9 @@ const colorMode = useColorMode();
               </div>
             </div>
           </div>
+
           <!-- Available to Buy Section -->
-          <div class="max-xl:mt-12">
+          <div class="max-xl:mt-12 row-span-full col-start-2">
             <!-- <h3 class="text-xl lg:text-2xl font-bold">Finns att köpa</h3> -->
             <!-- Loading state for nursery stock -->
             <div v-if="statusStock === 'pending'" class="flex items-center gap-2">
@@ -934,7 +936,13 @@ const colorMode = useColorMode();
               </p> -->
               <div class="grid gap-4">
                 <!-- Grouped by nursery -->
+                <NurseryToBuy
+                  v-for="group in groupedStockData"
+                  :key="group.nursery.nursery_name"
+                  :group="group"
+                />
                 <article
+                  v-if="false"
                   v-for="group in groupedStockData"
                   :key="group.nursery.nursery_name + (group.nursery.nursery_address || '')"
                   class=""
@@ -958,21 +966,28 @@ const colorMode = useColorMode();
                         class="text-sm text-t-toned flex items-center"
                         itemprop="address"
                       >
-                        <UIcon name="i-heroicons-map-pin" class="inline-block mr-1" />
-                        <span class="mr-1 font-bold">Hämtning på plats:</span>
-                        <span itemprop="streetAddress">{{ group.nursery.nursery_address }}</span>
+                        <!-- <UIcon name="i-heroicons-map-pin" class="mr-1" /> -->
+                        <span class="mr-1">Hämtning på plats i</span>
+                        <span itemprop="streetAddress" class="font-bold">{{
+                          group.nursery.nursery_address?.split(' ').slice(-1)[0]
+                        }}</span>
                       </p>
                       <p v-else-if="group.nursery.nursery_on_site" class="text-sm text-t-toned">
                         Hämtning på plats
                       </p>
                       <UBadge
+                        color="primary"
                         variant="soft"
-                        color="neutral"
-                        size="sm"
-                        icon="material-symbols:delivery-truck-speed-outline-rounded"
+                        size="xs"
                         v-if="group.nursery.nursery_postorder"
-                        >Postorder</UBadge
+                        class="text-sm flex items-center w-fit"
                       >
+                        <UIcon
+                          name="material-symbols:delivery-truck-speed-outline-rounded"
+                          class="text-base"
+                        />
+                        Postorder
+                      </UBadge>
                     </div>
                   </header>
                   <!-- Multiple plant details for this nursery -->
@@ -1133,180 +1148,191 @@ const colorMode = useColorMode();
               </div>
             </div>
           </div>
-        </div>
-        <!-- Growing Conditions -->
-        <div
-          class="mt-12 lg:mt-16"
-          v-if="sunlightLabels || exposureLabels || soilTypeLabels || phLabels || moistureLabels"
-        >
-          <h3 class="text-xl lg:text-2xl font-bold">Odlingsförhållanden</h3>
+
+          <!-- Growing Conditions -->
           <div
-            class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center mt-2"
+            class="mt-12 lg:mt-16 xl:mt-8"
+            v-if="sunlightLabels || exposureLabels || soilTypeLabels || phLabels || moistureLabels"
           >
-            <div v-if="sunlightLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">Ljus</span>
-              <div class="flex gap-2 items-center justify-center">
-                <template v-for="(label, idx) in sunlightLabels.split(' / ')" :key="idx">
-                  <UIcon
-                    :name="
-                      label.trim() === 'Soligt'
-                        ? 'material-symbols:sunny-outline-rounded'
-                        : label.trim() === 'Delvis skuggigt'
-                        ? 'fluent:weather-partly-cloudy-day-16-regular'
-                        : label.trim() === 'Helt skuggigt'
-                        ? 'ic:outline-wb-cloudy'
-                        : 'mdi:help-circle-outline'
-                    "
-                    class="w-6 h-6"
-                    :title="label.trim()"
-                  />
-                  <span
-                    v-if="idx < sunlightLabels.split(' / ').length - 1"
-                    class="text-t-muted text-lg leading-0"
-                    >/</span
-                  >
-                </template>
+            <h3 class="text-xl lg:text-2xl font-bold">Odlingsförhållanden</h3>
+            <div
+              class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center mt-2"
+            >
+              <div v-if="sunlightLabels" class="flex flex-col grow">
+                <span class="font-bold mb-1 pb-1 border-b border-border">Ljus</span>
+                <div class="flex gap-2 items-center justify-center">
+                  <template v-for="(label, idx) in sunlightLabels.split(' / ')" :key="idx">
+                    <UIcon
+                      :name="
+                        label.trim() === 'Soligt'
+                          ? 'material-symbols:sunny-outline-rounded'
+                          : label.trim() === 'Delvis skuggigt'
+                          ? 'fluent:weather-partly-cloudy-day-16-regular'
+                          : label.trim() === 'Helt skuggigt'
+                          ? 'ic:outline-wb-cloudy'
+                          : 'mdi:help-circle-outline'
+                      "
+                      class="w-6 h-6"
+                      :title="label.trim()"
+                    />
+                    <span
+                      v-if="idx < sunlightLabels.split(' / ').length - 1"
+                      class="text-t-muted text-lg leading-0"
+                      >/</span
+                    >
+                  </template>
+                </div>
+              </div>
+              <div v-if="exposureLabels" class="flex flex-col grow">
+                <span class="font-bold mb-1 pb-1 border-b border-border">Exponering</span>
+                <span>{{ exposureLabels }}</span>
               </div>
             </div>
-            <div v-if="exposureLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">Exponering</span>
-              <span>{{ exposureLabels }}</span>
+            <!-- Desktop view -->
+            <div
+              class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center max-md:hidden mt-4"
+              v-if="soilTypeLabels || phLabels || moistureLabels"
+            >
+              <div v-if="soilTypeLabels" class="flex flex-col grow">
+                <span class="font-bold mb-1 pb-1 border-b border-border">Jord</span>
+                <span>{{ soilTypeLabels }}</span>
+              </div>
+              <div v-if="phLabels" class="flex flex-col grow">
+                <span class="font-bold mb-1 pb-1 border-b border-border">pH</span>
+                <span>{{ phLabels }}</span>
+              </div>
+              <div v-if="moistureLabels" class="flex flex-col grow">
+                <span class="font-bold mb-1 pb-1 border-b border-border">Fuktighet</span>
+                <span>{{ moistureLabels }}</span>
+              </div>
             </div>
-          </div>
-          <!-- Desktop view -->
-          <div
-            class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center max-md:hidden mt-4"
-            v-if="soilTypeLabels || phLabels || moistureLabels"
-          >
-            <div v-if="soilTypeLabels" class="flex flex-col grow">
+            <!-- Mobile view -->
+            <div
+              class="flex w-full flex-col border border-border rounded-md py-1 text-center md:hidden mt-4"
+              v-if="soilTypeLabels || phLabels || moistureLabels"
+            >
               <span class="font-bold mb-1 pb-1 border-b border-border">Jord</span>
-              <span>{{ soilTypeLabels }}</span>
-            </div>
-            <div v-if="phLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">pH</span>
-              <span>{{ phLabels }}</span>
-            </div>
-            <div v-if="moistureLabels" class="flex flex-col grow">
-              <span class="font-bold mb-1 pb-1 border-b border-border">Fuktighet</span>
+              <span class="mb-1 pb-1 border-b border-border">{{ soilTypeLabels }}</span>
+              <span class="mb-1 pb-1 border-b border-border">{{ phLabels }}</span>
               <span>{{ moistureLabels }}</span>
             </div>
-          </div>
-          <!-- Mobile view -->
-          <div
-            class="flex w-full flex-col border border-border rounded-md py-1 text-center md:hidden mt-4"
-            v-if="soilTypeLabels || phLabels || moistureLabels"
-          >
-            <span class="font-bold mb-1 pb-1 border-b border-border">Jord</span>
-            <span class="mb-1 pb-1 border-b border-border">{{ soilTypeLabels }}</span>
-            <span class="mb-1 pb-1 border-b border-border">{{ phLabels }}</span>
-            <span>{{ moistureLabels }}</span>
-          </div>
-          <!-- Temporarily disabled -->
-          <div
-            v-if="graphicalPlantBySeason && false"
-            class="mt-4 pt-4 pb-1 border border-border rounded-md"
-          >
-            <!-- Graphical timeline -->
-            <div class="relative pt-4">
-              <!-- Timeline line -->
-              <div class="absolute bottom-6 left-0 right-0 h-0.25 bg-border"></div>
-              <!-- Season markers and plant representations -->
-              <div class="grid grid-cols-4 gap-4">
-                <div
-                  v-for="(season, seasonId) in graphicalPlantBySeason"
-                  :key="seasonId"
-                  class="relative grid place-items-center gap-2 h-full"
-                >
-                  <!-- Plant representation -->
+            <!-- Temporarily disabled -->
+            <div
+              v-if="graphicalPlantBySeason && false"
+              class="mt-4 pt-4 pb-1 border border-border rounded-md"
+            >
+              <!-- Graphical timeline -->
+              <div class="relative pt-4">
+                <!-- Timeline line -->
+                <div class="absolute bottom-6 left-0 right-0 h-0.25 bg-border"></div>
+                <!-- Season markers and plant representations -->
+                <div class="grid grid-cols-4 gap-4">
                   <div
-                    v-if="
-                      season.plant.foliage.length > 0 ||
-                      season.plant.stem.length > 0 ||
-                      season.plant.fruit.length > 0 ||
-                      season.plant.flower.length > 0
-                    "
-                    class="relative flex flex-col items-center justify-center h-16"
+                    v-for="(season, seasonId) in graphicalPlantBySeason"
+                    :key="seasonId"
+                    class="relative grid place-items-center gap-2 h-full"
                   >
-                    <!-- Base plant icon (tree/leaves) with foliage colors -->
-                    <div class="relative z-10">
-                      <GradientIcon
-                        v-if="season.plant.foliage.length > 0"
-                        :icon-name="getBaseIcon"
-                        icon-class="w-12 h-12"
-                        :icon-style="getIconColorStyle(season.plant.foliage).style"
-                        :use-gradient="getIconColorStyle(season.plant.foliage).useGradient"
-                        :gradient-colors="getIconColorStyle(season.plant.foliage).gradientColors"
-                        :gradient-id="getIconColorStyle(season.plant.foliage).gradientId"
-                      />
-                      <UIcon v-else :name="getBaseIcon" class="w-12 h-12 text-t-muted opacity-10" />
-                    </div>
-                    <!-- Flower overlay (top-left) -->
-                    <div v-if="season.plant.flower.length > 0" class="absolute -top-1 -left-4 z-20">
-                      <UTooltip
-                        :text="`Blomma: ${season.plant.flower.map((f: any) => f.colorName).join(', ')}`"
-                        :popper="{ placement: 'top' }"
-                        :delay-duration="0"
-                      >
-                        <GradientIcon
-                          icon-name="famicons:flower"
-                          icon-class="w-6 h-6 cursor-help"
-                          :icon-style="getIconColorStyle(season.plant.flower).style"
-                          :use-gradient="getIconColorStyle(season.plant.flower).useGradient"
-                          :gradient-colors="getIconColorStyle(season.plant.flower).gradientColors"
-                          :gradient-id="getIconColorStyle(season.plant.flower).gradientId"
-                        />
-                      </UTooltip>
-                    </div>
-                    <!-- Fruit overlay (top-right) -->
-                    <div v-if="season.plant.fruit.length > 0" class="absolute -top-1 -right-4 z-20">
-                      <UTooltip
-                        :text="`Frukt: ${season.plant.fruit.map((f: any) => f.colorName).join(', ')}`"
-                        :popper="{ placement: 'top' }"
-                        :delay-duration="0"
-                      >
-                        <GradientIcon
-                          icon-name="tabler:apple-filled"
-                          icon-class="w-6 h-6 cursor-help"
-                          :icon-style="getIconColorStyle(season.plant.fruit).style"
-                          :use-gradient="getIconColorStyle(season.plant.fruit).useGradient"
-                          :gradient-colors="getIconColorStyle(season.plant.fruit).gradientColors"
-                          :gradient-id="getIconColorStyle(season.plant.fruit).gradientId"
-                        />
-                      </UTooltip>
-                    </div>
-                    <!-- Stem (above main icon) -->
-                    <div v-if="season.plant.stem.length > 0" class="absolute -top-5 z-5">
-                      <UTooltip
-                        :text="`Stam: ${season.plant.stem.map((s: any) => s.colorName).join(', ')}`"
-                        :popper="{ placement: 'bottom' }"
-                        :delay-duration="0"
-                      >
-                        <GradientIcon
-                          icon-name="game-icons:birch-trees"
-                          icon-class="w-6 h-6 cursor-help"
-                          :icon-style="getIconColorStyle(season.plant.stem).style"
-                          :use-gradient="getIconColorStyle(season.plant.stem).useGradient"
-                          :gradient-colors="getIconColorStyle(season.plant.stem).gradientColors"
-                          :gradient-id="getIconColorStyle(season.plant.stem).gradientId"
-                        />
-                      </UTooltip>
-                    </div>
-                    <!-- Foliage tooltip for main icon -->
-                    <UTooltip
-                      v-if="season.plant.foliage.length > 0"
-                      :text="`Bladverket: ${season.plant.foliage.map((f: any) => f.colorName).join(', ')}`"
-                      :popper="{ placement: 'top' }"
-                      :delay-duration="0"
+                    <!-- Plant representation -->
+                    <div
+                      v-if="
+                        season.plant.foliage.length > 0 ||
+                        season.plant.stem.length > 0 ||
+                        season.plant.fruit.length > 0 ||
+                        season.plant.flower.length > 0
+                      "
+                      class="relative flex flex-col items-center justify-center h-16"
                     >
-                      <div class="absolute inset-0 cursor-help z-15"></div>
-                    </UTooltip>
+                      <!-- Base plant icon (tree/leaves) with foliage colors -->
+                      <div class="relative z-10">
+                        <GradientIcon
+                          v-if="season.plant.foliage.length > 0"
+                          :icon-name="getBaseIcon"
+                          icon-class="w-12 h-12"
+                          :icon-style="getIconColorStyle(season.plant.foliage).style"
+                          :use-gradient="getIconColorStyle(season.plant.foliage).useGradient"
+                          :gradient-colors="getIconColorStyle(season.plant.foliage).gradientColors"
+                          :gradient-id="getIconColorStyle(season.plant.foliage).gradientId"
+                        />
+                        <UIcon
+                          v-else
+                          :name="getBaseIcon"
+                          class="w-12 h-12 text-t-muted opacity-10"
+                        />
+                      </div>
+                      <!-- Flower overlay (top-left) -->
+                      <div
+                        v-if="season.plant.flower.length > 0"
+                        class="absolute -top-1 -left-4 z-20"
+                      >
+                        <UTooltip
+                          :text="`Blomma: ${season.plant.flower.map((f: any) => f.colorName).join(', ')}`"
+                          :popper="{ placement: 'top' }"
+                          :delay-duration="0"
+                        >
+                          <GradientIcon
+                            icon-name="famicons:flower"
+                            icon-class="w-6 h-6 cursor-help"
+                            :icon-style="getIconColorStyle(season.plant.flower).style"
+                            :use-gradient="getIconColorStyle(season.plant.flower).useGradient"
+                            :gradient-colors="getIconColorStyle(season.plant.flower).gradientColors"
+                            :gradient-id="getIconColorStyle(season.plant.flower).gradientId"
+                          />
+                        </UTooltip>
+                      </div>
+                      <!-- Fruit overlay (top-right) -->
+                      <div
+                        v-if="season.plant.fruit.length > 0"
+                        class="absolute -top-1 -right-4 z-20"
+                      >
+                        <UTooltip
+                          :text="`Frukt: ${season.plant.fruit.map((f: any) => f.colorName).join(', ')}`"
+                          :popper="{ placement: 'top' }"
+                          :delay-duration="0"
+                        >
+                          <GradientIcon
+                            icon-name="tabler:apple-filled"
+                            icon-class="w-6 h-6 cursor-help"
+                            :icon-style="getIconColorStyle(season.plant.fruit).style"
+                            :use-gradient="getIconColorStyle(season.plant.fruit).useGradient"
+                            :gradient-colors="getIconColorStyle(season.plant.fruit).gradientColors"
+                            :gradient-id="getIconColorStyle(season.plant.fruit).gradientId"
+                          />
+                        </UTooltip>
+                      </div>
+                      <!-- Stem (above main icon) -->
+                      <div v-if="season.plant.stem.length > 0" class="absolute -top-5 z-5">
+                        <UTooltip
+                          :text="`Stam: ${season.plant.stem.map((s: any) => s.colorName).join(', ')}`"
+                          :popper="{ placement: 'bottom' }"
+                          :delay-duration="0"
+                        >
+                          <GradientIcon
+                            icon-name="game-icons:birch-trees"
+                            icon-class="w-6 h-6 cursor-help"
+                            :icon-style="getIconColorStyle(season.plant.stem).style"
+                            :use-gradient="getIconColorStyle(season.plant.stem).useGradient"
+                            :gradient-colors="getIconColorStyle(season.plant.stem).gradientColors"
+                            :gradient-id="getIconColorStyle(season.plant.stem).gradientId"
+                          />
+                        </UTooltip>
+                      </div>
+                      <!-- Foliage tooltip for main icon -->
+                      <UTooltip
+                        v-if="season.plant.foliage.length > 0"
+                        :text="`Bladverket: ${season.plant.foliage.map((f: any) => f.colorName).join(', ')}`"
+                        :popper="{ placement: 'top' }"
+                        :delay-duration="0"
+                      >
+                        <div class="absolute inset-0 cursor-help z-15"></div>
+                      </UTooltip>
+                    </div>
+                    <!-- Empty state -->
+                    <div v-else class="h-24 flex items-center justify-center">
+                      <UIcon :name="getBaseIcon" class="w-12 h-12 text-t-muted opacity-10" />
+                    </div>
+                    <!-- Season name at bottom -->
+                    <div class="text-sm font-medium">{{ season.name }}</div>
                   </div>
-                  <!-- Empty state -->
-                  <div v-else class="h-24 flex items-center justify-center">
-                    <UIcon :name="getBaseIcon" class="w-12 h-12 text-t-muted opacity-10" />
-                  </div>
-                  <!-- Season name at bottom -->
-                  <div class="text-sm font-medium">{{ season.name }}</div>
                 </div>
               </div>
             </div>
