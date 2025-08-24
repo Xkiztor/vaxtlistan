@@ -21,7 +21,7 @@ definePageMeta({
 });
 // --- Types ---
 import type { Totallager, Facit, Plantskola, LagerComplete } from '~/types/supabase-tables';
-import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
+import { RecycleScroller, DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller';
 import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
 
 // --- State ---
@@ -905,6 +905,17 @@ const addPlantToLager = async () => {
       </div>
       <div v-else class="md:border md:border-border md:rounded-lg md:mx-4 overflow-hidden">
         <!-- Virtual scroll container with dynamic sizing -->
+        <!-- <RecycleScroller
+          class="scroller max-md:pb-24"
+          :items="filteredLager"
+          :item-size="45"
+          :style="{ height: virtualScrollerHeight + 'px' }"
+          key-field="id"
+          v-slot="{ item }"
+          :buffer="2000"
+        >
+          <LagerListItem :plant="item" @update="handlePlantUpdate" class="px-2" />
+        </RecycleScroller> -->
         <DynamicScroller
           ref="dynamicScrollerRef"
           class="scroller max-md:pb-24"

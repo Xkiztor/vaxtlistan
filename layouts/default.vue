@@ -335,9 +335,12 @@ const route = useRoute();
             </div>
             <div class="mt-2 text-sm text-muted max-md:text-center">
               Kontakta oss på
-              <a href="mailto:kontakt@vaxtlistan.se" class="text-primary underline"
-                >kontakt@vaxtlistan.se</a
+              <a href="mailto:ugo.linder@gmail.com" class="text-primary underline"
+                >ugo.linder@gmail.com</a
               >
+              <!-- <a href="mailto:kontakt@vaxtlistan.se" class="text-primary underline"
+                >kontakt@vaxtlistan.se</a
+              > -->
             </div>
           </div>
         </div>
