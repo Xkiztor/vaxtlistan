@@ -5,7 +5,8 @@ useHead({
   meta: [
     {
       name: 'description',
-      content: 'Uppdatera din plantskola-profil på Växtlistan. Ändra kontaktinformation, beskrivning och andra inställningar.',
+      content:
+        'Uppdatera din plantskola-profil på Växtlistan. Ändra kontaktinformation, beskrivning och andra inställningar.',
     },
     {
       name: 'robots',
@@ -30,20 +31,34 @@ const success = ref(false);
 
 // Reactive form for editing
 const form = ref<
-  Partial<Plantskola & { phone?: string; description?: string; verified?: boolean }>
+  Partial<
+    Plantskola & {
+      gatuadress?: string;
+      postnummer?: string;
+      postort?: string;
+      phone?: string;
+      description?: string;
+      verified?: boolean;
+      logo_url?: string | null;
+    }
+  >
 >({});
 
 // Fetch current plantskola info for logged-in user
-const { data: plantskola, refresh } = await useAsyncData('plantskola', async () => {
-  if (!user.value) return null;
-  const { data, error } = await supabase
-    .from('plantskolor')
-    .select('*')
-    .eq('user_id', user.value.id)
-    .single();
-  if (error || !data) return null;
-  return data;
-});
+const { data: plantskola, refresh } = await useAsyncData(
+  'plantskola-full',
+  async () => {
+    // if (!user.value) return null;
+    const { data, error } = await supabase
+      .from('plantskolor')
+      .select('*')
+      .eq('user_id', user.value.id)
+      .single();
+    if (error || !data) return null;
+    return data;
+  },
+  { lazy: true, watch: [user], server: false }
+);
 
 // Initialize form with fetched data
 watchEffect(() => {
@@ -64,10 +79,13 @@ async function save() {
     const emailChanged = form.value.email && form.value.email !== user.value.email; // Always update plantskolor table first with current form data
     const updatePayload = {
       name: form.value.name || '',
-      adress: form.value.adress || '',
+      gatuadress: form.value.gatuadress || '',
+      postnummer: form.value.postnummer || '',
+      postort: form.value.postort || '',
       email: form.value.email || '',
       phone: form.value.phone || '',
       url: form.value.url || '',
+      logo_url: form.value.logo_url || null,
       postorder: form.value.postorder || false,
       on_site: form.value.on_site || false,
       description: form.value.description || '',
@@ -113,48 +131,109 @@ async function save() {
     loading.value = false;
   }
 }
+
+/**
+ * Handle successful logo upload
+ */
+function handleLogoUploaded(result: { url: string; originalUrl: string; publicId: string }) {
+  // Logo URL is already updated via v-model, just show success message
+  // toast.add({
+  //   title: 'Logotyp uppladdad',
+  //   description: 'Kom ihåg att spara ändringarna',
+  //   color: 'primary',
+  // });
+}
+
+/**
+ * Handle logo upload error
+ */
+function handleLogoError(errorMessage: string) {
+  toast.add({
+    title: 'Logotypuppladdning misslyckades',
+    description: errorMessage,
+    color: 'error',
+  });
+}
 </script>
 
 <template>
   <div class="flex flex-col items-center justify-center min-h-[calc(100vh-5rem)] p-4">
     <div class="w-full max-w-lg border-1 border-border p-6 rounded-lg bg-bg-elevated">
-      <h1 class="text-2xl font-bold mb-4">
-        Min plantskola
-        <UIcon
-          name="material-symbols:verified-rounded"
-          class="text-secondary"
-          v-if="form.verified"
-        />
-      </h1>
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="flex items-center gap-2 text-2xl font-bold">
+          Min plantskola
+          <UIcon
+            name="material-symbols:verified-rounded"
+            class="text-secondary"
+            v-if="form.verified"
+          />
+        </h1>
+        <UButton
+          trailing-icon="material-symbols:open-in-new-rounded"
+          :to="`/plantskola/${form.id}`"
+          size="sm"
+          target="_blank"
+          variant="outline"
+          >Öppna profilen</UButton
+        >
+      </div>
       <form @submit.prevent="save" class="flex flex-col gap-4">
         <UFormField label="Namn på plantskola" required>
           <UInput v-model="form.name" required class="w-full" />
         </UFormField>
-        <UFormField label="Adress" required>
-          <UInput
-            v-model="form.adress"
-            required
-            placeholder="Gatuadress, postnummer och stad"
-            class="w-full"
-          />
+        <UFormField label="Gatuadress" required>
+          <UInput v-model="form.gatuadress" required placeholder="Gatuadress" class="w-full" />
         </UFormField>
+        <div class="flex flex-row gap-4">
+          <UFormField label="Postnummer" required>
+            <UInput
+              v-model="form.postnummer"
+              required
+              placeholder="Postnummer"
+              class="w-full"
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]{5}"
+            />
+          </UFormField>
+          <UFormField label="Postort" required>
+            <UInput
+              v-model="form.postort"
+              required
+              placeholder="Postort"
+              class="w-full"
+              type="text"
+            />
+          </UFormField>
+        </div>
         <UFormField label="Beskrivning av plantskola">
           <UTextarea v-model="form.description" class="w-full" />
         </UFormField>
         <UFormField label="Telefonnummer">
           <UInput v-model="form.phone" type="tel" class="w-full" />
         </UFormField>
-        <UFormField label="Webbsida">
+        <UFormField label="E-post" required>
+          <UInput v-model="form.email" type="email" required class="w-full" />
+        </UFormField>
+        <UFormField label="Hemsida">
           <UInput v-model="form.url" type="url" placeholder="https://..." class="w-full" />
         </UFormField>
+
         <UFormField label="Postorder">
           <UCheckbox v-model="form.postorder" />
         </UFormField>
         <UFormField label="Hämtning på plats">
           <UCheckbox v-model="form.on_site" />
         </UFormField>
-        <UFormField label="E-post" required>
-          <UInput v-model="form.email" type="email" required class="w-full" />
+
+        <!-- Logo Upload Section -->
+        <UFormField label="Logga" description="">
+          <LogoUploader
+            v-model="form.logo_url"
+            :disabled="loading"
+            @uploaded="handleLogoUploaded"
+            @error="handleLogoError"
+          />
         </UFormField>
         <div class="flex flex-col gap-2 mt-2 w-fit">
           <div class="flex items-center gap-2 w-fit">

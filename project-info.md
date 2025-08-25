@@ -53,10 +53,14 @@ This is the data structure in supabase:
 | ----------- | ---------- | ------------------------ |
 | id          | Int8       | Unique identifier        |
 | name        | Text       | Nursery name             |
-| adress      | Text       | Address                  |
+| gatuadress  | Text       | Street name              |
+| postnummer  | Text       |                          |
+| postort     | Text       |                          |
 | email       | Text       | Contact email            |
 | phone       | Text       | Contact phone number     |
 | url         | Text       | Nursery website URL      |
+| logo_url    | Text       | Nursery logo URL         |
+| cover_url   | Text       | Nursery cover image URL  |
 | postorder   | Bool       | Supports postal orders   |
 | on_site     | Bool       | Supports on-site pickup  |
 | verified    | Bool       | Verification status      |

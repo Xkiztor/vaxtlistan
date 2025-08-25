@@ -8,11 +8,13 @@ useHead({
   meta: [
     {
       name: 'description',
-      content: 'Registrera din plantskola på Växtlistan och nå ut till fler kunder. Enkelt att komma igång och visa ditt växtsortiment.',
+      content:
+        'Registrera din plantskola på Växtlistan och nå ut till fler kunder. Enkelt att komma igång och visa ditt växtsortiment.',
     },
     {
       name: 'keywords',
-      content: 'registrera plantskola, plantskola växtlistan, växtförsäljning online, växtsortiment, plantskolor sverige',
+      content:
+        'registrera plantskola, plantskola växtlistan, växtförsäljning online, växtsortiment, plantskolor sverige',
     },
     {
       property: 'og:title',
@@ -58,7 +60,9 @@ definePageMeta({
 // Types for form fields
 interface RegisterForm {
   name: string;
-  adress: string;
+  gatuadress: string;
+  postnummer: string;
+  postort: string;
   description: string;
   tel: string;
   url: string;
@@ -70,7 +74,9 @@ interface RegisterForm {
 
 const form = ref<RegisterForm>({
   name: '',
-  adress: '',
+  gatuadress: '',
+  postnummer: '',
+  postort: '',
   description: '',
   tel: '',
   url: '',
@@ -103,7 +109,9 @@ async function register() {
     } // 2. Insert into plantskolor table
     const { error: dbError } = await (supabase as any).from('plantskolor').insert({
       name: form.value.name,
-      adress: form.value.adress,
+      gatuadress: form.value.gatuadress,
+      postnummer: form.value.postnummer,
+      postort: form.value.postort,
       email: form.value.email,
       phone: form.value.tel,
       url: form.value.url,
@@ -135,9 +143,25 @@ async function register() {
         <UFormField label="Namn på plantskola" required>
           <UInput v-model="form.name" required :ui="{ root: 'w-full' }" />
         </UFormField>
-        <UFormField label="Adress" required description="Gatuadrass, postnummer och stad">
-          <UInput v-model="form.adress" required :ui="{ root: 'w-full' }" />
+        <UFormField label="Gatuadress" required>
+          <UInput v-model="form.gatuadress" required :ui="{ root: 'w-full' }" placeholder="" />
         </UFormField>
+        <div class="flex flex-row gap-4">
+          <UFormField label="Postnummer" required>
+            <UInput
+              v-model="form.postnummer"
+              required
+              :ui="{ root: 'w-full' }"
+              placeholder=""
+              type="text"
+              inputmode="numeric"
+              pattern="[0-9]{5}"
+            />
+          </UFormField>
+          <UFormField label="Postort" required>
+            <UInput v-model="form.postort" required :ui="{ root: 'w-full' }" placeholder="" />
+          </UFormField>
+        </div>
         <UFormField label="Beskrivning av plantskola">
           <UTextarea v-model="form.description" :ui="{ root: 'w-full' }" />
         </UFormField>

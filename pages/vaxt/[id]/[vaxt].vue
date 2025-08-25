@@ -46,10 +46,13 @@ interface PlantStock {
   last_edited: string;
   plantskola_id: number;
   nursery_name: string;
-  nursery_address: string | null;
+  nursery_gatuadress: string | null;
+  nursery_postnummer: string | null;
+  nursery_postort: string | null;
   nursery_email: string | null;
   nursery_phone: string | null;
   nursery_url: string | null;
+  nursery_logo_url: string | null;
   nursery_postorder: boolean;
   nursery_on_site: boolean;
 }
@@ -114,15 +117,20 @@ const {
         height,
         name_by_plantskola,
         comment_by_plantskola,
-        last_edited,        plantskolor:plantskola_id!inner (
+        own_columns,
+        last_edited,        
+        plantskolor:plantskola_id!inner (
           id,
           name,
-          adress,
+          gatuadress,
+          postnummer,
+          postort,
           email,
           phone,
           url,
           postorder,
-          on_site
+          on_site,
+          logo_url
         )
       `
       )
@@ -143,13 +151,17 @@ const {
       height: item.height,
       name_by_plantskola: item.name_by_plantskola,
       comment_by_plantskola: item.comment_by_plantskola,
+      own_columns: item.own_columns,
       last_edited: item.last_edited,
       plantskola_id: item.plantskolor?.id || 0,
       nursery_name: item.plantskolor?.name || 'Okänd plantskola',
-      nursery_address: item.plantskolor?.adress || null,
+      nursery_gatuadress: item.plantskolor?.gatuadress || null,
+      nursery_postnummer: item.plantskolor?.postnummer || null,
+      nursery_postort: item.plantskolor?.postort || null,
       nursery_email: item.plantskolor?.email || null,
       nursery_phone: item.plantskolor?.phone || null,
       nursery_url: item.plantskolor?.url || null,
+      nursery_logo_url: item.plantskolor?.logo_url || null,
       nursery_postorder: item.plantskolor?.postorder || false,
       nursery_on_site: item.plantskolor?.on_site || false,
     })) as PlantStock[];
@@ -354,7 +366,9 @@ const structuredData = computed(() => {
       seller: {
         '@type': 'Organization',
         name: stock.nursery_name,
-        address: stock.nursery_address || undefined,
+        address:
+          stock.nursery_gatuadress + ' ' + stock.nursery_postnummer + ' ' + stock.nursery_postort ||
+          undefined,
         email: stock.nursery_email || undefined,
         telephone: stock.nursery_phone || undefined,
       },
@@ -430,7 +444,7 @@ useHead({
     },
     {
       property: 'og:image',
-      content: () => lignosImages.value?.[0] || '/favicon.ico',
+      content: () => lignosImages.value?.[0] || plant.value?.images?.map((img) => img.url)[0] || '',
     },
     {
       property: 'og:type',
@@ -462,22 +476,28 @@ const groupedStockData = computed(() => {
         | 'name_by_plantskola'
         | 'comment_by_plantskola'
         | 'last_edited'
+        | 'own_columns'
       > & { nursery_name: string };
       plants: PlantStock[];
     }
   > = {};
   for (const stock of stockData.value) {
     // Create a unique key for the nursery
-    const key = `${stock.nursery_name}|${stock.nursery_address || ''}|${stock.nursery_email || ''}`;
+    const key = `${stock.nursery_name}|${stock.nursery_gatuadress || ''}|${
+      stock.nursery_email || ''
+    }`;
     if (!groups[key]) {
       groups[key] = {
         nursery: {
           plantskola_id: stock.plantskola_id,
           nursery_name: stock.nursery_name,
-          nursery_address: stock.nursery_address,
+          nursery_gatuadress: stock.nursery_gatuadress,
+          nursery_postnummer: stock.nursery_postnummer,
+          nursery_postort: stock.nursery_postort,
           nursery_email: stock.nursery_email,
           nursery_phone: stock.nursery_phone,
           nursery_url: stock.nursery_url,
+          nursery_logo_url: stock.nursery_logo_url,
           nursery_postorder: stock.nursery_postorder,
           nursery_on_site: stock.nursery_on_site,
         },
@@ -747,12 +767,7 @@ const colorMode = useColorMode();
         >
           <img
             :src="item as string"
-            :alt="
-              Array.isArray(finalImages) && finalImages[index]
-                ? finalImages[index].title
-                : `${plant?.name || 'Växt'} - Bild ${index + 1}`
-            "
-            class="rounded-lg aspect-square object-cover h-full w-full cursor-pointer hover:opacity-90 transition-opacity"
+            class="rounded-lg aspect-square object-cover h-full w-full cursor-pointer hover:opacity-90 transition-opacity bg-bg-elevated"
             loading="lazy"
             @click="openDatabaseImage(item as string, index)"
           />
@@ -768,7 +783,7 @@ const colorMode = useColorMode();
         class="mb-10 flex items-center justify-center p-8 bg-muted rounded-lg"
       >
         <div class="flex items-center gap-3">
-          <UIcon name="i-heroicons-arrow-path" class="w-5 h-5 animate-spin" />
+          <UIcon name="ant-design:loading-outlined" class="w-5 h-5 animate-spin" />
           <span class="text-t-toned">Laddar bilder från Google...</span>
         </div>
       </div>
@@ -794,12 +809,7 @@ const colorMode = useColorMode();
         >
           <img
             :src="item as string"
-            :alt="
-              Array.isArray(googleImages) && googleImages[index]
-                ? googleImages[index].title
-                : `${plant?.name || 'Växt'} - Bild ${index + 1}`
-            "
-            class="rounded-lg aspect-square object-cover h-full w-full cursor-pointer hover:opacity-90 transition-opacity"
+            class="rounded-lg aspect-square object-cover h-full w-full cursor-pointer hover:opacity-90 transition-opacity bg-bg-elevated"
             :loading="shouldPreloadGoogleImage(index) ? 'eager' : 'lazy'"
             @click="openGoogleImage(item as string, index)"
           />
@@ -846,25 +856,25 @@ const colorMode = useColorMode();
                     </div> -->
                 <div v-if="plant.height" class="flex flex-col items-center grow">
                   <span class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
-                    >Höjd</span
-                  >
+                    >Höjd
+                  </span>
                   <span class="w-full px-2">{{ plant.height }}</span>
                 </div>
                 <div v-if="plant.spread" class="flex flex-col items-center grow">
                   <span class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
-                    >Bredd</span
-                  >
+                    >Bredd
+                  </span>
                   <span class="w-full px-2">{{ plant.spread }}</span>
                 </div>
                 <div v-if="fullHeightTimeLabels" class="flex flex-col items-end grow">
                   <span class="font-bold border-b border-border pb-1 mb-1 w-full min-w-max px-2"
-                    >Tid till fullväxt</span
-                  >
+                    >Tid till fullväxt
+                  </span>
                   <span class="w-full px-2">{{ fullHeightTimeLabels }}</span>
                 </div>
               </div>
             </div>
-            <div v-if="lignosdatabasenPlant" class="mt-4">
+            <article v-if="lignosdatabasenPlant" class="mt-4">
               <!-- <div class="prose max-w-none" v-html="lignosText()"></div> -->
               <div class="prose max-w-none" v-html="lignosdatabasenPlant.ingress"></div>
               <div class="mt-2">
@@ -887,15 +897,17 @@ const colorMode = useColorMode();
                   <span v-else>Läs mer om växten på Lignosdatabasen</span>
                 </UButton>
               </div>
-            </div>
+            </article>
           </div>
 
           <!-- Available to Buy Section -->
           <div class="max-xl:mt-12 row-span-full col-start-2">
-            <!-- <h3 class="text-xl lg:text-2xl font-bold">Finns att köpa</h3> -->
+            <h1 class="text-3xl xl:hidden font-bold mb-3 pb-2 border-b border-border">
+              Finns att köpa
+            </h1>
             <!-- Loading state for nursery stock -->
             <div v-if="statusStock === 'pending'" class="flex items-center gap-2">
-              <UIcon name="i-heroicons-arrow-path" class="animate-spin" />
+              <UIcon name="ant-design:loading-outlined" class="animate-spin" />
               <span>Laddar tillgänglighet...</span>
             </div>
             <!-- Error state for nursery stock -->
@@ -930,10 +942,10 @@ const colorMode = useColorMode();
             </div>
             <!-- Stock data available -->
             <div v-else class="space-y-3">
-              <!-- <p class="text-sm text-t-toned">
+              <h2 class="text-sm text-t-toned hidden">
                 {{ stockData.length }} plantskol{{ stockData.length === 1 ? 'a' : 'or' }}
                 har denna växt i lager
-              </p> -->
+              </h2>
               <div class="grid gap-4">
                 <!-- Grouped by nursery -->
                 <NurseryToBuy
@@ -944,7 +956,7 @@ const colorMode = useColorMode();
                 <article
                   v-if="false"
                   v-for="group in groupedStockData"
-                  :key="group.nursery.nursery_name + (group.nursery.nursery_address || '')"
+                  :key="group.nursery.nursery_name + (group.nursery.nursery_gatuadress || '')"
                   class=""
                   itemscope
                   itemtype="https://schema.org/Offer"
@@ -962,14 +974,14 @@ const colorMode = useColorMode();
                         <span itemprop="name">{{ group.nursery.nursery_name }}</span>
                       </ULink>
                       <p
-                        v-if="group.nursery.nursery_address && group.nursery.nursery_on_site"
+                        v-if="group.nursery.nursery_postort && group.nursery.nursery_on_site"
                         class="text-sm text-t-toned flex items-center"
                         itemprop="address"
                       >
                         <!-- <UIcon name="i-heroicons-map-pin" class="mr-1" /> -->
                         <span class="mr-1">Hämtning på plats i</span>
                         <span itemprop="streetAddress" class="font-bold">{{
-                          group.nursery.nursery_address?.split(' ').slice(-1)[0]
+                          group.nursery.nursery_postort
                         }}</span>
                       </p>
                       <p v-else-if="group.nursery.nursery_on_site" class="text-sm text-t-toned">

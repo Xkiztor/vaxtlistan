@@ -191,7 +191,7 @@ BEGIN
                 'plantskola'::TEXT as result_type,
                 p.id,
                 p.name,
-                p.adress as secondary_name,
+                p.postort as secondary_name,
                 NULL::TEXT as plant_type,
                 -- Calculate relevance score based on match type
                 CASE 
@@ -321,7 +321,7 @@ BEGIN
             'plantskola'::TEXT as result_type,
             p.id,
             p.name,
-            p.adress as secondary_name,
+            p.postort as secondary_name,
             NULL::TEXT as plant_type,
             CASE 
                 WHEN sanitize_plant_name(p.name) ILIKE search_term_sanitized || '%' THEN 1.0

@@ -231,10 +231,14 @@ export interface Facit {
 export interface Plantskola {
   id: number; // Int8
   name: string; // Text
-  adress: string; // Text
+  gatuadress: string; // Text
+  postnummer: string; // Text
+  postort: string; // Text
   email: string; // Text
   phone: string; // Text
   url: string; // Text
+  logo_url: string; // Text
+  cover_url: string; // Text
   postorder: boolean; // Bool
   on_site: boolean; // Bool
   verified: boolean; // Bool

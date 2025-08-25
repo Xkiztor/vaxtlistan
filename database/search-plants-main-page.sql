@@ -275,7 +275,7 @@ BEGIN
                     'nursery_name', p.name,
                     'postorder', p.postorder,
                     'on_site', p.on_site,
-                    'nursery_address', p.adress
+                    'nursery_address', p.postort
                 ) ORDER BY tl.price ASC
             ) FILTER (WHERE tl.price IS NOT NULL) as prices,
             -- Nursery info aggregation

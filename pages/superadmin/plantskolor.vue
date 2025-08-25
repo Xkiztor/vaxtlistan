@@ -146,7 +146,7 @@ const confirmDeletion = async () => {
           <div class="flex gap-2 flex-wrap mt-2">
             <span class="text-t-toned">{{ plantskola.email }}</span>
             <span class="text-t-toned">{{ plantskola.phone }}</span>
-            <span class="text-t-toned">{{ plantskola.adress }}</span>
+            <span class="text-t-toned">{{ plantskola.postort }}</span>
             <span v-if="plantskola.url" class="text-t-toned">
               <UButton
                 :href="plantskola.url"
@@ -232,7 +232,10 @@ const confirmDeletion = async () => {
             <div class="text-sm text-t-toned mb-4">
               <p><strong>Email:</strong> {{ selectedPlantskola.email }}</p>
               <p><strong>Telefon:</strong> {{ selectedPlantskola.phone }}</p>
-              <p><strong>Adress:</strong> {{ selectedPlantskola.adress }}</p>
+              <p>
+                <strong>Adress:</strong> {{ selectedPlantskola.gatuadress }}
+                {{ selectedPlantskola.postnummer }} {{ selectedPlantskola.postort }}
+              </p>
             </div>
             <div class="bg-error/10 border border-error/20 rounded-md p-3 mb-4">
               <p class="text-sm text-error font-medium">

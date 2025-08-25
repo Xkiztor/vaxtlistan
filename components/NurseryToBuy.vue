@@ -1,28 +1,45 @@
 <script setup lang="ts">
+import type { LagerComplete } from '~/types/supabase-tables';
+
 const props = defineProps<{
   group: {
     nursery: {
       plantskola_id: number;
       nursery_name: string;
-      nursery_address: string | null;
+      nursery_gatuadress: string | null;
+      nursery_postnummer: string | null;
+      nursery_postort: string | null;
       nursery_on_site: boolean;
       nursery_postorder: boolean;
       nursery_email: string | null;
       nursery_phone: string | null;
       nursery_url: string | null;
+      nursery_logo_url: string | null;
     };
-    plants: Array<{
-      id: number;
-      stock: number;
-      price: number | null;
-      pot: string | null;
-      height: number | null;
-      name_by_plantskola: string | null;
-      comment_by_plantskola: string | null;
-      last_edited: string; // ISO date string
-    }>;
+    plants: Array<
+      Pick<
+        LagerComplete,
+        | 'id'
+        | 'stock'
+        | 'price'
+        | 'pot'
+        | 'height'
+        | 'name_by_plantskola'
+        | 'comment_by_plantskola'
+        | 'last_edited'
+        | 'own_columns'
+      >
+    >;
   };
 }>();
+
+// Helper to format own_columns (custom fields) for display
+const formatCustomFields = (ownColumns: Record<string, any> | null | undefined) => {
+  if (!ownColumns || typeof ownColumns !== 'object') return [];
+  return Object.entries(ownColumns)
+    .filter(([key, value]) => value !== null && value !== undefined && String(value).trim() !== '')
+    .map(([key, value]) => ({ key, value }));
+};
 
 const expanded = ref(false);
 
@@ -126,11 +143,14 @@ function afterLeave(el: Element) {
 <template>
   <div class="mb-8">
     <!-- Nursery Header -->
-    <header class="flex flex-col sm:flex-row sm:items-start gap-2 mb-3">
+    <header class="flex flex-row gap-2 mb-3">
+      <div class="flex items-center">
+        <img :src="group.nursery.nursery_logo_url" alt="" class="h-10 rounded-md" />
+      </div>
       <div class="flex-1">
         <ULink
           :to="`/plantskola/${group.nursery.plantskola_id}`"
-          class="text-xl text-t-regular font-bold hover:opacity-80"
+          class="text-xl text-t-regular font-bold hover:opacity-80 max-md:underline"
           itemprop="seller"
           itemscope
           itemtype="https://schema.org/Organization"
@@ -138,14 +158,14 @@ function afterLeave(el: Element) {
           <span itemprop="name">{{ group.nursery.nursery_name }}</span>
         </ULink>
         <p
-          v-if="group.nursery.nursery_address && group.nursery.nursery_on_site"
+          v-if="group.nursery.nursery_postort && group.nursery.nursery_on_site"
           class="text-sm text-t-toned flex items-center"
           itemprop="address"
         >
           <!-- <UIcon name="i-heroicons-map-pin" class="mr-1" /> -->
           <span class="mr-1">Hämtning på plats i</span>
           <span itemprop="streetAddress" class="font-bold">{{
-            group.nursery.nursery_address?.split(' ').slice(-1)[0]
+            group.nursery.nursery_postort
           }}</span>
         </p>
         <p v-else-if="group.nursery.nursery_on_site" class="text-sm text-t-toned">
@@ -162,6 +182,20 @@ function afterLeave(el: Element) {
           Postorder
         </UBadge>
       </div>
+      <div>
+        <UButton
+          v-if="group.nursery.nursery_url"
+          :href="group.nursery.nursery_url"
+          target="_blank"
+          rel="noopener noreferrer"
+          icon="i-heroicons-globe-alt"
+          color="primary"
+          variant="outline"
+          size="sm"
+          ><span class="max-md:hidden">Besök hemsidan</span
+          ><Icon class="md:hidden" name="cuida:open-in-new-tab-outline"
+        /></UButton>
+      </div>
     </header>
     <!-- Multiple plant details for this nursery -->
     <div class="flex flex-col gap-4">
@@ -177,23 +211,22 @@ function afterLeave(el: Element) {
           <div
             v-for="stock in group.plants.sort((a, b) => a.price! - b.price!)"
             :key="stock.id"
-            class="bg-bg-elevated px-4 py-3 rounded-xl flex justify-between"
+            class="bg-bg-elevated px-4 md:px-6 xl:px-4 py-3 rounded-xl flex justify-between border border-border"
           >
             <div class="grow">
               <!-- Plant specifications -->
               <div
-                class="flex items-center gap-4 flex-wrap text-sm grow"
+                class="flex items-center gap-4 md:gap-12 xl:gap-8 flex-wrap text-sm grow"
                 v-if="stock.pot || stock.height"
               >
                 <div v-if="stock.pot" class="flex items-center flex-col">
-                  Kruka:
+                  Kruka
                   <span class="font-semibold text-base">{{ stock.pot }}</span>
                 </div>
                 <div v-if="stock.height" class="flex items-center flex-col">
-                  Höjd:
+                  Höjd
                   <span class="text-base">
                     <span class="font-semibold">{{ stock.height }}</span>
-                    cm
                   </span>
                 </div>
               </div>
@@ -206,10 +239,42 @@ function afterLeave(el: Element) {
               <span class="italic ml-1">{{ stock.name_by_plantskola }}</span>
             </div> -->
               <!-- Nursery's comment -->
-              <div v-if="stock.comment_by_plantskola" class="text-sm mt-1 flex items-center">
-                <!-- <span class="font-medium">Kommentar:</span> -->
-                <Icon name="material-symbols:info-outline-rounded" class="text-base text-primary" />
-                <span class="ml-1">{{ stock.comment_by_plantskola }}</span>
+              <div class="flex flex-wrap items-center gap-2 mt-2">
+                <div v-if="stock.comment_by_plantskola" class="flex items-center">
+                  <!-- <span class="font-medium">Kommentar:</span> -->
+
+                  <UBadge
+                    color="primary"
+                    variant="outline"
+                    size="md"
+                    icon="material-symbols:info-outline-rounded"
+                    :ui="{
+                      leadingIcon: 'scale-110',
+                    }"
+                    class="font-medium"
+                  >
+                    <span class="ml-1">{{ stock.comment_by_plantskola }}</span>
+                  </UBadge>
+                </div>
+                <div>
+                  <!-- Custom fields (own_columns) -->
+                  <div
+                    v-if="stock.own_columns && formatCustomFields(stock.own_columns).length > 0"
+                    class="flex flex-wrap gap-2"
+                  >
+                    <UBadge
+                      v-for="field in formatCustomFields(stock.own_columns)"
+                      :key="field.key"
+                      color="primary"
+                      variant="outline"
+                      size="md"
+                      class="font-medium"
+                    >
+                      <span class="font-semibold">{{ field.key }}:</span>
+                      <span class="ml-1">{{ field.value }}</span>
+                    </UBadge>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -223,7 +288,7 @@ function afterLeave(el: Element) {
                   <span itemprop="priceCurrency" content="SEK"> kr</span>
                 </span>
               </div>
-              <div class="" v-if="stock.stock > 0">
+              <div class="" v-if="typeof stock.stock === 'number' && stock.stock > 0">
                 <span
                   class="text-t-toned text-sm"
                   itemprop="availability"
@@ -236,11 +301,11 @@ function afterLeave(el: Element) {
           </div>
         </div>
       </Transition>
-      <div v-if="group.plants.length > 1" class="" :class="{ 'mt-4': expanded }">
+      <div v-if="group.plants.length > 1" class="">
         <div>
           <!-- Summary of all plants: shows price range, total stock, and number of alternatives -->
           <div
-            class="flex flex-row items-center gap-2 mb-2 justify-between bg-bg-elevated px-4 py-3 rounded-xl"
+            class="flex flex-row items-center gap-2 mb-2 justify-between bg-bg-elevated px-4 py-3 rounded-xl border border-border"
             v-if="!expanded"
           >
             <div>
@@ -390,10 +455,9 @@ function afterLeave(el: Element) {
         Uppdaterat
         {{
           formatDate(
-            group.plants.reduce(
-              (latest, s) => (s.last_edited > latest ? s.last_edited : latest),
-              group.plants[0]?.last_edited || ''
-            )
+            group.plants
+              .map((s) => s.last_edited || '')
+              .reduce((latest, curr) => (curr > latest ? curr : latest), '')
           )
         }}
       </div>
@@ -401,14 +465,4 @@ function afterLeave(el: Element) {
   </div>
 </template>
 
-<style scoped>
-.expand-button {
-  transform-origin: center;
-}
-.expand-button:hover {
-  transform: scale(1.05);
-}
-.expand-button:active {
-  transform: scale(0.95);
-}
-</style>
+<style scoped></style>

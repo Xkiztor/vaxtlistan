@@ -28,7 +28,7 @@ export default defineNuxtConfig({
     name: 'Växtlistan - Hitta växter hos svenska plantskolor'
   },
   routeRules: {
-    '/': {swr: 3600},
+    '/': {swr: true},
     '/om-oss': {prerender: true},
     '/for-plantskolor': {prerender: true},
     '/superadmin/**': {ssr: false},
@@ -72,6 +72,11 @@ export default defineNuxtConfig({
     ]
   },
   runtimeConfig: {
+    // Private keys (only available on server-side)
+    CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME,
+    CLOUDINARY_API_KEY: process.env.CLOUDINARY_API_KEY,
+    CLOUDINARY_API_SECRET: process.env.CLOUDINARY_API_SECRET,
+    
     public: {
       LINDERSPLANTSKOLA_SUPABASE_URL: process.env.LINDERSPLANTSKOLA_SUPABASE_URL,
       LINDERSPLANTSKOLA_SUPABASE_KEY: process.env.LINDERSPLANTSKOLA_SUPABASE_KEY,

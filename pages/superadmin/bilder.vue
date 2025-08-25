@@ -624,7 +624,7 @@ const unmarkAsReordered = async (plant: Facit) => {
 
     <!-- Loading State -->
     <div v-if="status === 'pending'" class="flex items-center justify-center py-12">
-      <UIcon name="i-heroicons-arrow-path" class="animate-spin w-8 h-8" />
+      <UIcon name="ant-design:loading-outlined" class="animate-spin w-8 h-8" />
       <span class="ml-2">Laddar växter...</span>
     </div>
 

@@ -352,7 +352,7 @@ const updatePopularityScores = async () => {
 
     <!-- Loading state -->
     <div v-if="status === 'pending' && !plants.length" class="flex justify-center py-12">
-      <UIcon name="i-heroicons-arrow-path" class="animate-spin text-2xl text-t-toned" />
+      <UIcon name="ant-design:loading-outlined" class="animate-spin text-2xl text-t-toned" />
     </div>
 
     <!-- Error state -->
@@ -515,7 +515,7 @@ const updatePopularityScores = async () => {
           </div>
           <!-- Loading state -->
           <div v-if="loadingPlantDetails" class="flex justify-center py-8">
-            <UIcon name="i-heroicons-arrow-path" class="animate-spin text-xl text-t-toned" />
+            <UIcon name="ant-design:loading-outlined" class="animate-spin text-xl text-t-toned" />
           </div>
           <!-- Plant Details -->
           <div v-else-if="selectedPlant" class="space-y-4 max-h-96 overflow-y-auto">
@@ -570,7 +570,10 @@ const updatePopularityScores = async () => {
           <div class="flex-1 p-6 overflow-auto">
             <!-- Loading state -->
             <div v-if="loadingAnalytics" class="flex justify-center py-12">
-              <UIcon name="i-heroicons-arrow-path" class="animate-spin text-2xl text-t-toned" />
+              <UIcon
+                name="ant-design:loading-outlined"
+                class="animate-spin text-2xl text-t-toned"
+              />
             </div>
 
             <!-- Analytics content -->

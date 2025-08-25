@@ -672,7 +672,7 @@ const hasPrivateData = computed(() => {
           </div>
         </div>
 
-        <div class="flex items-center justify-end gap-x-2 mb-2">
+        <div class="flex items-center justify-end gap-x-2 mb-2 mt-2">
           <span v-if="plant.created_at" class="text-t-muted text-xs">
             <span>Tillagd: </span>
             <span>

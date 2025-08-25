@@ -114,7 +114,10 @@ definePageMeta({
                 <div class="flex gap-2 flex-wrap mt-2">
                   <span class="text-t-toned">{{ plantskola.email }}</span>
                   <span class="text-t-toned">{{ plantskola.phone }}</span>
-                  <span class="text-t-toned">{{ plantskola.adress }}</span>
+                  <span class="text-t-toned"
+                    >{{ plantskola.gatuadress }}{{ plantskola.postnummer
+                    }}{{ plantskola.postort }}</span
+                  >
                 </div>
               </div>
               <div>

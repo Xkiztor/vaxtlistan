@@ -488,6 +488,23 @@ const getFirstImageUrl = (facitImages: any[] | null | undefined): string | null 
   return null;
 };
 
+// Helper function to get optimized logo URL
+const getOptimizedLogoUrl = (
+  originalUrl: string,
+  options: { width?: number; height?: number; quality?: string } = {}
+): string => {
+  if (!originalUrl.includes('cloudinary.com')) {
+    return originalUrl;
+  }
+
+  const { width = 200, height = 100, quality = 'auto' } = options;
+
+  return originalUrl.replace(
+    '/upload/',
+    `/upload/c_fit,h_${height},w_${width},f_auto,q_${quality}/`
+  );
+};
+
 // SEO meta tags
 useHead({
   title: `${plantskola.value?.name} - Plantskola | Växtlistan`,
@@ -543,9 +560,24 @@ useHead({
           <div class="flex flex-col lg:flex-row gap-4 lg:gap-8">
             <!-- Plantskola info -->
             <div class="flex-1">
-              <h1 class="text-3xl lg:text-4xl font-bold mb-1 lg:mb-2">
-                {{ plantskola.name }}
-              </h1>
+              <!-- Title with logo -->
+              <div class="flex items-center gap-4 mb-4">
+                <!-- Logo -->
+                <div v-if="plantskola.logo_url" class="flex-shrink-0">
+                  <img
+                    :src="getOptimizedLogoUrl(plantskola.logo_url)"
+                    :alt="`${plantskola.name} logotyp`"
+                    class="h-16 w-auto max-w-[120px] object-contain rounded-md"
+                  />
+                </div>
+
+                <!-- Title -->
+                <div class="flex-1">
+                  <h1 class="text-3xl lg:text-4xl font-bold">
+                    {{ plantskola.name }}
+                  </h1>
+                </div>
+              </div>
 
               <!-- Description -->
               <p v-if="plantskola.description" class="text-lg text-regular leading-relaxed">
@@ -570,12 +602,18 @@ useHead({
               <div class="rounded-lg p-4 border border-border">
                 <div class="space-y-4">
                   <!-- Address -->
-                  <div v-if="plantskola.adress" class="flex items-center gap-4">
+                  <div
+                    v-if="plantskola.gatuadress || plantskola.postort"
+                    class="flex items-center gap-4"
+                  >
                     <UIcon name="i-heroicons-map-pin" class="w-5 h-5 text-muted mt-0.5" />
                     <div class="flex-1 leading-tight">
                       <div class="font-medium text-sm">Adress</div>
                       <div class="text-regular text-sm">
-                        {{ plantskola.adress }}
+                        <div v-if="plantskola.gatuadress">{{ plantskola.gatuadress }}</div>
+                        <div v-if="plantskola.postnummer || plantskola.postort">
+                          {{ plantskola.postnummer }} {{ plantskola.postort }}
+                        </div>
                       </div>
                     </div>
                   </div>
