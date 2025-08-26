@@ -541,7 +541,6 @@ const saveGoogleImagesToDatabase = async (
       images_added_date: new Date().toISOString(),
     };
 
-    // First, let's try just updating the images field to see if that's the issue
     const { data, error } = await (supabase as any)
       .from('facit')
       .update(updateData)
@@ -562,7 +561,7 @@ const saveGoogleImagesToDatabase = async (
 const {
   data: googleImages,
   error: googleImagesError,
-  pending: googleImagesPending,
+  status: googleImagesStatus,
   refresh: refreshGoogleImages,
 } = await useFetch<{ url: string; title: string; thumbnail: string; sourcePage: string }[]>(
   () => {
@@ -580,7 +579,7 @@ const {
   },
   {
     server: false, // Client-side only to avoid blocking SSR
-    immediate: false, // Don't fetch immediately, wait for onMounted
+    // immediate: false, // Don't fetch immediately, wait for onMounted
     lazy: true, // Enable lazy loading
     watch: [() => plant.value?.name, () => lignosImages.value, () => databaseImages.value],
     default: () => [],
@@ -616,17 +615,6 @@ const shouldPreloadGoogleImage = (index: number) => {
   return index < preloadCount;
 };
 
-const getGoogleImagesToPreload = () => {
-  if (!googleImages.value || !Array.isArray(googleImages.value)) return [];
-
-  // Preload next 2-3 images after the initially loaded ones for smooth carousel navigation
-  const preloadCount = width.value > 768 ? 3 : 2;
-  const startIndex = preloadCount;
-  const endIndex = Math.min(startIndex + preloadCount, googleImages.value.length);
-
-  return googleImages.value.slice(startIndex, endIndex);
-};
-
 // Track plant page view for popularity analytics
 onMounted(async () => {
   // Trigger Google image search after page load if needed
@@ -637,8 +625,6 @@ onMounted(async () => {
   ) {
     // Use nextTick to ensure the page is fully rendered first
     await nextTick();
-    // Refresh the Google images fetch
-    await refreshGoogleImages();
   }
 
   if (plant.value?.id) {
@@ -779,7 +765,7 @@ const colorMode = useColorMode();
       </div>
       <!-- Priority 3: Loading state for Google Images -->
       <div
-        v-else-if="googleImagesPending"
+        v-else-if="googleImagesStatus === 'pending'"
         class="mb-10 flex items-center justify-center p-8 bg-muted rounded-lg"
       >
         <div class="flex items-center gap-3">
@@ -814,16 +800,6 @@ const colorMode = useColorMode();
             @click="openGoogleImage(item as string, index)"
           />
         </UCarousel>
-        <!-- Preload next images for smooth carousel navigation -->
-        <template v-if="googleImages && Array.isArray(googleImages)">
-          <link
-            v-for="(img, idx) in getGoogleImagesToPreload()"
-            :key="`preload-${idx}`"
-            rel="preload"
-            as="image"
-            :href="img.url"
-          />
-        </template>
         <UIcon
           name="logos:google"
           class="absolute bottom-2 max-md:opacity-80 max-md:saturate-50 md:-bottom-6 right-2"
@@ -845,7 +821,7 @@ const colorMode = useColorMode();
               <h1 class="text-3xl font-bold mb-1">{{ plant.name }}</h1>
               <p class="italic text-lg" v-if="plant.sv_name">{{ plant.sv_name }}</p>
               <div
-                class="flex justify-between max-[450px]:text-sm max-[360px]:text-xs w-full text-center mt-2 mb-4 border border-border rounded-md py-1"
+                class="flex justify-between max-[450px]:text-sm max-[360px]:text-xs w-full text-center mt-2 mb-4 border border-border rounded-md py-1 bg-bg-elevated"
                 v-if="plant.height || plant.spread || fullHeightTimeLabels"
               >
                 <!-- <div v-if="rhsTypeLabels" class="flex flex-col items-start grow">
@@ -966,7 +942,7 @@ const colorMode = useColorMode();
                     <div class="flex-1">
                       <ULink
                         :to="`/plantskola/${group.nursery.plantskola_id}`"
-                        class="text-xl text-t-regular font-bold hover:opacity-80"
+                        class="text-xl text-t-regular font-bold hover:opacity-75"
                         itemprop="seller"
                         itemscope
                         itemtype="https://schema.org/Organization"
@@ -1168,7 +1144,7 @@ const colorMode = useColorMode();
           >
             <h3 class="text-xl lg:text-2xl font-bold">Odlingsförhållanden</h3>
             <div
-              class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center mt-2"
+              class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center mt-2 bg-bg-elevated"
             >
               <div v-if="sunlightLabels" class="flex flex-col grow">
                 <span class="font-bold mb-1 pb-1 border-b border-border">Ljus</span>
@@ -1202,20 +1178,20 @@ const colorMode = useColorMode();
             </div>
             <!-- Desktop view -->
             <div
-              class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center max-md:hidden mt-4"
+              class="flex flex-wrap w-full justify-between border border-border rounded-md py-1 text-center max-md:hidden mt-4 bg-bg-elevated"
               v-if="soilTypeLabels || phLabels || moistureLabels"
             >
               <div v-if="soilTypeLabels" class="flex flex-col grow">
                 <span class="font-bold mb-1 pb-1 border-b border-border">Jord</span>
-                <span>{{ soilTypeLabels }}</span>
+                <span class="px-3">{{ soilTypeLabels }}</span>
               </div>
               <div v-if="phLabels" class="flex flex-col grow">
                 <span class="font-bold mb-1 pb-1 border-b border-border">pH</span>
-                <span>{{ phLabels }}</span>
+                <span class="px-3">{{ phLabels }}</span>
               </div>
               <div v-if="moistureLabels" class="flex flex-col grow">
                 <span class="font-bold mb-1 pb-1 border-b border-border">Fuktighet</span>
-                <span>{{ moistureLabels }}</span>
+                <span class="px-3">{{ moistureLabels }}</span>
               </div>
             </div>
             <!-- Mobile view -->

@@ -144,18 +144,23 @@ function afterLeave(el: Element) {
   <div class="mb-8">
     <!-- Nursery Header -->
     <header class="flex flex-row gap-2 mb-3">
-      <div class="flex items-center">
+      <div class="flex items-center" v-if="group.nursery.nursery_logo_url">
         <img :src="group.nursery.nursery_logo_url" alt="" class="h-10 rounded-md" />
       </div>
-      <div class="flex-1">
+      <div class="flex-1" itemprop="seller">
         <ULink
           :to="`/plantskola/${group.nursery.plantskola_id}`"
-          class="text-xl text-t-regular font-bold hover:opacity-80 max-md:underline"
-          itemprop="seller"
+          class="text-xl text-t-regular font-bold hover:opacity-75 max-md:underline flex items-center gap-1"
+          itemprop="name"
           itemscope
           itemtype="https://schema.org/Organization"
         >
-          <span itemprop="name">{{ group.nursery.nursery_name }}</span>
+          {{ group.nursery.nursery_name }}
+          <!-- <Icon name="material-symbols:arrow-forward-rounded" class="text-t-toned text-base" /> -->
+          <Icon
+            name="material-symbols:arrow-right-alt-rounded"
+            class="text-t-toned max-md:hidden"
+          />
         </ULink>
         <p
           v-if="group.nursery.nursery_postort && group.nursery.nursery_on_site"
@@ -211,72 +216,83 @@ function afterLeave(el: Element) {
           <div
             v-for="stock in group.plants.sort((a, b) => a.price! - b.price!)"
             :key="stock.id"
-            class="bg-bg-elevated px-4 md:px-6 xl:px-4 py-3 rounded-xl flex justify-between border border-border"
+            class="bg-bg-elevated px-4 md:px-6 xl:px-4 py-3 rounded-xl flex justify-between gap-2 border border-border"
           >
-            <div class="grow">
-              <!-- Plant specifications -->
-              <div
-                class="flex items-center gap-4 md:gap-12 xl:gap-8 flex-wrap text-sm grow"
-                v-if="stock.pot || stock.height"
-              >
-                <div v-if="stock.pot" class="flex items-center flex-col">
-                  Kruka
-                  <span class="font-semibold text-base">{{ stock.pot }}</span>
-                </div>
-                <div v-if="stock.height" class="flex items-center flex-col">
-                  Höjd
-                  <span class="text-base">
-                    <span class="font-semibold">{{ stock.height }}</span>
+            <!-- <div class="grow"> -->
+            <!-- Plant specifications -->
+            <div class="flex items-center gap-4 md:gap-12 xl:gap-8 flex-wrap text-sm grow">
+              <div v-if="stock.pot" class="flex items-center flex-col">
+                Kruka
+                <span class="font-semibold text-base">{{ stock.pot }}</span>
+              </div>
+              <div v-if="stock.height" class="flex items-center flex-col">
+                Höjd
+                <span class="text-base">
+                  <span class="font-semibold">{{ stock.height }}</span>
+                </span>
+              </div>
+
+              <div v-if="stock.comment_by_plantskola" class="flex items-center">
+                <!-- <span class="font-medium">Kommentar:</span> -->
+
+                <span class="font-medium flex items-center italic gap-0.5">
+                  <Icon name="material-symbols:info-outline-rounded" class="" />
+                  <span class="ml-1">{{ stock.comment_by_plantskola }}</span>
+                </span>
+                <!-- <UBadge
+                  color="primary"
+                  variant="outline"
+                  size="md"
+                  icon="material-symbols:info-outline-rounded"
+                  :ui="{
+                    leadingIcon: 'scale-110',
+                  }"
+                  class="font-medium"
+                >
+                  <span class="ml-1">{{ stock.comment_by_plantskola }}</span>
+                </UBadge> -->
+              </div>
+              <div>
+                <!-- Custom fields (own_columns) -->
+                <div
+                  v-if="stock.own_columns && formatCustomFields(stock.own_columns).length > 0"
+                  class="flex flex-wrap gap-2"
+                >
+                  <span
+                    v-for="field in formatCustomFields(stock.own_columns)"
+                    :key="field.key"
+                    class="font-medium italic"
+                  >
+                    <span class="font-semibold">{{ field.key }}:</span>
+                    <span class="ml-1">{{ field.value }}</span>
                   </span>
+                  <!-- <UBadge
+                    v-for="field in formatCustomFields(stock.own_columns)"
+                    :key="field.key"
+                    color="primary"
+                    variant="outline"
+                    size="md"
+                    class="font-medium"
+                  >
+                    <span class="font-semibold">{{ field.key }}:</span>
+                    <span class="ml-1">{{ field.value }}</span>
+                  </UBadge> -->
                 </div>
               </div>
-              <!-- Nursery's plant name (if different) -->
-              <!-- <div
+            </div>
+            <!-- Nursery's plant name (if different) -->
+            <!-- <div
               v-if="stock.name_by_plantskola && stock.name_by_plantskola !== plant?.name"
               class="text-sm"
             >
               <span class="font-medium">Plantskolans namn:</span>
               <span class="italic ml-1">{{ stock.name_by_plantskola }}</span>
             </div> -->
-              <!-- Nursery's comment -->
-              <div class="flex flex-wrap items-center gap-2 mt-2">
-                <div v-if="stock.comment_by_plantskola" class="flex items-center">
-                  <!-- <span class="font-medium">Kommentar:</span> -->
+            <!-- Nursery's comment -->
+            <!-- <div class="flex flex-wrap items-center gap-2 mt-2">
 
-                  <UBadge
-                    color="primary"
-                    variant="outline"
-                    size="md"
-                    icon="material-symbols:info-outline-rounded"
-                    :ui="{
-                      leadingIcon: 'scale-110',
-                    }"
-                    class="font-medium"
-                  >
-                    <span class="ml-1">{{ stock.comment_by_plantskola }}</span>
-                  </UBadge>
-                </div>
-                <div>
-                  <!-- Custom fields (own_columns) -->
-                  <div
-                    v-if="stock.own_columns && formatCustomFields(stock.own_columns).length > 0"
-                    class="flex flex-wrap gap-2"
-                  >
-                    <UBadge
-                      v-for="field in formatCustomFields(stock.own_columns)"
-                      :key="field.key"
-                      color="primary"
-                      variant="outline"
-                      size="md"
-                      class="font-medium"
-                    >
-                      <span class="font-semibold">{{ field.key }}:</span>
-                      <span class="ml-1">{{ field.value }}</span>
-                    </UBadge>
-                  </div>
-                </div>
-              </div>
-            </div>
+              </div> -->
+            <!-- </div> -->
 
             <!-- Stock and Price -->
             <div class="flex items-end flex-col leading-none min-w-fit justify-center">
@@ -302,55 +318,51 @@ function afterLeave(el: Element) {
         </div>
       </Transition>
       <div v-if="group.plants.length > 1" class="">
-        <div>
-          <!-- Summary of all plants: shows price range, total stock, and number of alternatives -->
-          <div
-            class="flex flex-row items-center gap-2 mb-2 justify-between bg-bg-elevated px-4 py-3 rounded-xl border border-border"
-            v-if="!expanded"
-          >
-            <div>
-              <!-- Number of alternatives -->
-              <div class="flex items-center gap-1">
-                <span class="font-bold md:text-2xl">{{ group.plants.length }}</span>
-                <span>olika storlekar</span>
-              </div>
-              <!-- Total stock -->
-              <div class="flex items-center gap-1 text-t-toned text-sm md:hidden">
-                <span class="font-medium">Totalt i lager:</span>
-                <span class="font-bold">
-                  {{ group.plants.reduce((sum, plant) => sum + (plant.stock || 0), 0) }}
-                </span>
-                st
-              </div>
+        <!-- Summary of all plants: shows price range, total stock, and number of alternatives -->
+        <div
+          class="flex flex-row items-center gap-2 mb-2 justify-between bg-bg-elevated px-4 py-3 rounded-xl border border-border cursor-pointer"
+          @click="expanded = !expanded"
+          v-if="!expanded"
+        >
+          <div>
+            <!-- Number of alternatives -->
+            <div class="flex items-center gap-1">
+              <span class="font-bold md:text-2xl">{{ group.plants.length }}</span>
+              <span>olika storlekar</span>
             </div>
-            <!-- Price range -->
-            <div>
-              <div
-                v-if="group.plants.some((p) => p.price !== null)"
-                class="flex items-center gap-1"
-              >
-                <span class="font-bold md:text-xl">
-                  {{
-                    (() => {
-                      const prices = group.plants
-                        .map((p) => p.price)
-                        .filter((p): p is number => p !== null)
-                        .sort((a, b) => a - b);
-                      if (prices.length === 0) return '–';
-                      if (prices[0] === prices[prices.length - 1]) return `${prices[0]} kr`;
-                      return `${prices[0]} - ${prices[prices.length - 1]} kr`;
-                    })()
-                  }}
-                </span>
-              </div>
-              <!-- Total stock -->
-              <div class="flex items-center gap-1 text-t-toned text-sm max-md:hidden">
-                <span class="font-medium">Totalt i lager:</span>
-                <span class="font-bold">
-                  {{ group.plants.reduce((sum, plant) => sum + (plant.stock || 0), 0) }}
-                </span>
-                st
-              </div>
+            <!-- Total stock -->
+            <div class="flex items-center gap-1 text-t-toned text-sm md:hidden">
+              <span class="font-medium">Totalt i lager:</span>
+              <span class="font-bold">
+                {{ group.plants.reduce((sum, plant) => sum + (plant.stock || 0), 0) }}
+              </span>
+              st
+            </div>
+          </div>
+          <!-- Price range -->
+          <div>
+            <div v-if="group.plants.some((p) => p.price !== null)" class="flex items-center gap-1">
+              <span class="font-bold md:text-xl">
+                {{
+                  (() => {
+                    const prices = group.plants
+                      .map((p) => p.price)
+                      .filter((p): p is number => p !== null)
+                      .sort((a, b) => a - b);
+                    if (prices.length === 0) return '–';
+                    if (prices[0] === prices[prices.length - 1]) return `${prices[0]} kr`;
+                    return `${prices[0]} - ${prices[prices.length - 1]} kr`;
+                  })()
+                }}
+              </span>
+            </div>
+            <!-- Total stock -->
+            <div class="flex items-center gap-1 text-t-toned text-sm max-md:hidden">
+              <span class="font-medium">Totalt i lager:</span>
+              <span class="font-bold">
+                {{ group.plants.reduce((sum, plant) => sum + (plant.stock || 0), 0) }}
+              </span>
+              st
             </div>
           </div>
         </div>
@@ -358,7 +370,7 @@ function afterLeave(el: Element) {
           size="md"
           variant="ghost"
           color="neutral"
-          class="p-0 hover:opacity-60 hover:bg-transparent transition-all duration-200 expand-button"
+          class="p-0 hover:opacity-75 hover:bg-transparent transition-all duration-200 expand-button"
           @click="expanded = !expanded"
           :icon="expanded ? 'i-heroicons-chevron-up-20-solid' : 'i-heroicons-chevron-down-20-solid'"
           >{{ expanded ? 'Dölj' : 'Visa alla' }}</UButton

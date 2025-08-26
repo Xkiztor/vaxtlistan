@@ -94,6 +94,8 @@ onMounted(() => {
     checkScrollPosition();
   }
 });
+
+const currentMonth = ref(new Date().getMonth() + 1);
 </script>
 
 <template>
@@ -121,17 +123,48 @@ onMounted(() => {
           src="https://res.cloudinary.com/dxwhmugdr/image/upload/v1752052968/Acer-palmatum-_Osakazuki_-Foto-Peter-Linder-Li_70033_ykobbx.jpg"
           alt="Acer palmatum 'Osakazuki' - Foto Peter Linder"
         /> -->
+
+        <!-- <div class="absolute inset-4">
+          <img
+            class="w-full h-full object-cover object-bottom rounded-2xl brightness-90"
+            src="https://res.cloudinary.com/dkpak9c3j/image/upload/v1756237934/IMG_5876_ei377c.jpg"
+            alt=""
+          />
+        </div> -->
+
+        <!-- Autumn image -->
+        <div class="absolute inset-4" v-if="currentMonth > 8 && currentMonth < 12">
+          <img
+            class="w-full h-full object-cover object-center rounded-2xl brightness-90"
+            src="https://res.cloudinary.com/dkpak9c3j/image/upload/q_auto/v1756240441/tim-broadbent-S1xW3xHQJNM-unsplash_xwdhmk.jpg"
+            alt=""
+          />
+        </div>
+        <!-- Summer image -->
+        <div class="absolute inset-4" v-else>
+          <img
+            class="w-full h-full object-cover object-center rounded-2xl brightness-90"
+            src="https://res.cloudinary.com/dkpak9c3j/image/upload/q_auto/v1756239155/IMG_5868-cropped-3_oz4wvn.jpg"
+            alt=""
+          />
+        </div>
         <!-- Dark gradient overlay at bottom for better text readability -->
         <!-- <div
           class="absolute inset-0 top-1/2 bg-gradient-to-t from-black/40 via-black/20 to-transparent"
         ></div> -->
         <div
-          class="w-full h-full md:rounded-3xl hero-bg flex flex-col items-center justify-center text-center pt-18 pb-12 lg:py-8"
+          class="inset-0 z-10 w-full h-full md:rounded-3xl flex flex-col items-center justify-center text-center p-4 pt-18 pb-12 lg:py-8"
         >
-          <h1 class="font-black text-white title border-b-2 border-white mb-4 pb-2 lg:px-16">
+          <h1
+            class="font-black text-white title border-b-2 border-white mb-4 pb-2 lg:px-16"
+            :class="{ 'title-shadow': currentMonth > 8 && currentMonth < 12 }"
+          >
             Växtlistan
           </h1>
-          <h2 class="lg:max-w-[60vw] text-white font-semibold slogan px-4">
+          <h2
+            class="lg:max-w-[50vw] text-white font-semibold slogan px-4"
+            :class="{ 'slogan-shadow': currentMonth > 8 && currentMonth < 12 }"
+          >
             Vi sammanställer utbudet från Sveriges plantskolor så du snabbt och enkelt kan hitta det
             du söker.
             <!-- Hitta växter snabbt och enkelt från Sveriges största utbud. -->
@@ -144,7 +177,8 @@ onMounted(() => {
             to="/vaxt/s"
             >Se alla växter</UButton
           >
-          <section class="p-6 mt-8 lg:pt-16 flex items-center justify-center gap-4 text-white">
+          <div class="h-[16vh]"></div>
+          <!-- <section class="p-6 mt-8 lg:pt-16 flex items-center justify-center gap-4 text-white">
             <UIcon name="bx:bxs-quote-alt-left" class="text-5xl md:text-7xl text-white mb-12" />
             <h2
               class="font-semibold text-center slogan tracking-wider md:border-b-2 md:border-white/70"
@@ -152,7 +186,7 @@ onMounted(() => {
               <span class="block md:inline">Som Prisjakt fast</span><span> för växter</span>
             </h2>
             <UIcon name="bx:bxs-quote-alt-right" class="text-5xl md:text-7xl text-white mt-12" />
-          </section>
+          </section> -->
         </div>
       </header>
       <!-- <section class="p-4 py-4 lg:py-12 flex items-center justify-center gap-0 md:gap-4">
@@ -164,10 +198,17 @@ onMounted(() => {
         </h2>
         <UIcon name="bx:bxs-quote-alt-right" class="text-5xl md:text-7xl text-bg-elevated mt-12" />
       </section> -->
-      <section class="mt-12 w-full grid">
-        <div
-          class="w-full rounded-3xl flex flex-col items-center justify-center px-6 md:px-24 gap-6"
-        >
+      <section class="mt-6 w-full grid">
+        <div class="w-full flex flex-col items-center justify-center px-6 md:px-24 gap-6">
+          <section class="py-6 mb-4 flex items-center justify-center gap-4">
+            <UIcon name="bx:bxs-quote-alt-left" class="text-5xl md:text-7xl mb-12 text-border" />
+            <h2
+              class="font-semibold text-center tracking-wider md:border-b-2 md:border-border/70 slogan"
+            >
+              <span class="block md:inline">Som Prisjakt fast</span><span> för växter</span>
+            </h2>
+            <UIcon name="bx:bxs-quote-alt-right" class="text-5xl md:text-7xl mt-12 text-border" />
+          </section>
           <p class="text-xl md:text-2xl font-semibold text-center max-w-[50ch]">
             Växtlistan erbjuder Sveriges största utbud av växter
           </p>
@@ -306,15 +347,22 @@ onMounted(() => {
 }
 
 .title {
-  /* text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5); */
   font-size: clamp(3rem, 10vw, 8rem);
   letter-spacing: 0.02em;
   line-height: 1;
 }
 
+.title-shadow {
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
+}
+
+.slogan-shadow {
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.5);
+  /* letter-spacing: 0.005em; */
+}
+
 .slogan {
   font-size: clamp(1rem, 5vw, 2rem);
-  /* letter-spacing: 0.005em; */
 }
 
 /* Hide scrollbar while keeping functionality */
