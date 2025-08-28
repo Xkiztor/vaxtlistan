@@ -24,6 +24,10 @@ const selectedFilter = ref('all');
 const unsavedChanges = ref(new Set<number>());
 const imageLoadErrors = ref(new Map<string, boolean>());
 
+// Pagination state
+const currentPlantPage = ref(1);
+const plantsPerPage = 10;
+
 // Add image modal state
 const isAddImageModalOpen = ref(false);
 const currentPlantForImage = ref<Facit | null>(null);
@@ -50,6 +54,12 @@ const modalCurrentImageIndex = ref(0);
 const isImageViewerOpen = ref(false);
 const currentImages = ref<{ src: string; alt: string }[]>([]);
 const currentImageIndex = ref(0);
+
+// Batch processing state
+const batchCount = ref(10);
+const isBatchProcessing = ref(false);
+const batchResults = ref<any>(null);
+const showBatchResults = ref(false);
 
 // Supabase client
 const supabase = useSupabaseClient();
@@ -122,6 +132,23 @@ const filteredPlants = computed(() => {
         );
       });
   }
+});
+
+// Computed paginated plants based on current page
+const paginatedPlants = computed(() => {
+  const startIndex = (currentPlantPage.value - 1) * plantsPerPage;
+  const endIndex = startIndex + plantsPerPage;
+  return filteredPlants.value.slice(startIndex, endIndex);
+});
+
+// Computed total pages
+const totalPlantPages = computed(() => {
+  return Math.ceil(filteredPlants.value.length / plantsPerPage);
+});
+
+// Watch for filter changes to reset pagination
+watch(selectedFilter, () => {
+  currentPlantPage.value = 1;
 });
 
 // Helper function to create plant slug
@@ -349,6 +376,25 @@ const searchImages = async (page: number = currentPage.value) => {
 const goToPage = (page: number) => {
   if (page >= 1 && page <= Math.max(totalPages.value, 10)) {
     currentPage.value = page;
+  }
+};
+
+// Plant pagination functions
+const goToPlantPage = (page: number) => {
+  if (page >= 1 && page <= totalPlantPages.value) {
+    currentPlantPage.value = page;
+  }
+};
+
+const goToPreviousPlantPage = () => {
+  if (currentPlantPage.value > 1) {
+    currentPlantPage.value--;
+  }
+};
+
+const goToNextPlantPage = () => {
+  if (currentPlantPage.value < totalPlantPages.value) {
+    currentPlantPage.value++;
   }
 };
 
@@ -590,6 +636,49 @@ const unmarkAsReordered = async (plant: Facit) => {
     alert('Oväntat fel vid markering som ej granskad');
   }
 };
+
+// Batch processing function
+const startBatchProcessing = async () => {
+  if (isBatchProcessing.value) return;
+
+  // Validate count
+  if (!batchCount.value || batchCount.value < 1 || batchCount.value > 100) {
+    alert('Antal måste vara mellan 1 och 100');
+    return;
+  }
+
+  isBatchProcessing.value = true;
+  batchResults.value = null;
+  showBatchResults.value = false;
+
+  try {
+    const response = await $fetch('/api/batch-add-images', {
+      method: 'POST',
+      body: {
+        count: batchCount.value,
+      },
+    });
+
+    batchResults.value = response;
+    showBatchResults.value = true;
+
+    // Refresh the plants data to show newly added images
+    await refresh();
+
+    console.log('Batch processing completed:', response);
+  } catch (error: any) {
+    console.error('Batch processing error:', error);
+    alert(`Fel vid batchbearbetning: ${error.data?.message || error.message || 'Okänt fel'}`);
+  } finally {
+    isBatchProcessing.value = false;
+  }
+};
+
+// Close batch results modal
+const closeBatchResults = () => {
+  showBatchResults.value = false;
+  batchResults.value = null;
+};
 </script>
 
 <template>
@@ -599,6 +688,36 @@ const unmarkAsReordered = async (plant: Facit) => {
 
       <!-- Filter Controls -->
       <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <div class="flex items-center gap-0.5">
+            <UInput
+              id="batch-count"
+              v-model="batchCount"
+              type="number"
+              min="1"
+              max="100"
+              class="w-16"
+              :disabled="isBatchProcessing"
+            />
+            <label for="batch-count" class="text-sm font-medium">st</label>
+          </div>
+          <UTooltip
+            text="Hämta bilder automatiskt för växter som finns i totallager"
+            :delay-duration="0"
+          >
+            <UButton
+              @click="startBatchProcessing"
+              color="primary"
+              :loading="isBatchProcessing"
+              :disabled="isBatchProcessing || !batchCount || batchCount < 1 || batchCount > 100"
+            >
+              <template #leading>
+                <UIcon name="i-heroicons-bolt" />
+              </template>
+              {{ isBatchProcessing ? 'Bearbetar...' : 'Batchhämtning' }}
+            </UButton>
+          </UTooltip>
+        </div>
         <UButton
           @click="() => refresh()"
           color="primary"
@@ -618,7 +737,10 @@ const unmarkAsReordered = async (plant: Facit) => {
             option-attribute="label"
           />
         </div>
-        <div class="text-sm text-t-toned">{{ filteredPlants.length }} växter</div>
+        <div class="text-sm text-t-toned">
+          {{ filteredPlants.length }} växter totalt | Sida {{ currentPlantPage }} av
+          {{ totalPlantPages }}
+        </div>
       </div>
     </div>
 
@@ -653,8 +775,57 @@ const unmarkAsReordered = async (plant: Facit) => {
 
     <!-- Plants with Images -->
     <div v-else class="">
+      <!-- Pagination Controls - Top -->
+      <div v-if="totalPlantPages > 1" class="flex items-center justify-center gap-2 mb-6">
+        <UButton
+          @click="goToPreviousPlantPage"
+          icon="i-heroicons-chevron-left"
+          variant="outline"
+          size="sm"
+          :disabled="currentPlantPage <= 1"
+        >
+          Föregående
+        </UButton>
+        <div class="flex items-center gap-1">
+          <template v-for="page in Math.min(totalPlantPages, 10)" :key="page">
+            <UButton
+              v-if="
+                page === 1 ||
+                page === totalPlantPages ||
+                (page >= currentPlantPage - 2 && page <= currentPlantPage + 2)
+              "
+              @click="goToPlantPage(page)"
+              :variant="page === currentPlantPage ? 'solid' : 'outline'"
+              :color="page === currentPlantPage ? 'primary' : 'neutral'"
+              size="sm"
+              class="min-w-[2.5rem]"
+            >
+              {{ page }}
+            </UButton>
+            <span
+              v-else-if="
+                (page === currentPlantPage - 3 && currentPlantPage > 4) ||
+                (page === currentPlantPage + 3 && currentPlantPage < totalPlantPages - 3)
+              "
+              class="px-2 text-t-muted"
+            >
+              ...
+            </span>
+          </template>
+        </div>
+        <UButton
+          @click="goToNextPlantPage"
+          icon="i-heroicons-chevron-right"
+          variant="outline"
+          size="sm"
+          :disabled="currentPlantPage >= totalPlantPages"
+        >
+          Nästa
+        </UButton>
+      </div>
+
       <div
-        v-for="plant in filteredPlants"
+        v-for="plant in paginatedPlants"
         :key="plant.id"
         class="border border-border rounded-lg p-4 mt-4"
         :class="{ 'border-error': unsavedChanges.has(plant.id) }"
@@ -928,6 +1099,55 @@ const unmarkAsReordered = async (plant: Facit) => {
           <p class="text-t-muted">Inga bilder sparade</p>
         </div>
       </div>
+
+      <!-- Pagination Controls - Bottom -->
+      <div v-if="totalPlantPages > 1" class="flex items-center justify-center gap-2 mt-6">
+        <UButton
+          @click="goToPreviousPlantPage"
+          icon="i-heroicons-chevron-left"
+          variant="outline"
+          size="sm"
+          :disabled="currentPlantPage <= 1"
+        >
+          Föregående
+        </UButton>
+        <div class="flex items-center gap-1">
+          <template v-for="page in Math.min(totalPlantPages, 10)" :key="page">
+            <UButton
+              v-if="
+                page === 1 ||
+                page === totalPlantPages ||
+                (page >= currentPlantPage - 2 && page <= currentPlantPage + 2)
+              "
+              @click="goToPlantPage(page)"
+              :variant="page === currentPlantPage ? 'solid' : 'outline'"
+              :color="page === currentPlantPage ? 'primary' : 'neutral'"
+              size="sm"
+              class="min-w-[2.5rem]"
+            >
+              {{ page }}
+            </UButton>
+            <span
+              v-else-if="
+                (page === currentPlantPage - 3 && currentPlantPage > 4) ||
+                (page === currentPlantPage + 3 && currentPlantPage < totalPlantPages - 3)
+              "
+              class="px-2 text-t-muted"
+            >
+              ...
+            </span>
+          </template>
+        </div>
+        <UButton
+          @click="goToNextPlantPage"
+          icon="i-heroicons-chevron-right"
+          variant="outline"
+          size="sm"
+          :disabled="currentPlantPage >= totalPlantPages"
+        >
+          Nästa
+        </UButton>
+      </div>
     </div>
 
     <!-- Image Viewer Modal -->
@@ -1171,7 +1391,12 @@ const unmarkAsReordered = async (plant: Facit) => {
             <div class="absolute bottom-4 right-4 z-10">
               <UButton
                 v-if="searchResults[modalCurrentImageIndex]"
-                @click="addSearchResultToPlant(searchResults[modalCurrentImageIndex])"
+                @click="
+                  () => {
+                    const result = searchResults[modalCurrentImageIndex];
+                    if (result) addSearchResultToPlant(result);
+                  }
+                "
                 color="primary"
                 icon="i-heroicons-plus"
                 :loading="isAddingImage"
@@ -1186,6 +1411,89 @@ const unmarkAsReordered = async (plant: Facit) => {
         <UButton @click="isAddImageModalOpen = false" variant="outline" color="neutral">
           Stäng
         </UButton>
+      </template>
+    </UModal>
+
+    <!-- Batch Results Modal -->
+    <UModal v-model:open="showBatchResults" class="max-w-4xl">
+      <template #header>
+        <h2 class="text-lg font-semibold">Batchbearbetning slutförd</h2>
+      </template>
+      <template #body>
+        <div v-if="batchResults" class="space-y-4">
+          <!-- Summary -->
+          <div class="bg-bg p-4 rounded-lg">
+            <h3 class="font-medium mb-2">Sammanfattning</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              <div>
+                <div class="text-t-toned">Bearbetade</div>
+                <div class="font-semibold">{{ batchResults.processed || 0 }}</div>
+              </div>
+              <div>
+                <div class="text-t-toned">Framgångsrika</div>
+                <div class="font-semibold text-success">{{ batchResults.successful || 0 }}</div>
+              </div>
+              <div>
+                <div class="text-t-toned">Misslyckade</div>
+                <div class="font-semibold text-error">
+                  {{ (batchResults.processed || 0) - (batchResults.successful || 0) }}
+                </div>
+              </div>
+              <div>
+                <div class="text-t-toned">Bilder tillagda</div>
+                <div class="font-semibold text-primary">{{ batchResults.totalImages || 0 }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detailed Results -->
+          <div v-if="batchResults.results && batchResults.results.length > 0" class="space-y-2">
+            <h3 class="font-medium">Detaljerade resultat</h3>
+            <div class="max-h-96 overflow-y-auto space-y-1">
+              <div
+                v-for="result in batchResults.results"
+                :key="result.plantId"
+                class="flex items-center justify-between p-3 rounded-lg border border-border"
+                :class="{
+                  'bg-success-bg border-success': result.success,
+                  'bg-error-bg border-error': !result.success,
+                }"
+              >
+                <div class="flex-1">
+                  <div class="font-medium">{{ result.plantName }}</div>
+                  <div class="text-sm text-t-toned">ID: {{ result.plantId }}</div>
+                  <div v-if="result.error" class="text-sm text-error mt-1">
+                    {{ result.error }}
+                  </div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UBadge :color="result.success ? 'success' : 'error'" variant="soft">
+                    {{ result.success ? 'Framgång' : 'Misslyckad' }}
+                  </UBadge>
+                  <div v-if="result.success && result.imagesAdded > 0" class="text-sm font-medium">
+                    {{ result.imagesAdded }} bilder
+                  </div>
+                  <UButton
+                    :to="`/vaxt/${result.plantId}/${slugify(result.plantName)}`"
+                    target="_blank"
+                    icon="i-heroicons-arrow-top-right-on-square"
+                    variant="outline"
+                    size="xs"
+                  >
+                  </UButton>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Message -->
+          <div v-if="batchResults.message" class="text-sm text-t-toned bg-bg p-3 rounded-lg">
+            {{ batchResults.message }}
+          </div>
+        </div>
+      </template>
+      <template #footer>
+        <UButton @click="closeBatchResults" color="primary"> Stäng </UButton>
       </template>
     </UModal>
   </div>

@@ -11,14 +11,6 @@ const supabase = useSupabaseClient();
 const { getAllRhsTypeLabels } = usePlantType();
 
 const image = computed(() => {
-  // First priority: Use images from the search results (from database)
-  if (props.plant.images && Array.isArray(props.plant.images) && props.plant.images.length > 0) {
-    const firstImage = props.plant.images[0];
-    if (firstImage && typeof firstImage === 'object' && firstImage.url) {
-      return firstImage.url;
-    }
-  }
-
   if (
     props.plant.lignosdatabasen_images &&
     Array.isArray(props.plant.lignosdatabasen_images) &&
@@ -28,6 +20,12 @@ const image = computed(() => {
       '/upload/',
       '/upload/t_500bred,f_auto,q_auto/'
     );
+  }
+  if (props.plant.images && Array.isArray(props.plant.images) && props.plant.images.length > 0) {
+    const firstImage = props.plant.images[0];
+    if (firstImage && typeof firstImage === 'object' && firstImage.url) {
+      return firstImage.url;
+    }
   }
 });
 
@@ -94,7 +92,7 @@ const formatPriceRange = (range: { min: number | null; max: number | null }) => 
   }
 
   // Otherwise show the range
-  return `${formatPrice(range.min)} - ${formatPrice(range.max)}`;
+  return `${formatPrice(range.min).replace(/\s*kr$/, '')} - ${formatPrice(range.max)}`;
 };
 </script>
 
@@ -175,7 +173,7 @@ const formatPriceRange = (range: { min: number | null; max: number | null }) => 
           v-if="priceRange.min !== null"
         >
           <!-- Price information -->
-          <div>
+          <div v-if="priceRange.max !== 0">
             <span class="font-semibold">{{ formatPriceRange(priceRange) }}</span>
           </div>
           <div>
@@ -216,7 +214,7 @@ const formatPriceRange = (range: { min: number | null; max: number | null }) => 
       </NuxtLink>
 
       <!-- Plant content -->
-      <div class="flex flex-col flex-1 gap-2 justify-between">
+      <div class="flex flex-col flex-1">
         <div class="flex gap-2 justify-between items-start">
           <div class="flex-1">
             <!-- Plant name -->
@@ -241,63 +239,64 @@ const formatPriceRange = (range: { min: number | null; max: number | null }) => 
             <p v-if="plant.sv_name" class="text-sm text-t-toned">
               {{ plant.sv_name }}
             </p>
-
-            <!-- Plant type and attributes badges -->
-            <div v-if="showDetailed" class="flex flex-wrap gap-1 mb-2 mt-1">
-              <UBadge v-if="plant.plant_type" color="neutral" variant="soft" class="text-xs">
-                {{ plant.plant_type }}
-              </UBadge>
-              <UBadge
-                v-if="plant.rhs_types && plant.rhs_types.length > 0"
-                color="neutral"
-                variant="soft"
-                class="text-xs"
-              >
-                {{ getAllRhsTypeLabels(plant.rhs_types).join(', ') }}
-              </UBadge>
-              <UBadge
-                v-if="plant.plant_attributes && plant.plant_attributes.height"
-                color="neutral"
-                variant="soft"
-                class="text-xs"
-              >
-                {{ plant.plant_attributes.height }}
-              </UBadge>
-              <UBadge
-                v-if="plant.plant_attributes && plant.plant_attributes.spread"
-                color="neutral"
-                variant="soft"
-                class="text-xs"
-              >
-                {{ plant.plant_attributes.spread }}
-              </UBadge>
-            </div>
-
-            <!-- Grupp and Serie information -->
-            <div class="flex flex-wrap gap-1" v-if="plant.grupp || plant.serie">
-              <UBadge v-if="plant.grupp" color="primary" variant="soft" class="text-xs">
-                Grupp: {{ plant.grupp }}
-              </UBadge>
-              <UBadge v-if="plant.serie" color="primary" variant="soft" class="text-xs">
-                Serie: {{ plant.serie }}
-              </UBadge>
-            </div>
           </div>
 
           <!-- Price information -->
           <div class="" v-if="priceRange.min !== null">
             <div class="flex flex-col items-end gap-1 text-right">
-              <span class="font-bold text-base leading-none">
+              <span class="font-bold text-base leading-none" v-if="priceRange.max !== 0">
                 {{ formatPriceRange(priceRange) }}
               </span>
-              <span class="text-t-toned text-xs">
+              <span class="text-xs" :class="priceRange.max === 0 ? 'mt-0.5' : 'text-t-toned'">
                 <span v-if="plant.plantskolor_count > 1">
-                  {{ plant.plantskolor_count }} plantskolor
+                  <span class="font-semibold">{{ plant.plantskolor_count }}</span> plantskolor
                 </span>
-                <span v-else>1 plantskola</span>
+                <span v-else><span class="font-semibold">1</span> plantskola</span>
               </span>
             </div>
           </div>
+        </div>
+        <!-- Plant type and attributes badges -->
+        <div class="flex flex-wrap gap-1 mb-2 mt-1">
+          <UBadge
+            v-if="plant.plant_type && showDetailed"
+            color="neutral"
+            variant="soft"
+            class="text-xs"
+          >
+            {{ plant.plant_type }}
+          </UBadge>
+          <UBadge
+            v-if="plant.rhs_types && plant.rhs_types.length > 0 && showDetailed"
+            color="neutral"
+            variant="soft"
+            class="text-xs"
+          >
+            {{ getAllRhsTypeLabels(plant.rhs_types).join(', ') }}
+          </UBadge>
+          <UBadge
+            v-if="plant.plant_attributes && plant.plant_attributes.height && showDetailed"
+            color="neutral"
+            variant="soft"
+            class="text-xs"
+          >
+            {{ plant.plant_attributes.height }}
+          </UBadge>
+          <UBadge
+            v-if="plant.plant_attributes && plant.plant_attributes.spread && showDetailed"
+            color="neutral"
+            variant="soft"
+            class="text-xs"
+          >
+            {{ plant.plant_attributes.spread }}
+          </UBadge>
+
+          <UBadge v-if="plant.grupp" color="neutral" variant="soft" class="text-xs">
+            Grupp: {{ plant.grupp }}
+          </UBadge>
+          <UBadge v-if="plant.serie" color="neutral" variant="soft" class="text-xs">
+            Serie: {{ plant.serie }}
+          </UBadge>
         </div>
       </div>
     </div>

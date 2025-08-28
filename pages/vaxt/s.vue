@@ -307,6 +307,11 @@ useHead({
 // View mode toggle - list or grid with localStorage persistence
 const viewMode = ref<'list' | 'grid'>('grid');
 
+// Computed property to determine effective view mode (always list on mobile)
+const effectiveViewMode = computed(() => {
+  return isMobile.value ? 'list' : viewMode.value;
+});
+
 // Load saved view mode from localStorage on client
 onMounted(() => {
   if (import.meta.client) {
@@ -385,7 +390,7 @@ const expandSettings = ref(false);
         class="max-sm:w-full w-40 max-md:hidden"
         icon="i-material-symbols-sort"
       />
-      <!-- View toggle buttons with sliding animation -->
+      <!-- View toggle buttons with sliding animation - Hidden on mobile -->
       <div class="relative grid grid-cols-2 rounded-lg p-1 border border-border max-md:hidden">
         <!-- Sliding indicator background -->
         <div
@@ -442,7 +447,7 @@ const expandSettings = ref(false);
       </div>
     </div>
 
-    <!-- Mobile -->
+    <!-- Mobile controls -->
     <div class="md:hidden mb-4 flex flex-col items-stretch gap-4">
       <USelect
         v-model="sortBy"
@@ -454,45 +459,7 @@ const expandSettings = ref(false);
         class="max-sm:w-full w-40"
         icon="i-material-symbols-sort"
       />
-      <div>
-        <div class="relative grid grid-cols-2 rounded-lg p-1 border border-border w-full">
-          <!-- Sliding indicator background -->
-          <div
-            class="absolute top-1 bottom-1 rounded-md border border-border bg-bg-elevated transition-all duration-300 ease-out"
-            :class="{
-              'left-1 right-1/2 mr-0.5': viewMode === 'list',
-              'right-1 left-1/2 ml-0.5': viewMode === 'grid',
-            }"
-          />
-          <!-- Toggle buttons -->
-          <button
-            @click="viewMode = 'list'"
-            class="relative z-10 flex justify-center items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
-            :class="{
-              '': viewMode === 'list',
-              'text-t-toned': viewMode !== 'list',
-            }"
-            :aria-pressed="viewMode === 'list'"
-            aria-label="Visa som lista"
-          >
-            <UIcon name="i-heroicons-list-bullet" class="w-4 h-4" />
-            <span>Lista</span>
-          </button>
-          <button
-            @click="viewMode = 'grid'"
-            class="relative z-10 flex justify-center items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
-            :class="{
-              '': viewMode === 'grid',
-              'text-t-toned': viewMode !== 'grid',
-            }"
-            :aria-pressed="viewMode === 'grid'"
-            aria-label="Visa som rutnät"
-          >
-            <UIcon name="i-heroicons-squares-2x2" class="w-4 h-4" />
-            <span>Rutnät</span>
-          </button>
-        </div>
-      </div>
+      <!-- View toggle removed for mobile - always uses list view -->
     </div>
 
     <!-- Search results info -->
@@ -548,9 +515,9 @@ const expandSettings = ref(false);
     <!-- Search results -->
     <div v-else-if="hasSearched">
       <div v-if="searchResults.length > 0" class="space-y-4">
-        <!-- Results container - conditional layout based on view mode -->
+        <!-- Results container - conditional layout based on effective view mode -->
         <div
-          v-if="viewMode === 'list'"
+          v-if="effectiveViewMode === 'list'"
           class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3"
         >
           <SearchResultCard
@@ -558,7 +525,7 @@ const expandSettings = ref(false);
             :key="plant.id"
             :plant="plant"
             :show-detailed="showDetailedInfo"
-            :view-mode="viewMode"
+            :view-mode="effectiveViewMode"
           />
         </div>
         <div v-else class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -567,7 +534,7 @@ const expandSettings = ref(false);
             :key="plant.id"
             :plant="plant"
             :show-detailed="showDetailedInfo"
-            :view-mode="viewMode"
+            :view-mode="effectiveViewMode"
           />
         </div>
         <!-- Pagination -->
@@ -578,7 +545,8 @@ const expandSettings = ref(false);
             :total="totalCount"
             :show-last="true"
             :show-first="true"
-            size="md"
+            show-edges
+            :size="isMobile ? 'md' : 'lg'"
             @update:page="goToPage"
           />
         </div>
