@@ -2,7 +2,7 @@
 // Import Nuxt composables and Supabase client
 import type { Facit } from '~/types/supabase-tables';
 import { useLignosdatabasen } from '~/stores/lignosdatabasen';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 // Function to copy text to clipboard
 const copyToClipboard = async (text: string) => {
@@ -557,6 +557,31 @@ const saveGoogleImagesToDatabase = async (
   }
 };
 
+// Function to save Lignosdatabasen images to database
+const saveLignosImagesToDatabase = async (imageUrls: string[]) => {
+  if (!plant.value?.id || !imageUrls || imageUrls.length === 0) return;
+
+  try {
+    const updateData = {
+      lignosdatabasen_images: imageUrls,
+    };
+
+    const { data, error } = await (supabase as any)
+      .from('facit')
+      .update(updateData)
+      .eq('id', plant.value.id)
+      .select();
+
+    if (error) {
+      console.error('Error saving Lignosdatabasen images to database:', error);
+    } else {
+      console.log('Successfully saved Lignosdatabasen images to database');
+    }
+  } catch (error) {
+    console.error('Error in saveLignosImagesToDatabase:', error);
+  }
+};
+
 // Fetch Google image search results if no database images and no Lignosdatabasen images
 const {
   data: googleImages,
@@ -583,9 +608,9 @@ const {
     lazy: true, // Enable lazy loading
     watch: [() => plant.value?.name, () => lignosImages.value, () => databaseImages.value],
     default: () => [],
-    onRequestError: (err) => {
-      console.error('Error fetching Google images:', err);
-    },
+    // onRequestError: (err) => {
+    //   console.error('Error fetching Google images:', err);
+    // },
     onResponse: async ({ response }) => {
       // Save fetched Google images to database
       if (response._data && Array.isArray(response._data) && response._data.length > 0) {
@@ -614,6 +639,24 @@ const shouldPreloadGoogleImage = (index: number) => {
   const preloadCount = width.value > 768 ? 3 : 2;
   return index < preloadCount;
 };
+
+// Watch for changes in lignosImages and save them to database
+watch(
+  lignosImages,
+  (newImages) => {
+    if (
+      newImages &&
+      Array.isArray(newImages) &&
+      newImages.length > 0 &&
+      plant.value?.id &&
+      // Only save if we don't already have lignos images in the database
+      (!plant.value.lignosdatabasen_images || plant.value.lignosdatabasen_images.length === 0)
+    ) {
+      saveLignosImagesToDatabase(newImages);
+    }
+  },
+  { immediate: true }
+);
 
 // Track plant page view for popularity analytics
 onMounted(async () => {

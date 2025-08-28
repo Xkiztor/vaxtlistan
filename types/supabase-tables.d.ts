@@ -225,6 +225,7 @@ export interface Facit {
   images_reordered?: boolean | null; // If the images have been reordered on superadmin page.
   images_reordered_date?: string | null; // Timestampz, date of reordering.
   images_added_date?: string | null; // Timestampz, date when images were added.
+  lignosdatabasen_images?: string[] | null; // ARRAY of text. URLs of images from Lignosdatabasen.
 }
 
 // Table: plantskolor
@@ -363,6 +364,7 @@ export interface AvailablePlantSearchResult {
   nursery_info?: NurseryInfo; // Aggregated nursery information
   plant_attributes?: PlantAttributes; // Detailed plant characteristics
   images?: any[] | null; // Plant images from Google search
+  lignosdatabasen_images?: any[] | null; // Plant images from Lignosdatabasen
   total_results?: number; // Total matching results (for pagination)
 }
 

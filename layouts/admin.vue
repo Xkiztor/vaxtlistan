@@ -46,7 +46,7 @@ function closeMenu() {
               to="/plantskola-admin"
               class="font-medium hover:underline max-md:hidden"
               active-class="text-primary font-bold underline router-link-active"
-              >Dashboard</NuxtLink
+              >Översikt</NuxtLink
             >
             <NuxtLink
               to="/plantskola-admin/lager"

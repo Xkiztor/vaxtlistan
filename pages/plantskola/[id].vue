@@ -46,6 +46,7 @@ interface PlantWithFacit {
   facit_season_of_interest?: number[];
   facit_sunlight?: number[];
   facit_images?: any[];
+  facit_lignosdatabasen_images?: any[];
 }
 
 interface PlantRow {
@@ -130,7 +131,7 @@ const viewMode = ref<'list' | 'grid'>('grid');
 
 // Load saved view mode from localStorage on client
 onMounted(() => {
-  if (process.client) {
+  if (import.meta.client) {
     const savedViewMode = localStorage.getItem('plantskola-view-mode');
     if (savedViewMode === 'grid' || savedViewMode === 'list') {
       viewMode.value = savedViewMode;
@@ -140,7 +141,7 @@ onMounted(() => {
 
 // Save view mode to localStorage when it changes
 watch(viewMode, (newMode) => {
-  if (process.client) {
+  if (import.meta.client) {
     localStorage.setItem('plantskola-view-mode', newMode);
   }
 });
@@ -215,7 +216,8 @@ const { data: allPlants, pending: plantsLoading } = await useAsyncData(
           colors,
           season_of_interest,
           sunlight,
-          images
+          images,
+          lignosdatabasen_images
         )
       `
       )
@@ -243,6 +245,7 @@ const { data: allPlants, pending: plantsLoading } = await useAsyncData(
         facit_season_of_interest: item.facit?.season_of_interest,
         facit_sunlight: item.facit?.sunlight,
         facit_images: item.facit?.images,
+        facit_lignosdatabasen_images: item.facit?.lignosdatabasen_images,
       })) || []
     );
   },
@@ -475,34 +478,22 @@ const formatCustomFields = (ownColumns: Record<string, any> | null | undefined) 
 };
 
 // Helper function to get the first image URL from facit images
-const getFirstImageUrl = (facitImages: any[] | null | undefined): string | null => {
-  if (!facitImages || !Array.isArray(facitImages) || facitImages.length === 0) {
-    return null;
+const getFirstImageUrl = (
+  facitImages: any[] | null | undefined,
+  lignosImages: any[] | null | undefined
+): string | null => {
+  if (lignosImages && Array.isArray(lignosImages) && lignosImages.length > 0) {
+    return lignosImages[0];
   }
 
-  const firstImage = facitImages[0];
-  if (firstImage && typeof firstImage === 'object' && firstImage.url) {
-    return firstImage.url;
+  if (facitImages && Array.isArray(facitImages) && facitImages.length > 0) {
+    const firstImage = facitImages[0];
+    if (firstImage && typeof firstImage === 'object' && firstImage.url) {
+      return firstImage.url;
+    }
   }
 
   return null;
-};
-
-// Helper function to get optimized logo URL
-const getOptimizedLogoUrl = (
-  originalUrl: string,
-  options: { width?: number; height?: number; quality?: string } = {}
-): string => {
-  if (!originalUrl.includes('cloudinary.com')) {
-    return originalUrl;
-  }
-
-  const { width = 200, height = 100, quality = 'auto' } = options;
-
-  return originalUrl.replace(
-    '/upload/',
-    `/upload/c_fit,h_${height},w_${width},f_auto,q_${quality}/`
-  );
 };
 
 // SEO meta tags
@@ -565,7 +556,7 @@ useHead({
                 <!-- Logo -->
                 <div v-if="plantskola.logo_url" class="flex-shrink-0">
                   <img
-                    :src="getOptimizedLogoUrl(plantskola.logo_url)"
+                    :src="plantskola.logo_url"
                     :alt="`${plantskola.name} logotyp`"
                     class="h-16 w-auto max-w-[120px] object-contain rounded-md"
                   />
@@ -857,12 +848,7 @@ useHead({
                   :active="active"
                   :size-dependencies="
                     viewMode === 'grid'
-                      ? [
-                          item.plants?.length,
-                          gridColumns,
-                          ...item.plants?.filter(Boolean).map((p: any) => p?.facit_name || '') || [],
-                          ...item.plants?.filter(Boolean).map((p: any) => getFirstImageUrl(p?.facit_images) || '') || []
-                        ]
+                      ? [item.plants?.length, gridColumns]
                       : [
                           item.facit_name,
                           item.facit_sv_name,
@@ -872,7 +858,6 @@ useHead({
                           item.height,
                           item.price,
                           item.stock,
-                          getFirstImageUrl(item.facit_images) || '',
                         ]
                   "
                   :data-index="index"
@@ -890,8 +875,10 @@ useHead({
                         class="w-14 h-14 md:w-16 md:h-16 bg-bg-elevated rounded-lg flex-shrink-0 overflow-hidden border border-border"
                       >
                         <img
-                          v-if="getFirstImageUrl(item.facit_images)"
-                          :src="getFirstImageUrl(item.facit_images)!"
+                          v-if="
+                            getFirstImageUrl(item.facit_images, item.facit_lignosdatabasen_images)
+                          "
+                          :src="getFirstImageUrl(item.facit_images, item.facit_lignosdatabasen_images)!"
                           :alt="item.facit_name"
                           class="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                           loading="lazy"
@@ -1064,7 +1051,7 @@ useHead({
                   <!------------ -->
                   <div v-else class="p-2 md:p-4">
                     <div
-                      class="grid gap-3 md:gap-4"
+                      class="grid gap-4 md:gap-6"
                       :class="{
                         'grid-cols-1': gridColumns === 1,
                         'grid-cols-2': gridColumns === 2,
@@ -1088,8 +1075,13 @@ useHead({
                               class="w-full aspect-[1.618/1] bg-bg-elevated rounded-lg mb-3 overflow-hidden border border-border"
                             >
                               <img
-                                v-if="getFirstImageUrl(plant.facit_images)"
-                                :src="getFirstImageUrl(plant.facit_images)!"
+                                v-if="
+                                  getFirstImageUrl(
+                                    plant.facit_images,
+                                    plant.facit_lignosdatabasen_images
+                                  )
+                                "
+                                :src="getFirstImageUrl(plant.facit_images, plant.facit_lignosdatabasen_images)!"
                                 :alt="plant.facit_name"
                                 class="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
                                 loading="lazy"

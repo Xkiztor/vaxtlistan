@@ -234,20 +234,17 @@ const currentMonth = ref(new Date().getMonth() + 1);
           </div>
 
           <!-- Loading state -->
-          <div
-            v-if="plantsStatus === 'pending'"
-            class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"
-          >
+          <div v-if="plantsStatus === 'pending'" class="flex justify-center gap-6">
             <div
               v-for="i in 6"
               :key="i"
-              class="bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse"
+              class="bg-bg-elevated rounded-2xl animate-pulse min-w-36 md:min-w-48"
             >
-              <div class="aspect-square bg-bg-elevated rounded-t-2xl"></div>
+              <div class="aspect-square bg-border rounded-t-2xl"></div>
               <div class="p-4 space-y-3">
-                <div class="h-4 bg-bg-elevated rounded w-3/4"></div>
-                <div class="h-3 bg-bg-elevated rounded w-1/2"></div>
-                <div class="h-6 bg-bg-elevated rounded w-1/3"></div>
+                <div class="h-4 bg-border rounded w-3/4"></div>
+                <div class="h-3 bg-border rounded w-1/2"></div>
+                <div class="h-6 bg-border rounded w-1/3"></div>
               </div>
             </div>
           </div>
@@ -289,7 +286,7 @@ const currentMonth = ref(new Date().getMonth() + 1);
           </div>
 
           <!-- Error or empty state -->
-          <div v-else class="text-center py-12">
+          <!-- <div v-else class="text-center py-12">
             <UIcon name="ph:plant" class="text-6xl text-gray-400 mb-4" />
             <h3 class="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
               Inga växter kunde laddas just nu
@@ -297,7 +294,7 @@ const currentMonth = ref(new Date().getMonth() + 1);
             <p class="text-gray-600 dark:text-gray-400">
               Försök ladda om sidan eller kom tillbaka senare
             </p>
-          </div>
+          </div> -->
 
           <!-- Call to action -->
           <div class="text-center mt-6">

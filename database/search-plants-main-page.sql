@@ -129,6 +129,7 @@ RETURNS TABLE(
     nursery_info JSONB,
     plant_attributes JSONB,
     images JSONB,
+    lignosdatabasen_images TEXT[],
     total_results INTEGER
 ) AS $$
 DECLARE
@@ -212,7 +213,8 @@ BEGIN
             f.spread,
             f.sunlight,
             f.colors,            f.season_of_interest,
-            f.images
+            f.images,
+            f.lignosdatabasen_images
         FROM facit f
         WHERE
             -- Search term matching
@@ -257,6 +259,7 @@ BEGIN
             ps.colors,
             ps.season_of_interest,
             ps.images,
+            ps.lignosdatabasen_images,
             -- Availability aggregations
             SUM(CASE WHEN tl.stock IS NOT NULL THEN tl.stock ELSE 0 END)::INTEGER as available_count,
             COUNT(DISTINCT tl.plantskola_id)::INTEGER as plantskolor_count,
@@ -296,7 +299,7 @@ BEGIN
             AND (tl.stock > 0 OR tl.stock IS NULL)        GROUP BY 
             ps.id, ps.name, ps.sv_name, ps.plant_type, ps.rhs_types, ps.taxonomy_type,
             ps.grupp, ps.serie, ps.similarity_score, ps.popularity_score, ps.height, ps.spread, 
-            ps.sunlight, ps.colors, ps.season_of_interest, ps.images
+            ps.sunlight, ps.colors, ps.season_of_interest, ps.images, ps.lignosdatabasen_images
     ),
     sorted_results AS (
         SELECT            *,
@@ -334,6 +337,7 @@ BEGIN
         sr.nursery_info,
         sr.plant_attributes,
         sr.images,
+        sr.lignosdatabasen_images,
         v_total_count as total_results
     FROM sorted_results sr
     LIMIT result_limit OFFSET offset_param;

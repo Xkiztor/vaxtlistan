@@ -5,22 +5,10 @@ import { usePlantType } from '~/composables/usePlantType';
 const props = defineProps<{
   plant: AvailablePlantSimilaritySearchResult;
   showDetailed?: boolean;
+  viewMode?: 'list' | 'grid';
 }>();
 const supabase = useSupabaseClient();
-const { getRhsTypeLabel, getAllRhsTypeLabels } = usePlantType();
-
-const lignosdatabasen = useLignosdatabasen();
-const facitStore = useFacitStore();
-
-const lignosdatabasenPlant = computed(() => {
-  return lignosdatabasen.lignosdatabasen?.find(
-    (lig) =>
-      `${lig.slakte.toLowerCase()}${lig.art.toLowerCase()}${lig.sortnamn ? "'" : ''}${
-        lig.sortnamn ? lig.sortnamn.toLowerCase() : ''
-      }${lig.sortnamn ? "'" : ''}`.replace(/\s+/g, '') ===
-      props.plant.name.toLowerCase().replace(/\s+/g, '')
-  );
-});
+const { getAllRhsTypeLabels } = usePlantType();
 
 const image = computed(() => {
   // First priority: Use images from the search results (from database)
@@ -31,42 +19,57 @@ const image = computed(() => {
     }
   }
 
-  // Fallback: Use lignosdatabasen images
-  if (!lignosdatabasenPlant.value) return null;
-  let images = lignosdatabasenPlant.value?.text
-    .split(/!\[[^\]]*\]\(([^)]+)\)/g)
-    .filter((str: string) => str !== '' && str.includes('http') && !str.includes('['));
-
-  if (images.length && images[0].includes('cloudinary')) {
-    return images[0].replace('/upload/', '/upload/t_500bred,f_auto,q_auto/');
-  } else if (images.length) {
-    return images[0];
-  } else {
-    return null;
+  if (
+    props.plant.lignosdatabasen_images &&
+    Array.isArray(props.plant.lignosdatabasen_images) &&
+    props.plant.lignosdatabasen_images.length > 0
+  ) {
+    return props.plant.lignosdatabasen_images[0].replace(
+      '/upload/',
+      '/upload/t_500bred,f_auto,q_auto/'
+    );
   }
 });
 
-// Compute the cheapest price for this plant
-const cheapestPrice = computed(() => {
-  // Use min_price if available (from new search function)
+// Compute the price range for this plant
+const priceRange = computed(() => {
+  let minPrice: number | null = null;
+  let maxPrice: number | null = null;
+
+  // Use min_price and max_price if available (from new search function)
   if (props.plant.min_price !== undefined && props.plant.min_price !== null) {
-    return props.plant.min_price;
+    minPrice = props.plant.min_price;
+    // Check if max_price exists in the plant data
+    if (
+      'max_price' in props.plant &&
+      props.plant.max_price !== undefined &&
+      props.plant.max_price !== null
+    ) {
+      maxPrice = props.plant.max_price;
+    } else {
+      maxPrice = minPrice; // Fallback to min_price if max_price doesn't exist
+    }
+  } else if (props.plant.prices && props.plant.prices.length > 0) {
+    // Fallback to calculating from prices array for backward compatibility
+    let priceValues: number[] = [];
+
+    // Check if prices is array of numbers (old format) or array of objects (new format)
+    if (typeof props.plant.prices[0] === 'number') {
+      priceValues = props.plant.prices as unknown as number[];
+    } else {
+      // New format: array of PriceInfo objects
+      priceValues = (props.plant.prices as any[])
+        .map((priceInfo) => priceInfo.price)
+        .filter((price) => price != null);
+    }
+
+    if (priceValues.length > 0) {
+      minPrice = Math.min(...priceValues);
+      maxPrice = Math.max(...priceValues);
+    }
   }
 
-  // Fallback to calculating from prices array for backward compatibility
-  if (!props.plant.prices || props.plant.prices.length === 0) {
-    return null;
-  }
-  // Check if prices is array of numbers (old format) or array of objects (new format)
-  if (typeof props.plant.prices[0] === 'number') {
-    return Math.min(...(props.plant.prices as unknown as number[]));
-  } else {
-    // New format: array of PriceInfo objects
-    const priceValues = (props.plant.prices as any[])
-      .map((priceInfo) => priceInfo.price)
-      .filter((price) => price != null);
-    return priceValues.length > 0 ? Math.min(...priceValues) : null;
-  }
+  return { min: minPrice, max: maxPrice };
 });
 
 // Format price with currency
@@ -78,10 +81,27 @@ const formatPrice = (price: number) => {
     maximumFractionDigits: 0,
   }).format(price);
 };
+
+// Format price range display
+const formatPriceRange = (range: { min: number | null; max: number | null }) => {
+  if (range.min === null || range.max === null) {
+    return null;
+  }
+
+  // If min and max are the same, show just one price
+  if (range.min === range.max) {
+    return formatPrice(range.min);
+  }
+
+  // Otherwise show the range
+  return `${formatPrice(range.min)} - ${formatPrice(range.max)}`;
+};
 </script>
 
 <template>
+  <!-- List View -->
   <NuxtLink
+    v-if="!viewMode || viewMode === 'list'"
     class="rounded-xl cursor-pointer"
     :to="`/vaxt/${plant.id}/${plant.name
       .toString()
@@ -152,11 +172,11 @@ const formatPrice = (price: number) => {
         </div>
         <div
           class="p-2 py-1.5 border border-border rounded-lg mt-2 w-fit flex gap-6 text-xs md:text-sm"
-          v-if="cheapestPrice"
+          v-if="priceRange.min !== null"
         >
           <!-- Price information -->
           <div>
-            Från <span class="font-semibold">{{ formatPrice(cheapestPrice) }}</span>
+            <span class="font-semibold">{{ formatPriceRange(priceRange) }}</span>
           </div>
           <div>
             <span v-if="plant.plantskolor_count > 1"
@@ -168,6 +188,120 @@ const formatPrice = (price: number) => {
       </div>
     </div>
   </NuxtLink>
+
+  <!-- Grid View -->
+  <div v-else class="h-full">
+    <div class="flex flex-col h-full">
+      <!-- Plant image -->
+      <NuxtLink
+        :to="`/vaxt/${plant.id}/${plant.name
+          .toString()
+          .toLowerCase()
+          .replace(/[^a-z0-9åäö\- ]/gi, '')
+          .replace(/\s+/g, '+')
+          .replace(/-+/g, '+')
+          .replace(/^-+|-+$/g, '')}`"
+        class="w-full aspect-[1.618/1] bg-bg-elevated rounded-lg mb-3 overflow-hidden border border-border"
+      >
+        <img
+          v-if="image"
+          :src="image"
+          :alt="plant.name"
+          class="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+          loading="lazy"
+        />
+        <div v-else class="w-full h-full grid place-items-center">
+          <UIcon name="f7:tree" size="40" class="text-t-muted opacity-70" />
+        </div>
+      </NuxtLink>
+
+      <!-- Plant content -->
+      <div class="flex flex-col flex-1 gap-2 justify-between">
+        <div class="flex gap-2 justify-between items-start">
+          <div class="flex-1">
+            <!-- Plant name -->
+            <div class="">
+              <NuxtLink
+                :to="`/vaxt/${plant.id}/${plant.name
+                  .toString()
+                  .toLowerCase()
+                  .replace(/[^a-z0-9åäö\- ]/gi, '')
+                  .replace(/\s+/g, '+')
+                  .replace(/-+/g, '+')
+                  .replace(/^-+|-+$/g, '')}`"
+                class="text-t-regular hover:underline"
+              >
+                <h3 class="font-semibold text-base leading-tight">
+                  {{ plant.name }}
+                </h3>
+              </NuxtLink>
+            </div>
+
+            <!-- SV name -->
+            <p v-if="plant.sv_name" class="text-sm text-t-toned">
+              {{ plant.sv_name }}
+            </p>
+
+            <!-- Plant type and attributes badges -->
+            <div v-if="showDetailed" class="flex flex-wrap gap-1 mb-2 mt-1">
+              <UBadge v-if="plant.plant_type" color="neutral" variant="soft" class="text-xs">
+                {{ plant.plant_type }}
+              </UBadge>
+              <UBadge
+                v-if="plant.rhs_types && plant.rhs_types.length > 0"
+                color="neutral"
+                variant="soft"
+                class="text-xs"
+              >
+                {{ getAllRhsTypeLabels(plant.rhs_types).join(', ') }}
+              </UBadge>
+              <UBadge
+                v-if="plant.plant_attributes && plant.plant_attributes.height"
+                color="neutral"
+                variant="soft"
+                class="text-xs"
+              >
+                {{ plant.plant_attributes.height }}
+              </UBadge>
+              <UBadge
+                v-if="plant.plant_attributes && plant.plant_attributes.spread"
+                color="neutral"
+                variant="soft"
+                class="text-xs"
+              >
+                {{ plant.plant_attributes.spread }}
+              </UBadge>
+            </div>
+
+            <!-- Grupp and Serie information -->
+            <div class="flex flex-wrap gap-1" v-if="plant.grupp || plant.serie">
+              <UBadge v-if="plant.grupp" color="primary" variant="soft" class="text-xs">
+                Grupp: {{ plant.grupp }}
+              </UBadge>
+              <UBadge v-if="plant.serie" color="primary" variant="soft" class="text-xs">
+                Serie: {{ plant.serie }}
+              </UBadge>
+            </div>
+          </div>
+
+          <!-- Price information -->
+          <div class="" v-if="priceRange.min !== null">
+            <div class="flex flex-col items-end gap-1 text-right">
+              <span class="font-bold text-base leading-none">
+                {{ formatPriceRange(priceRange) }}
+              </span>
+              <span class="text-t-toned text-xs">
+                <span v-if="plant.plantskolor_count > 1">
+                  {{ plant.plantskolor_count }} plantskolor
+                </span>
+                <span v-else>1 plantskola</span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped></style>

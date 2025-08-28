@@ -22,6 +22,10 @@ logs
 .env
 .env.*
 !.env.example
+
+# Test files with potential sensitive data
+test-sitemap.cjs
 skud-types.md
 test-import.csv
 test.get.ts
+git-filter-repo.py

@@ -1,4 +1,5 @@
 import type { Facit, AvailablePlantSearchResult, AvailablePlantSimilaritySearchResult, EnhancedPlantSearchResult } from '~/types/supabase-tables';
+import { ErrorHandler, DatabaseError } from '~/utils/errors';
 
 export interface SearchResult {
   results: Facit[];
@@ -129,8 +130,8 @@ export const useSearch = () => {
       const { data, error } = await rpcCall;
 
       if (error) {
-        console.error(`${searchFunction} RPC error:`, error);
-        throw error;
+        ErrorHandler.logError(ErrorHandler.handleSupabaseError(error), `searchPlants-${searchFunction}`);
+        throw ErrorHandler.handleSupabaseError(error);
       }
 
       const results = (data as any[]) || [];
@@ -145,7 +146,8 @@ export const useSearch = () => {
         searchTime,
       };
     } catch (error) {
-      console.error('Plant search error:', error);
+      const appError = error instanceof Error ? ErrorHandler.handleSupabaseError(error) : new DatabaseError('Unknown search error');
+      ErrorHandler.logError(appError, 'searchPlants');
       const searchTime = performance.now() - startTime;
       return {
         results: [],

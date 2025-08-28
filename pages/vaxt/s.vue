@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import type { AvailablePlantSimilaritySearchResult } from '~/types/supabase-tables';
+import { validateSearchInput } from '~/utils/validation';
 
-const supabase = useSupabaseClient();
 const route = useRoute();
 const router = useRouter();
 const { searchPlants } = useSearch();
 
-const { isMobile, isDesktop } = useScreen();
+const { isMobile } = useScreen();
 
 // URL sort mapping for Swedish URLs
 const sortUrlMapping = {
@@ -170,7 +170,7 @@ watch(showDetailedInfo, (newValue) => {
  * Shows all plants when no search term, otherwise searches with any length input
  * Uses intelligent sorting: popularity by default when no search, relevance when searching
  */
-async function performSearch(immediate = false) {
+async function performSearch() {
   loading.value = true;
   errorMsg.value = '';
 
@@ -185,10 +185,13 @@ async function performSearch(immediate = false) {
   router.replace({ query });
 
   try {
+    // Validate search input before processing
+    const { query: validatedQuery } = validateSearchInput(search.value || '', sortBy.value);
+
     const offset = (currentPage.value - 1) * itemsPerPage;
 
     // Use the enhanced search function with sorting
-    const result = await searchPlants(search.value || '', {
+    const result = await searchPlants(validatedQuery, {
       limit: itemsPerPage,
       offset,
       includeCount: true, // Include total count for pagination
@@ -211,7 +214,7 @@ async function performSearch(immediate = false) {
 // Trigger search on button click or Enter key
 function onSearch() {
   currentPage.value = 1; // Reset to first page
-  performSearch(true);
+  performSearch();
 }
 
 // Handle sort change
@@ -301,7 +304,27 @@ useHead({
   ],
 });
 
-const testVar = ref(1234567); // Example variable for testing purposes
+// View mode toggle - list or grid with localStorage persistence
+const viewMode = ref<'list' | 'grid'>('grid');
+
+// Load saved view mode from localStorage on client
+onMounted(() => {
+  if (import.meta.client) {
+    const savedViewMode = localStorage.getItem('sok-view-mode');
+    if (savedViewMode === 'grid' || savedViewMode === 'list') {
+      viewMode.value = savedViewMode;
+    }
+  }
+});
+
+// Save view mode to localStorage when it changes
+watch(viewMode, (newMode) => {
+  if (import.meta.client) {
+    localStorage.setItem('sok-view-mode', newMode);
+  }
+});
+
+const expandSettings = ref(false);
 </script>
 
 <template>
@@ -359,31 +382,122 @@ const testVar = ref(1234567); // Example variable for testing purposes
         option-attribute="label"
         size="xl"
         @change="onSortChange"
+        class="max-sm:w-full w-40 max-md:hidden"
+        icon="i-material-symbols-sort"
+      />
+      <!-- View toggle buttons with sliding animation -->
+      <div class="relative grid grid-cols-2 rounded-lg p-1 border border-border max-md:hidden">
+        <!-- Sliding indicator background -->
+        <div
+          class="absolute top-1 bottom-1 rounded-md border border-border bg-bg-elevated transition-all duration-300 ease-out"
+          :class="{
+            'left-1 right-1/2 mr-0.5': viewMode === 'list',
+            'right-1 left-1/2 ml-0.5': viewMode === 'grid',
+          }"
+        />
+
+        <!-- Toggle buttons -->
+        <button
+          @click="viewMode = 'list'"
+          class="relative z-10 flex items-center gap-1.5 px-3 py-[3px] text-base font-medium transition-colors duration-300 ease-out rounded-md"
+          :class="{
+            '': viewMode === 'list',
+            'text-t-toned': viewMode !== 'list',
+          }"
+          :aria-pressed="viewMode === 'list'"
+          aria-label="Visa som små"
+        >
+          <UIcon name="i-heroicons-list-bullet" class="w-4 h-4" />
+          <span>Små</span>
+        </button>
+
+        <button
+          @click="viewMode = 'grid'"
+          class="relative z-10 flex items-center gap-1.5 px-3 py-[3px] text-base font-medium transition-colors duration-300 ease-out rounded-md"
+          :class="{
+            '': viewMode === 'grid',
+            'text-t-toned': viewMode !== 'grid',
+          }"
+          :aria-pressed="viewMode === 'grid'"
+          aria-label="Visa som stora"
+        >
+          <UIcon name="i-heroicons-squares-2x2" class="w-4 h-4" />
+          <span>Stora</span>
+        </button>
+      </div>
+      <div class="max-md:hidden">
+        <UButton
+          @click="expandSettings = !expandSettings"
+          :icon="expandSettings ? 'material-symbols:cancel-outline-rounded' : 'i-heroicons-cog'"
+          size="xl"
+          color="neutral"
+          variant="outline"
+          class="relative overflow-hidden"
+          :ui="{
+            leadingIcon:
+              'transition-transform duration-300 ease-out' +
+              (expandSettings ? ' rotate-180' : ' rotate-0'),
+          }"
+        />
+      </div>
+    </div>
+
+    <!-- Mobile -->
+    <div class="md:hidden mb-4 flex flex-col items-stretch gap-4">
+      <USelect
+        v-model="sortBy"
+        :items="availableSortOptions"
+        value-attribute="value"
+        option-attribute="label"
+        size="xl"
+        @change="onSortChange"
         class="max-sm:w-full w-40"
         icon="i-material-symbols-sort"
       />
+      <div>
+        <div class="relative grid grid-cols-2 rounded-lg p-1 border border-border w-full">
+          <!-- Sliding indicator background -->
+          <div
+            class="absolute top-1 bottom-1 rounded-md border border-border bg-bg-elevated transition-all duration-300 ease-out"
+            :class="{
+              'left-1 right-1/2 mr-0.5': viewMode === 'list',
+              'right-1 left-1/2 ml-0.5': viewMode === 'grid',
+            }"
+          />
+          <!-- Toggle buttons -->
+          <button
+            @click="viewMode = 'list'"
+            class="relative z-10 flex justify-center items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
+            :class="{
+              '': viewMode === 'list',
+              'text-t-toned': viewMode !== 'list',
+            }"
+            :aria-pressed="viewMode === 'list'"
+            aria-label="Visa som lista"
+          >
+            <UIcon name="i-heroicons-list-bullet" class="w-4 h-4" />
+            <span>Lista</span>
+          </button>
+          <button
+            @click="viewMode = 'grid'"
+            class="relative z-10 flex justify-center items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors duration-300 ease-out rounded-md"
+            :class="{
+              '': viewMode === 'grid',
+              'text-t-toned': viewMode !== 'grid',
+            }"
+            :aria-pressed="viewMode === 'grid'"
+            aria-label="Visa som rutnät"
+          >
+            <UIcon name="i-heroicons-squares-2x2" class="w-4 h-4" />
+            <span>Rutnät</span>
+          </button>
+        </div>
+      </div>
     </div>
-
-    <!-- Sort controls -->
-    <!-- <div
-      class="flex items-center justify-between mb-4 max-sm:flex-col max-sm:items-start max-sm:gap-2"
-    >
-      <div class="flex items-center gap-3">
-        <span class="text-sm text-t-muted font-medium">Sortera:</span>
-      </div>
-      <div class="flex items-center gap-2 mb-2">
-        <USwitch v-model="showDetailedInfo" size="xs" />
-        <span class="text-sm text-t-muted">Detaljerad information</span>
-      </div>
-      <div class="flex items-center gap-2 mb-2">
-        <USwitch v-model="showDetailedInfo" size="xs" />
-        <span class="text-sm text-t-muted">Detaljerad information</span>
-      </div>
-    </div> -->
 
     <!-- Search results info -->
     <div v-if="hasSearched && !loading" class="mb-6">
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div class="flex flex-col sm:flex-row sm:justify-between gap-2">
         <p class="text-t-muted">
           <span v-if="searchResults.length > 0">
             Visar {{ (currentPage - 1) * itemsPerPage + 1 }}-{{
@@ -396,10 +510,23 @@ const testVar = ref(1234567); // Example variable for testing purposes
         <!-- <p v-if="searchTime > 0" class="text-sm text-t-muted">
           Söktid: {{ Math.round(searchTime) }}ms
         </p> -->
-        <div class="flex items-center gap-2 mb-2">
-          <USwitch v-model="showDetailedInfo" size="xs" />
-          <span class="text-sm text-t-muted">Detaljerad information</span>
-        </div>
+        <Transition
+          enter-active-class="transition-all duration-300 ease-out"
+          enter-from-class="opacity-0 transform -translate-y-2 scale-95"
+          enter-to-class="opacity-100 transform translate-y-0 scale-100"
+          leave-active-class="transition-all duration-200 ease-in"
+          leave-from-class="opacity-100 transform translate-y-0 scale-100"
+          leave-to-class="opacity-0 transform -translate-y-2 scale-95"
+        >
+          <div v-if="expandSettings" class="overflow-hidden">
+            <div
+              class="flex items-center gap-2 mb-2 p-3 bg-bg-elevated border border-border rounded-lg"
+            >
+              <USwitch v-model="showDetailedInfo" size="xs" />
+              <span class="text-sm text-t-toned">Detaljerad information</span>
+            </div>
+          </div>
+        </Transition>
       </div>
     </div>
 
@@ -421,13 +548,26 @@ const testVar = ref(1234567); // Example variable for testing purposes
     <!-- Search results -->
     <div v-else-if="hasSearched">
       <div v-if="searchResults.length > 0" class="space-y-4">
-        <!-- Results grid -->
-        <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <!-- Results container - conditional layout based on view mode -->
+        <div
+          v-if="viewMode === 'list'"
+          class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3"
+        >
           <SearchResultCard
             v-for="plant in searchResults"
             :key="plant.id"
             :plant="plant"
             :show-detailed="showDetailedInfo"
+            :view-mode="viewMode"
+          />
+        </div>
+        <div v-else class="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <SearchResultCard
+            v-for="plant in searchResults"
+            :key="plant.id"
+            :plant="plant"
+            :show-detailed="showDetailedInfo"
+            :view-mode="viewMode"
           />
         </div>
         <!-- Pagination -->
